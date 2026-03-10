@@ -1,0 +1,45 @@
+services:
+  frontend:
+    build: ./frontend
+    container_name: playlist-generator-frontend
+    environment:
+      - NUXT_MUSIC_SERVICE_URL=http://music-service:8000
+      - NUXT_JELLYFIN_URL=${JELLYFIN_URL}
+      - NUXT_JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - NUXT_JELLYFIN_USER_ID=${JELLYFIN_USER_ID}
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      music-service:
+        condition: service_healthy
+    networks:
+      - nas-network
+    restart: unless-stopped
+
+  music-service:
+    build: ./service
+    container_name: playlist-generator-service
+    environment:
+      - JELLYFIN_URL=${JELLYFIN_URL}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - JELLYFIN_USER_ID=${JELLYFIN_USER_ID}
+      - LASTFM_API_KEY=${LASTFM_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_PATH=/app/data/music.duckdb
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8100:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - nas-network
+    restart: unless-stopped
+
+networks:
+  nas-network:
+    external: true
