@@ -67,25 +67,31 @@ class AudioFeatures:
         ])
 
 
+def to_python_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
 def normalize_bpm(bpm: float, min_bpm: float = 60, max_bpm: float = 200) -> float:
     """Normalize BPM to 0-1 scale."""
-    return max(0.0, min(1.0, (bpm - min_bpm) / (max_bpm - min_bpm)))
+    return float(max(0.0, min(1.0, (bpm - min_bpm) / (max_bpm - min_bpm))))
 
 
 def normalize_loudness(rms: float, min_db: float = -60, max_db: float = 0) -> float:
     """Normalize RMS loudness to 0-1 scale."""
     db = 20 * np.log10(rms + 1e-10)
-    return max(0.0, min(1.0, (db - min_db) / (max_db - min_db)))
+    return float(max(0.0, min(1.0, (db - min_db) / (max_db - min_db))))
 
 
 def normalize_spectral_centroid(centroid: float, min_hz: float = 500, max_hz: float = 8000) -> float:
     """Normalize spectral centroid to 0-1 scale."""
-    return max(0.0, min(1.0, (centroid - min_hz) / (max_hz - min_hz)))
+    return float(max(0.0, min(1.0, (centroid - min_hz) / (max_hz - min_hz))))
 
 
 def normalize_spectral_flatness(flatness: float) -> float:
     """Normalize spectral flatness (already 0-1)."""
-    return max(0.0, min(1.0, flatness))
+    return float(max(0.0, min(1.0, flatness)))
 
 
 def analyze_audio_file(
@@ -196,17 +202,17 @@ def save_audio_features(features: AudioFeatures) -> None:
                     analyzed_at = now()
             """, (
                 features.track_id,
-                features.bpm,
-                features.loudness_rms,
-                features.loudness_lufs,
-                features.spectral_centroid,
-                features.spectral_flatness,
-                features.dynamic_range,
+                to_python_float(features.bpm),
+                to_python_float(features.loudness_rms),
+                to_python_float(features.loudness_lufs),
+                to_python_float(features.spectral_centroid),
+                to_python_float(features.spectral_flatness),
+                to_python_float(features.dynamic_range),
                 features.key_estimate,
-                features.bpm_norm,
-                features.loudness_norm,
-                features.brightness_norm,
-                features.flatness_norm,
+                to_python_float(features.bpm_norm),
+                to_python_float(features.loudness_norm),
+                to_python_float(features.brightness_norm),
+                to_python_float(features.flatness_norm),
             ))
             conn.commit()
 

@@ -9,7 +9,7 @@ Implements the v4 architecture:
 
 import logging
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -71,16 +71,8 @@ class CandidateTrack:
     gravity_penalty: float = 0.0
     duration_penalty: float = 0.0
 
-    # Computed total
-    _total_score: float | None = None
-
     @property
     def total_score(self) -> float:
-        """Compute total score with v4 weights."""
-        if self._total_score is not None:
-            return self._total_score
-
-        # v4 scoring formula (normalized components)
         return (
             self.semantic_score * 0.25 +
             self.trajectory_score * 0.35 -
@@ -290,14 +282,16 @@ def generate_position_pools(
                 track.duration_ms, prev_duration
             )
 
-            # Update track scores
-            track.trajectory_score = traj_score
-            track.gravity_penalty = grav_penalty
-            track.duration_penalty = dur_penalty
+            scored_track = replace(
+                track,
+                trajectory_score=traj_score,
+                gravity_penalty=grav_penalty,
+                duration_penalty=dur_penalty,
+            )
 
             # Compute total for sorting
-            total = track.total_score
-            scored_candidates.append((track, total))
+            total = scored_track.total_score
+            scored_candidates.append((scored_track, total))
 
         # Sort by total score and take top pool_size
         scored_candidates.sort(key=lambda x: x[1], reverse=True)

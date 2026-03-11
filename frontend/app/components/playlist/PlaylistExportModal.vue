@@ -25,7 +25,7 @@ const exportOptions = [
 </script>
 
 <template>
-  <UModal :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
+  <UModal :open="modelValue" @update:open="emit('update:modelValue', $event)">
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
