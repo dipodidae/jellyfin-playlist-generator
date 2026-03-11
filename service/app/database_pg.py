@@ -211,8 +211,16 @@ def init_database() -> None:
                     computed_at TIMESTAMPTZ DEFAULT now()
                 )
             """)
-            # IVFFlat index for fast similarity search (create after data is loaded)
-            # cur.execute("CREATE INDEX IF NOT EXISTS idx_embeddings_vector ON track_embeddings USING ivfflat (embedding vector_cosine_ops)")
+            # IVFFlat index: created only when enough embeddings exist (≥1000)
+            cur.execute("SELECT COUNT(*) FROM track_embeddings")
+            embedding_count = (cur.fetchone() or [0])[0]
+            if embedding_count >= 1000:
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_embeddings_vector
+                    ON track_embeddings USING ivfflat (embedding vector_cosine_ops)
+                    WITH (lists = 100)
+                """)
+                logger.info(f"IVFFlat index ensured ({embedding_count} embeddings)")
 
             # Semantic track profiles (4D: energy, darkness, tempo, texture)
             cur.execute("""
@@ -292,6 +300,24 @@ def init_database() -> None:
                     constraint_rejections INTEGER DEFAULT 0,
                     bridge_tracks_used INTEGER DEFAULT 0,
                     created_at TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+
+            # Scene clusters (created here so stats queries always work)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS scene_clusters (
+                    id INTEGER PRIMARY KEY,
+                    name VARCHAR(100),
+                    centroid vector(384),
+                    size INTEGER
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS artist_clusters (
+                    artist_id UUID REFERENCES artists(id) ON DELETE CASCADE,
+                    cluster_id INTEGER REFERENCES scene_clusters(id),
+                    weight FLOAT,
+                    PRIMARY KEY (artist_id, cluster_id)
                 )
             """)
 
@@ -400,6 +426,26 @@ def get_stats() -> dict:
 
         cur.execute("SELECT COUNT(*) FROM track_profiles")
         stats["tracks_with_profiles"] = cur.fetchone()[0]
+
+        # Cluster counts (use SAVEPOINT so a missing table can't abort the txn)
+        cur.execute("SAVEPOINT sp_clusters")
+        try:
+            cur.execute("SELECT COUNT(*) FROM scene_clusters")
+            stats["scene_clusters"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(DISTINCT artist_id) FROM artist_clusters")
+            stats["artists_clustered"] = cur.fetchone()[0]
+            cur.execute("RELEASE SAVEPOINT sp_clusters")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT sp_clusters")
+            stats["scene_clusters"] = 0
+            stats["artists_clustered"] = 0
+
+        # IVFFlat index status
+        cur.execute("""
+            SELECT COUNT(*) FROM pg_indexes
+            WHERE tablename = 'track_embeddings' AND indexname = 'idx_embeddings_vector'
+        """)
+        stats["vector_index_built"] = cur.fetchone()[0] > 0
 
         return stats
 

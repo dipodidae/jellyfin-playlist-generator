@@ -1,3 +1,10 @@
+export interface ColdStartStatus {
+  embedding_coverage: number
+  ready_for_generation: boolean
+  quality_level: 'low' | 'medium' | 'high'
+  recommendation: string | null
+}
+
 export interface LibraryStats {
   tracks: number
   artists: number
@@ -12,6 +19,10 @@ export interface LibraryStats {
   tracks_with_tags?: number
   tracks_with_embeddings?: number
   tracks_with_profiles?: number
+  scene_clusters?: number
+  artists_clustered?: number
+  vector_index_built?: boolean
+  cold_start?: ColdStartStatus
 }
 
 export interface ScanStats {

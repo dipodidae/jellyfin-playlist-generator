@@ -5,11 +5,9 @@ defineProps<{
   stats: LibraryStats | null
   isSyncing: boolean
   lastSyncTime: Date | null
-  showSettings: boolean
 }>()
 
 const emit = defineEmits<{
-  'toggle-settings': []
   scan: []
 }>()
 </script>
@@ -33,17 +31,10 @@ const emit = defineEmits<{
         Last sync: {{ lastSyncTime.toLocaleTimeString() }}
       </span>
       <UButton
-        variant="ghost"
-        size="sm"
-        icon="i-heroicons-cog-6-tooth"
-        @click="emit('toggle-settings')"
-      />
-      <UButton
         :loading="isSyncing"
         :disabled="isSyncing"
         variant="soft"
         size="sm"
-        icon="i-heroicons-arrow-path"
         @click="emit('scan')"
       >
         {{ isSyncing ? 'Scanning...' : 'Scan Library' }}

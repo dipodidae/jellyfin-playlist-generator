@@ -85,7 +85,7 @@ def update_track_usage(track_ids: list[str]) -> None:
     """Update track usage for playlist memory."""
     if not track_ids:
         return
-    
+
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -102,34 +102,66 @@ def update_track_usage(track_ids: list[str]) -> None:
         logger.error(f"Failed to update track usage: {e}")
 
 
+def get_track_usage_penalties(track_ids: list[str], decay_days: float = 30.0) -> dict[str, float]:
+    """
+    Get usage penalties for multiple tracks in a single query.
+
+    Returns a dict mapping track_id -> penalty (0.0 if not used).
+    """
+    if not track_ids:
+        return {}
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT track_id,
+                           usage_count,
+                           EXTRACT(EPOCH FROM (now() - last_used_at)) / 86400 AS days_since
+                    FROM track_usage
+                    WHERE track_id = ANY(%s)
+                """, (track_ids,))
+                rows = cur.fetchall()
+
+        result: dict[str, float] = {}
+        for row in rows:
+            tid, usage_count, days_since = str(row[0]), row[1], row[2] or 0
+            penalty = usage_count * math.exp(-days_since / decay_days) * 0.1
+            result[tid] = min(penalty, 0.5)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get batch track usage penalties: {e}")
+        return {}
+
+
 def get_track_usage_penalty(track_id: str, decay_days: float = 30.0) -> float:
     """
     Get usage penalty for a track with time decay.
-    
+
     Penalty decays exponentially: usage_count * exp(-days_since / decay_days) * 0.1
     """
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT usage_count, 
+                    SELECT usage_count,
                            EXTRACT(EPOCH FROM (now() - last_used_at)) / 86400 as days_since
                     FROM track_usage
                     WHERE track_id = %s
                 """, (track_id,))
-                
+
                 row = cur.fetchone()
                 if not row:
                     return 0.0
-                
+
                 usage_count, days_since = row
                 if days_since is None:
                     days_since = 0
-                
+
                 # Exponential decay
                 penalty = usage_count * math.exp(-days_since / decay_days) * 0.1
                 return min(penalty, 0.5)  # Cap at 0.5
-                
+
     except Exception as e:
         logger.error(f"Failed to get track usage: {e}")
         return 0.0
@@ -142,13 +174,13 @@ def get_embedding_coverage() -> float:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) FROM tracks")
                 total = cur.fetchone()[0]
-                
+
                 if total == 0:
                     return 0.0
-                
+
                 cur.execute("SELECT COUNT(*) FROM track_embeddings WHERE status = 'ready'")
                 with_embeddings = cur.fetchone()[0]
-                
+
                 return with_embeddings / total
     except Exception as e:
         logger.error(f"Failed to get embedding coverage: {e}")
@@ -160,19 +192,19 @@ def check_cold_start() -> dict[str, Any]:
     Check cold start status and return recommendations.
     """
     coverage = get_embedding_coverage()
-    
+
     status = {
         "embedding_coverage": coverage,
         "ready_for_generation": coverage >= 0.1,
         "quality_level": "low" if coverage < 0.3 else "medium" if coverage < 0.7 else "high",
         "recommendation": None,
     }
-    
+
     if coverage < 0.1:
         status["recommendation"] = "Run embedding enrichment before generating playlists"
     elif coverage < 0.3:
         status["recommendation"] = "Playlist quality may be limited. Consider enriching more tracks."
-    
+
     return status
 
 
@@ -182,7 +214,7 @@ def get_generation_stats(days: int = 7) -> dict[str, Any]:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT 
+                    SELECT
                         COUNT(*) as total_generations,
                         AVG(generation_time_ms) as avg_time_ms,
                         AVG(playlist_length) as avg_length,
@@ -191,11 +223,11 @@ def get_generation_stats(days: int = 7) -> dict[str, Any]:
                     FROM playlist_generation_log
                     WHERE created_at > now() - interval '%s days'
                 """, (days,))
-                
+
                 row = cur.fetchone()
                 if not row:
                     return {}
-                
+
                 return {
                     "total_generations": row[0] or 0,
                     "avg_time_ms": round(row[1] or 0, 1),

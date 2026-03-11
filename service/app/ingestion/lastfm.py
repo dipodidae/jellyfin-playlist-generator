@@ -180,52 +180,85 @@ def save_track_stats(cur, track_id: str, stats: dict[str, int]) -> None:
     )
 
 
+def persist_artist_enrichment(
+    artist_id: str,
+    tags: list[dict[str, Any]],
+    similar_artists: list[dict[str, Any]],
+) -> tuple[int, int]:
+    tags_added = 0
+    similarities_added = 0
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            if tags:
+                tags_added = save_artist_tags(cur, artist_id, tags)
+            if similar_artists:
+                similarities_added = save_artist_similarity(cur, artist_id, similar_artists)
+    return tags_added, similarities_added
+
+
+def persist_track_enrichment(
+    track_id: str,
+    tags: list[dict[str, Any]],
+    track_stats_data: dict[str, int] | None,
+) -> tuple[int, int]:
+    tags_added = 0
+    stats_added = 0
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            if tags:
+                tags_added = save_track_tags(cur, track_id, tags)
+            if track_stats_data:
+                save_track_stats(cur, track_id, track_stats_data)
+                stats_added = 1
+    return tags_added, stats_added
+
+
 async def enrich_artists_from_lastfm(
     batch_size: int = 50,
     delay_between_requests: float = 0.2,
+    progress_callback: Any = None,
 ) -> dict[str, int]:
     """Fetch tags and similar artists for all artists in the database."""
     network = get_lastfm_network()
-    conn = get_connection()
-    cur = conn.cursor()
 
-    cur.execute(
-        """
-        SELECT a.id, a.name
-        FROM artists a
-        LEFT JOIN artist_lastfm_tags alt ON a.id = alt.artist_id
-        WHERE alt.artist_id IS NULL
-        ORDER BY (SELECT COUNT(*) FROM tracks t WHERE t.artist_id = a.id) DESC
-        """
-    )
-    artists = cur.fetchall()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT a.id, a.name
+                FROM artists a
+                LEFT JOIN artist_lastfm_tags alt ON a.id = alt.artist_id
+                WHERE alt.artist_id IS NULL
+                ORDER BY (
+                    SELECT COUNT(*) FROM track_artists ta WHERE ta.artist_id = a.id
+                ) DESC
+            """)
+            artists = cur.fetchall()
 
-    stats = {"artists_processed": 0, "tags_added": 0, "similarities_added": 0}
-    logger.info(f"Enriching {len(artists)} artists from Last.fm")
+    stats: dict[str, int] = {"artists_processed": 0, "tags_added": 0, "similarities_added": 0}
+    total = len(artists)
+    logger.info(f"Enriching {total} artists from Last.fm")
 
     for i, (artist_id, artist_name) in enumerate(artists):
         tags = await fetch_artist_tags(network, artist_name)
-        if tags:
-            stats["tags_added"] += save_artist_tags(cur, artist_id, tags)
-
         similar = await fetch_similar_artists(network, artist_name)
-        if similar:
-            stats["similarities_added"] += save_artist_similarity(cur, artist_id, similar)
 
+        tags_added, similarities_added = persist_artist_enrichment(str(artist_id), tags, similar)
+        stats["tags_added"] += tags_added
+        stats["similarities_added"] += similarities_added
         stats["artists_processed"] += 1
 
-        # Commit every 10 artists to save progress frequently
-        if (i + 1) % 10 == 0:
-            conn.commit()
-            
+        if progress_callback and (i + 1) % 10 == 0:
+            pct = int(((i + 1) / total) * 100)
+            progress_callback(i + 1, total, f"Enriched {i + 1}/{total} artists")
+
         if (i + 1) % 50 == 0:
-            logger.info(f"Enriched {i + 1}/{len(artists)} artists (saved to DB)")
+            logger.info(f"Enriched {i + 1}/{total} artists (saved to DB)")
 
         await asyncio.sleep(delay_between_requests)
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    if progress_callback:
+        progress_callback(total, total, f"Last.fm enrichment complete: {total} artists processed")
+
     return stats
 
 
@@ -233,16 +266,16 @@ async def enrich_tracks_from_lastfm(
     batch_size: int = 100,
     delay_between_requests: float = 0.2,
     max_tracks: int | None = None,
+    progress_callback: Any = None,
 ) -> dict[str, int]:
     """Fetch tags for tracks from Last.fm. Prioritizes tracks without tags."""
     network = get_lastfm_network()
-    conn = get_connection()
-    cur = conn.cursor()
 
     query = """
         SELECT t.id, t.title, a.name as artist_name
         FROM tracks t
-        JOIN artists a ON t.artist_id = a.id
+        LEFT JOIN track_artists ta ON ta.track_id = t.id AND ta.role = 'primary'
+        LEFT JOIN artists a ON ta.artist_id = a.id
         LEFT JOIN track_lastfm_tags tlt ON t.id = tlt.track_id
         WHERE tlt.track_id IS NULL
         ORDER BY RANDOM()
@@ -250,34 +283,33 @@ async def enrich_tracks_from_lastfm(
     if max_tracks:
         query += f" LIMIT {max_tracks}"
 
-    cur.execute(query)
-    tracks = cur.fetchall()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            tracks = cur.fetchall()
 
-    stats = {"tracks_processed": 0, "tags_added": 0, "stats_added": 0}
-    logger.info(f"Enriching {len(tracks)} tracks from Last.fm")
+    stats: dict[str, int] = {"tracks_processed": 0, "tags_added": 0, "stats_added": 0}
+    total = len(tracks)
+    logger.info(f"Enriching {total} tracks from Last.fm")
 
     for i, (track_id, title, artist_name) in enumerate(tracks):
-        tags = await fetch_track_tags(network, artist_name, title)
-        if tags:
-            stats["tags_added"] += save_track_tags(cur, track_id, tags)
+        tags = await fetch_track_tags(network, artist_name or "", title)
+        track_stats_data = await fetch_track_stats(network, artist_name or "", title)
 
-        track_stats = await fetch_track_stats(network, artist_name, title)
-        if track_stats:
-            save_track_stats(cur, track_id, track_stats)
-            stats["stats_added"] += 1
-
+        tags_added, stats_added = persist_track_enrichment(str(track_id), tags, track_stats_data)
+        stats["tags_added"] += tags_added
+        stats["stats_added"] += stats_added
         stats["tracks_processed"] += 1
 
-        # Commit every 20 tracks to save progress frequently
-        if (i + 1) % 20 == 0:
-            conn.commit()
-            
+        if progress_callback and (i + 1) % 20 == 0:
+            progress_callback(i + 1, total, f"Enriched {i + 1}/{total} tracks")
+
         if (i + 1) % 100 == 0:
-            logger.info(f"Enriched {i + 1}/{len(tracks)} tracks (saved to DB)")
+            logger.info(f"Enriching {i + 1}/{total} tracks (saved to DB)")
 
         await asyncio.sleep(delay_between_requests)
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    if progress_callback:
+        progress_callback(total, total, f"Last.fm track enrichment complete: {total} tracks processed")
+
     return stats

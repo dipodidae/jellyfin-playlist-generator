@@ -23,9 +23,11 @@ from app.export.m3u import (
     get_path_mappings, create_path_mapping, delete_path_mapping,
     export_tracks_to_file, export_playlist_to_file, generate_m3u, get_track_files
 )
-from app.trajectory.intent import parse_prompt
-from app.trajectory.composer import compose_playlist
+from app.trajectory.composer_v4 import compose_playlist_v4, compose_playlist_v4_streaming
 from app.trajectory.title_generator import generate_playlist_title
+from app.observability import log_generation, update_track_usage, check_cold_start
+from app.clustering.scenes import generate_clusters
+from app.audio.analyzer import analyze_library
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -406,12 +408,24 @@ async def health_check():
 
 @router.get("/stats")
 async def get_library_stats():
-    """Get library statistics."""
+    """Get library statistics including enrichment coverage and cold-start quality."""
     try:
         stats = get_stats()
+        stats["cold_start"] = check_cold_start()
         return stats
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/generation-stats")
+async def get_playlist_generation_stats(days: int = Query(default=7, ge=1, le=90)):
+    """Get playlist generation statistics for the last N days."""
+    try:
+        from app.observability import get_generation_stats
+        return get_generation_stats(days=days)
+    except Exception as e:
+        logger.error(f"Error getting generation stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -592,11 +606,98 @@ async def get_scan_job_detail(job_id: str):
 # Enrichment Operations
 # ============================================================================
 
+def _make_enrichment_stream(label: str, coro_factory):
+    """
+    Return a StreamingResponse that runs an async enrichment coroutine and
+    emits SSE progress events.  coro_factory must be a zero-arg callable that
+    returns the coroutine (so we can pass a progress_callback into it).
+    """
+    def format_completion_message(stats: dict | None) -> str:
+        if not stats:
+            return f"{label} complete"
+        if {"processed", "success", "failed", "skipped"} <= stats.keys():
+            return (
+                f"{label} complete: {stats['success']} succeeded, "
+                f"{stats['failed']} failed, {stats['skipped']} skipped "
+                f"({stats['processed']} processed)"
+            )
+        if {"artists", "clusters"} <= stats.keys():
+            small_assigned = stats.get("small_artists_assigned", 0)
+            return (
+                f"{label} complete: {stats['clusters']} clusters from "
+                f"{stats['artists']} artists, {small_assigned} small artists assigned"
+            )
+        if {"processed", "created", "fallback", "skipped"} <= stats.keys():
+            return (
+                f"{label} complete: {stats['created']} created, "
+                f"{stats['fallback']} fallback, {stats['skipped']} skipped "
+                f"({stats['processed']} processed)"
+            )
+        if {"processed", "embedded", "errors"} <= stats.keys():
+            return (
+                f"{label} complete: {stats['embedded']} embedded, "
+                f"{stats['errors']} errors ({stats['processed']} processed)"
+            )
+        return f"{label} complete"
+
+    async def generate_events() -> AsyncGenerator[str, None]:
+        queue: asyncio.Queue = asyncio.Queue()
+        sentinel = object()
+        result_holder: dict = {}
+
+        def progress_callback(current: int, total: int, message: str):
+            pct = int((current / total) * 100) if total > 0 else 0
+            queue.put_nowait({"progress": pct, "message": message, "current": current, "total": total})
+
+        async def run():
+            try:
+                result_holder["stats"] = await coro_factory(progress_callback)
+            except Exception as exc:
+                result_holder["error"] = str(exc)
+            finally:
+                queue.put_nowait(sentinel)
+
+        yield f"data: {json.dumps({'progress': 0, 'message': f'Starting {label}...'})}"
+        yield "\n\n"
+        task = asyncio.create_task(run())
+
+        while True:
+            item = await queue.get()
+            if item is sentinel:
+                break
+            yield f"data: {json.dumps(item)}"
+            yield "\n\n"
+
+        await task
+
+        if "error" in result_holder:
+            yield f"data: {json.dumps({'progress': 0, 'message': result_holder['error'], 'error': result_holder['error'], 'done': True})}"
+        else:
+            stats = result_holder.get("stats", {})
+            yield f"data: {json.dumps({'progress': 100, 'message': format_completion_message(stats), 'stats': stats, 'done': True})}"
+        yield "\n\n"
+
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
+
+
 @router.post("/enrich/lastfm")
 async def trigger_lastfm_enrichment(background_tasks: BackgroundTasks):
     """Trigger Last.fm artist enrichment (runs in background)."""
     background_tasks.add_task(enrich_artists_from_lastfm)
     return {"status": "started", "message": "Last.fm enrichment started in background"}
+
+
+@router.post("/enrich/lastfm/stream")
+async def trigger_lastfm_enrichment_stream():
+    """Trigger Last.fm artist enrichment with SSE progress."""
+    return _make_enrichment_stream(
+        "Last.fm enrichment",
+        lambda cb: enrich_artists_from_lastfm(progress_callback=cb),
+    )
 
 
 @router.post("/enrich/embeddings")
@@ -606,11 +707,61 @@ async def trigger_embedding_generation(background_tasks: BackgroundTasks):
     return {"status": "started", "message": "Embedding generation started in background"}
 
 
+@router.post("/enrich/embeddings/stream")
+async def trigger_embedding_generation_stream():
+    """Trigger embedding generation with SSE progress."""
+    return _make_enrichment_stream(
+        "Embedding generation",
+        lambda cb: generate_track_embeddings(progress_callback=cb),
+    )
+
+
 @router.post("/enrich/profiles")
 async def trigger_profile_generation(background_tasks: BackgroundTasks):
     """Trigger semantic profile generation (runs in background)."""
     background_tasks.add_task(generate_profiles)
     return {"status": "started", "message": "Profile generation started in background"}
+
+
+@router.post("/enrich/profiles/stream")
+async def trigger_profile_generation_stream():
+    """Trigger profile generation with SSE progress."""
+    return _make_enrichment_stream(
+        "Profile generation",
+        lambda cb: generate_profiles(progress_callback=cb),
+    )
+
+
+@router.post("/enrich/clusters")
+async def trigger_cluster_generation(background_tasks: BackgroundTasks):
+    """Trigger scene clustering (runs in background)."""
+    background_tasks.add_task(generate_clusters)
+    return {"status": "started", "message": "Cluster generation started in background"}
+
+
+@router.post("/enrich/clusters/stream")
+async def trigger_cluster_generation_stream():
+    """Trigger scene clustering with SSE progress."""
+    return _make_enrichment_stream(
+        "Scene clustering",
+        lambda cb: generate_clusters(progress_callback=cb),
+    )
+
+
+@router.post("/enrich/audio")
+async def trigger_audio_analysis(background_tasks: BackgroundTasks):
+    """Trigger audio feature analysis (runs in background, requires librosa)."""
+    background_tasks.add_task(analyze_library)
+    return {"status": "started", "message": "Audio analysis started in background"}
+
+
+@router.post("/enrich/audio/stream")
+async def trigger_audio_analysis_stream():
+    """Trigger audio feature analysis with SSE progress (requires librosa)."""
+    return _make_enrichment_stream(
+        "Audio analysis",
+        lambda cb: analyze_library(progress_callback=cb),
+    )
 
 
 # ============================================================================
@@ -654,39 +805,69 @@ async def remove_path_mapping(name: str):
 # Playlist Generation
 # ============================================================================
 
+_STEP_TO_STAGE: dict[int, str] = {
+    1: "parsing",
+    2: "trajectory",
+    3: "candidates",
+    4: "matching",
+    5: "composing",
+    6: "saving",
+}
+
+
+def _candidate_tracks_to_dicts(tracks) -> list[dict]:
+    """Convert CandidateTrack objects to API-serialisable dicts."""
+    return [
+        {
+            "id": str(t.id),
+            "title": t.title,
+            "artist_name": t.artist_name,
+            "album_name": t.album_name,
+            "year": t.year,
+            "duration_ms": t.duration_ms,
+        }
+        for t in tracks
+    ]
+
+
+def _save_playlist(prompt: str, tracks) -> str | None:
+    """Persist a generated playlist and return its UUID string."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO generated_playlists (prompt, track_count)
+                VALUES (%s, %s)
+                RETURNING id
+            """, (prompt, len(tracks)))
+            playlist_id = str(cur.fetchone()[0])
+
+            for i, track in enumerate(tracks):
+                track_id = track.id if hasattr(track, "id") else track["id"]
+                cur.execute("""
+                    INSERT INTO playlist_tracks (playlist_id, track_id, position)
+                    VALUES (%s, %s, %s)
+                """, (playlist_id, track_id, i))
+    return playlist_id
+
+
 @router.post("/generate-playlist")
 async def generate_playlist(request: GeneratePlaylistRequest):
-    """Generate a playlist from a prompt."""
+    """Generate a playlist from a prompt (non-streaming, v4 composer)."""
     try:
-        # Parse prompt
-        intent = parse_prompt(request.prompt)
+        result = await asyncio.to_thread(
+            compose_playlist_v4, request.prompt, request.size
+        )
 
-        # Compose playlist
-        tracks = compose_playlist(intent, target_size=request.size)
-
-        if not tracks:
+        if not result.tracks:
             raise HTTPException(status_code=404, detail="No matching tracks found")
 
-        # Generate title
-        title = generate_playlist_title(request.prompt, tracks)
+        tracks = _candidate_tracks_to_dicts(result.tracks)
+        artist_names = [t.artist_name for t in result.tracks if t.artist_name and t.artist_name != "Unknown"]
+        title = generate_playlist_title(request.prompt, artist_names)
 
-        # Save playlist if requested
         playlist_id = None
         if request.save:
-            with get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO generated_playlists (prompt, track_count)
-                        VALUES (%s, %s)
-                        RETURNING id
-                    """, (request.prompt, len(tracks)))
-                    playlist_id = str(cur.fetchone()[0])
-
-                    for i, track in enumerate(tracks):
-                        cur.execute("""
-                            INSERT INTO playlist_tracks (playlist_id, track_id, position)
-                            VALUES (%s, %s, %s)
-                        """, (playlist_id, track["id"], i))
+            playlist_id = await asyncio.to_thread(_save_playlist, request.prompt, result.tracks)
 
         return {
             "id": playlist_id,
@@ -696,9 +877,102 @@ async def generate_playlist(request: GeneratePlaylistRequest):
             "tracks": tracks,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error generating playlist: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/generate-playlist/stream")
+async def generate_playlist_stream(request: GeneratePlaylistRequest):
+    """Generate a playlist with SSE progress updates (v4 composer)."""
+
+    async def generate_events() -> AsyncGenerator[str, None]:
+        loop = asyncio.get_event_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        result_holder: dict = {}
+
+        def progress_callback(step: int, total: int, message: str):
+            stage = _STEP_TO_STAGE.get(step, "composing")
+            progress = int((step / total) * 90)
+            event = {"stage": stage, "progress": progress, "message": message}
+            loop.call_soon_threadsafe(queue.put_nowait, event)
+
+        def run_composer():
+            try:
+                result_holder["result"] = compose_playlist_v4_streaming(
+                    prompt=request.prompt,
+                    target_size=request.size,
+                    progress_callback=progress_callback,
+                )
+            except Exception as exc:
+                result_holder["error"] = str(exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        yield f"data: {json.dumps({'stage': 'parsing', 'progress': 0, 'message': 'Starting...'})}"
+        yield "\n\n"
+
+        composer_task = asyncio.ensure_future(asyncio.to_thread(run_composer))
+
+        while True:
+            event = await queue.get()
+            if event is None:
+                break
+            yield f"data: {json.dumps(event)}"
+            yield "\n\n"
+
+        await composer_task
+
+        if "error" in result_holder:
+            err = result_holder["error"]
+            logger.error(f"Playlist generation failed: {err}")
+            yield f"data: {json.dumps({'stage': 'error', 'progress': 0, 'message': 'Generation failed', 'error': err})}"
+            yield "\n\n"
+            return
+
+        result = result_holder.get("result")
+        if not result or not result.tracks:
+            yield f"data: {json.dumps({'stage': 'error', 'progress': 0, 'message': 'No matching tracks found', 'error': 'No tracks found for this prompt'})}"
+            yield "\n\n"
+            return
+
+        tracks = _candidate_tracks_to_dicts(result.tracks)
+        artist_names = [t.artist_name for t in result.tracks if t.artist_name and t.artist_name != "Unknown"]
+        title = await asyncio.to_thread(generate_playlist_title, request.prompt, artist_names)
+
+        playlist_id = None
+        if request.save:
+            try:
+                playlist_id = await asyncio.to_thread(_save_playlist, request.prompt, result.tracks)
+            except Exception as exc:
+                logger.error(f"Failed to save playlist: {exc}")
+
+        log_generation(
+            prompt=request.prompt,
+            arc_type=result.intent.arc_type.value,
+            playlist_length=len(result.tracks),
+            generation_time_ms=result.generation_time_ms,
+            metrics=result.metrics,
+        )
+        update_track_usage([str(t.id) for t in result.tracks])
+
+        playlist = {
+            "id": playlist_id,
+            "prompt": request.prompt,
+            "title": title,
+            "playlist_size": len(tracks),
+            "tracks": tracks,
+        }
+        yield f"data: {json.dumps({'stage': 'complete', 'progress': 100, 'message': 'Playlist ready', 'playlist': playlist})}"
+        yield "\n\n"
+
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
 
 
 @router.get("/playlists")

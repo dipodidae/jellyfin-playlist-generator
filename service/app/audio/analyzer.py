@@ -26,7 +26,12 @@ def get_librosa():
     """Lazy load librosa."""
     global _librosa
     if _librosa is None:
-        import librosa
+        try:
+            import librosa
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "Audio analysis requires librosa, but it is not installed in the backend environment."
+            ) from exc
         _librosa = librosa
     return _librosa
 
@@ -42,16 +47,16 @@ class AudioFeatures:
     spectral_flatness: float | None = None
     dynamic_range: float | None = None
     key_estimate: str | None = None
-    
+
     # Normalized versions (0-1 scale)
     bpm_norm: float | None = None
     loudness_norm: float | None = None
     brightness_norm: float | None = None
     flatness_norm: float | None = None
-    
+
     def as_vector(self) -> np.ndarray | None:
         """Return normalized features as vector for scoring."""
-        if any(v is None for v in [self.bpm_norm, self.loudness_norm, 
+        if any(v is None for v in [self.bpm_norm, self.loudness_norm,
                                     self.brightness_norm, self.flatness_norm]):
             return None
         return np.array([
@@ -89,50 +94,50 @@ def analyze_audio_file(
 ) -> AudioFeatures | None:
     """
     Analyze audio file and extract features.
-    
+
     Args:
         file_path: Path to audio file
         duration_limit: Only analyze first N seconds (default 60)
-        
+
     Returns:
         AudioFeatures or None if analysis fails
     """
     if not os.path.exists(file_path):
         logger.warning(f"Audio file not found: {file_path}")
         return None
-    
+
     try:
         librosa = get_librosa()
-        
+
         # Load audio (first 60 seconds only)
         y, sr = librosa.load(file_path, sr=22050, duration=duration_limit, mono=True)
-        
+
         if len(y) == 0:
             logger.warning(f"Empty audio file: {file_path}")
             return None
-        
+
         # BPM estimation
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
         bpm = float(tempo) if isinstance(tempo, (int, float)) else float(tempo[0])
-        
+
         # RMS loudness
         rms = float(np.sqrt(np.mean(y ** 2)))
-        
+
         # Spectral centroid (brightness)
         centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
         avg_centroid = float(np.mean(centroid))
-        
+
         # Spectral flatness (noise vs tonal)
         flatness = librosa.feature.spectral_flatness(y=y)
         avg_flatness = float(np.mean(flatness))
-        
+
         # Dynamic range (difference between loud and quiet parts)
         rms_frames = librosa.feature.rms(y=y)[0]
         if len(rms_frames) > 1:
             dynamic_range = float(np.max(rms_frames) - np.min(rms_frames))
         else:
             dynamic_range = 0.0
-        
+
         # Key estimation (optional, can be unreliable)
         key_estimate = None
         try:
@@ -142,7 +147,7 @@ def analyze_audio_file(
             key_estimate = key_names[key_idx]
         except Exception:
             pass  # Key estimation is optional
-        
+
         # Create features with normalized values
         features = AudioFeatures(
             track_id="",  # Set by caller
@@ -158,9 +163,9 @@ def analyze_audio_file(
             brightness_norm=normalize_spectral_centroid(avg_centroid),
             flatness_norm=normalize_spectral_flatness(avg_flatness),
         )
-        
+
         return features
-        
+
     except Exception as e:
         logger.error(f"Error analyzing {file_path}: {e}")
         return None
@@ -217,11 +222,11 @@ def get_audio_features(track_id: str) -> AudioFeatures | None:
                 FROM track_audio_features
                 WHERE track_id = %s
             """, (track_id,))
-            
+
             row = cur.fetchone()
             if not row:
                 return None
-            
+
             return AudioFeatures(
                 track_id=track_id,
                 bpm=row[0],
@@ -245,25 +250,25 @@ def score_audio_transition(
 ) -> float:
     """
     Score audio transition between two tracks.
-    
+
     Returns weighted score in [0, weight] where higher = smoother.
     """
     if prev_features is None or curr_features is None:
         return 0.0  # No penalty if features unavailable
-    
+
     prev_vec = prev_features.as_vector()
     curr_vec = curr_features.as_vector()
-    
+
     if prev_vec is None or curr_vec is None:
         return 0.0
-    
+
     # Compute distance (lower = more similar = better transition)
     distance = float(np.linalg.norm(prev_vec - curr_vec))
-    
+
     # Convert to similarity score
     # Max distance is sqrt(4) = 2 for 4D unit vectors
     similarity = max(0.0, 1.0 - distance / 2.0)
-    
+
     return similarity * weight
 
 
@@ -273,54 +278,60 @@ async def analyze_library(
 ) -> dict[str, int]:
     """
     Analyze audio features for all tracks in library.
-    
+
     This is a long-running background job.
     """
     stats = {"processed": 0, "success": 0, "failed": 0, "skipped": 0}
-    
+    get_librosa()
+
     with get_connection() as conn:
         with conn.cursor() as cur:
             # Get tracks without audio features
             cur.execute("""
-                SELECT t.id, tf.file_path
+                SELECT t.id, tf.path
                 FROM tracks t
                 JOIN track_files tf ON t.id = tf.track_id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 WHERE taf.track_id IS NULL
-                AND tf.file_path IS NOT NULL
+                AND tf.path IS NOT NULL
+                AND tf.missing_since IS NULL
             """)
-            
+
             tracks = cur.fetchall()
-    
+
     total = len(tracks)
     logger.info(f"Analyzing audio for {total} tracks")
-    
+
     if progress_callback:
         progress_callback(0, total, f"Analyzing {total} tracks...")
-    
+
+    if total == 0:
+        logger.info("Audio analysis complete: no tracks pending")
+        return stats
+
     for i, (track_id, file_path) in enumerate(tracks):
         if not file_path or not os.path.exists(file_path):
             stats["skipped"] += 1
             continue
-        
+
         features = analyze_audio_file(file_path)
-        
+
         if features:
             features.track_id = str(track_id)
             save_audio_features(features)
             stats["success"] += 1
         else:
             stats["failed"] += 1
-        
+
         stats["processed"] += 1
-        
+
         if (i + 1) % batch_size == 0:
             if progress_callback:
                 progress_callback(i + 1, total, f"Analyzed {i + 1}/{total} tracks")
             logger.info(f"Audio analysis progress: {i + 1}/{total}")
-    
+
     if progress_callback:
         progress_callback(total, total, "Audio analysis complete")
-    
+
     logger.info(f"Audio analysis complete: {stats}")
     return stats

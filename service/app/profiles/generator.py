@@ -304,11 +304,13 @@ def get_track_tags(cur, track_id: str) -> tuple[list[str], list[str]]:
     # If no track tags, try artist tags
     if not tags:
         cur.execute("""
-            SELECT DISTINCT lt.name FROM lastfm_tags lt
+            SELECT lt.name
+            FROM lastfm_tags lt
             JOIN artist_lastfm_tags alt ON lt.id = alt.tag_id
             JOIN track_artists ta ON ta.artist_id = alt.artist_id
             WHERE ta.track_id = %s
-            ORDER BY alt.weight DESC
+            GROUP BY lt.name
+            ORDER BY MAX(alt.weight) DESC, lt.name
             LIMIT 20
         """, (track_id,))
         tags = [row[0] for row in cur.fetchall()]
@@ -328,6 +330,7 @@ async def generate_profiles(
     stats = {
         "processed": 0,
         "created": 0,
+        "fallback": 0,
         "skipped": 0,
     }
 
@@ -354,7 +357,15 @@ async def generate_profiles(
                 genres, tags = get_track_tags(cur, str(track_id))
 
                 if not genres and not tags:
-                    stats["skipped"] += 1
+                    # Insert a neutral fallback profile so the track can still
+                    # participate in trajectory scoring
+                    cur.execute("""
+                        INSERT INTO track_profiles (track_id, energy, darkness, tempo, texture)
+                        VALUES (%s, 0.5, 0.5, 0.5, 0.5)
+                        ON CONFLICT (track_id) DO NOTHING
+                    """, (track_id,))
+                    stats["fallback"] += 1
+                    stats["processed"] += 1
                     continue
 
                 profile = compute_track_profile(genres, tags)

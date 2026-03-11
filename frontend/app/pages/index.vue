@@ -1,10 +1,8 @@
 <script setup lang="ts">
-const showSettings = ref(false)
 const showExportModal = ref(false)
 
 const libraryStats = useLibraryStats()
 const sync = useLibrarySync({ onCompleted: libraryStats.fetchStats })
-const enrichment = useLibraryEnrichment({ onCompleted: libraryStats.fetchStats })
 const playlist = usePlaylistGeneration()
 const mappings = usePathMappings()
 const exporter = usePlaylistExport()
@@ -23,6 +21,7 @@ async function handleExportConfirm() {
   const success = await exporter.exportPlaylist(playlist.result.value, mappings.pathMappings.value)
   if (success) showExportModal.value = false
 }
+
 </script>
 
 <template>
@@ -33,8 +32,6 @@ async function handleExportConfirm() {
         :stats="libraryStats.stats.value"
         :is-syncing="sync.isSyncing.value"
         :last-sync-time="sync.lastSyncTime.value"
-        :show-settings="showSettings"
-        @toggle-settings="showSettings = !showSettings"
         @scan="sync.startScan(false)"
       />
 
@@ -56,28 +53,25 @@ async function handleExportConfirm() {
       />
 
       <LibrarySettingsPanel
-        v-if="showSettings && libraryStats.stats.value"
+        v-if="libraryStats.stats.value"
         :stats="libraryStats.stats.value"
         :is-syncing="sync.isSyncing.value"
-        :syncing-lastfm="enrichment.syncingLastfm.value"
-        :syncing-embeddings="enrichment.syncingEmbeddings.value"
-        :syncing-profiles="enrichment.syncingProfiles.value"
         @full-sync="sync.startScan(true)"
-        @sync-lastfm="enrichment.syncLastfm()"
-        @sync-embeddings="enrichment.syncEmbeddings()"
-        @sync-profiles="enrichment.syncProfiles()"
         @refresh-stats="libraryStats.fetchStats()"
       />
-    </div>
 
-    <!-- Duplicate sync error alert (below status bar) -->
-    <UAlert
-      v-if="sync.syncError.value"
-      color="red"
-      icon="i-heroicons-exclamation-triangle"
-      :description="sync.syncError.value"
-      class="mb-4"
-    />
+      <!-- Cold-start quality warning -->
+      <div
+        v-if="libraryStats.stats.value?.cold_start?.recommendation"
+        class="mt-2 flex items-center gap-2 rounded px-3 py-2 text-xs"
+        :class="libraryStats.stats.value.cold_start.quality_level === 'low'
+          ? 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300'
+          : 'bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300'"
+      >
+        <span class="shrink-0">{{ libraryStats.stats.value.cold_start.quality_level === 'low' ? '⚠️' : 'ℹ️' }}</span>
+        <span>{{ libraryStats.stats.value.cold_start.recommendation }}</span>
+      </div>
+    </div>
 
     <!-- Empty library state -->
     <EmptyLibraryState
