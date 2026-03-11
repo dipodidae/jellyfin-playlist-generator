@@ -4,10 +4,9 @@
 import argparse
 import json
 import logging
+import subprocess
 import sys
 import time
-import urllib.request
-import urllib.error
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,21 +19,27 @@ API_BASE = "http://localhost:8000"
 
 
 def api_get(endpoint: str) -> dict:
-    """Make a GET request to the API."""
+    """Make a GET request to the API using curl."""
     url = f"{API_BASE}{endpoint}"
-    req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode())
+    result = subprocess.run(
+        ["curl", "-s", "--max-time", "30", url],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise Exception(f"curl failed: {result.stderr}")
+    return json.loads(result.stdout)
 
 
 def api_post(endpoint: str, data: dict = None) -> dict:
-    """Make a POST request to the API."""
+    """Make a POST request to the API using curl."""
     url = f"{API_BASE}{endpoint}"
-    req = urllib.request.Request(url, method='POST')
-    req.add_header('Content-Type', 'application/json')
-    body = json.dumps(data or {}).encode() if data else None
-    with urllib.request.urlopen(req, body, timeout=300) as resp:
-        return json.loads(resp.read().decode())
+    cmd = ["curl", "-s", "--max-time", "300", "-X", "POST", url]
+    if data:
+        cmd.extend(["-H", "Content-Type: application/json", "-d", json.dumps(data)])
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception(f"curl failed: {result.stderr}")
+    return json.loads(result.stdout)
 
 
 def stream_sse(endpoint: str) -> dict:

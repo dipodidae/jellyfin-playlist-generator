@@ -5,7 +5,7 @@ from typing import Any
 import pylast
 
 from app.config import settings
-from app.database import get_connection
+from app.database_pg import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -92,30 +92,31 @@ async def fetch_track_stats(
         return None
 
 
-def upsert_lastfm_tag(conn, tag_name: str) -> int:
+def upsert_lastfm_tag(cur, tag_name: str) -> int:
     """Insert or get existing Last.fm tag, return tag_id."""
-    result = conn.execute(
-        "SELECT id FROM lastfm_tags WHERE name = ?", [tag_name]
-    ).fetchone()
+    cur.execute(
+        "SELECT id FROM lastfm_tags WHERE name = %s", [tag_name]
+    )
+    result = cur.fetchone()
     if result:
         return result[0]
 
-    # Get next ID (DuckDB doesn't have auto-increment)
-    max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM lastfm_tags").fetchone()[0]
-    new_id = max_id + 1
-    conn.execute("INSERT INTO lastfm_tags (id, name) VALUES (?, ?)", [new_id, tag_name])
-    return new_id
+    cur.execute(
+        "INSERT INTO lastfm_tags (name) VALUES (%s) RETURNING id",
+        [tag_name]
+    )
+    return cur.fetchone()[0]
 
 
-def save_track_tags(conn, track_id: str, tags: list[dict[str, Any]]) -> int:
+def save_track_tags(cur, track_id: str, tags: list[dict[str, Any]]) -> int:
     """Save track tags to database."""
     saved = 0
     for tag in tags:
-        tag_id = upsert_lastfm_tag(conn, tag["name"])
-        conn.execute(
+        tag_id = upsert_lastfm_tag(cur, tag["name"])
+        cur.execute(
             """
             INSERT INTO track_lastfm_tags (track_id, tag_id, weight)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
             ON CONFLICT (track_id, tag_id) DO UPDATE SET weight = excluded.weight
             """,
             [track_id, tag_id, tag["weight"]],
@@ -124,15 +125,15 @@ def save_track_tags(conn, track_id: str, tags: list[dict[str, Any]]) -> int:
     return saved
 
 
-def save_artist_tags(conn, artist_id: str, tags: list[dict[str, Any]]) -> int:
+def save_artist_tags(cur, artist_id: str, tags: list[dict[str, Any]]) -> int:
     """Save artist tags to database."""
     saved = 0
     for tag in tags:
-        tag_id = upsert_lastfm_tag(conn, tag["name"])
-        conn.execute(
+        tag_id = upsert_lastfm_tag(cur, tag["name"])
+        cur.execute(
             """
             INSERT INTO artist_lastfm_tags (artist_id, tag_id, weight)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
             ON CONFLICT (artist_id, tag_id) DO UPDATE SET weight = excluded.weight
             """,
             [artist_id, tag_id, tag["weight"]],
@@ -141,20 +142,21 @@ def save_artist_tags(conn, artist_id: str, tags: list[dict[str, Any]]) -> int:
     return saved
 
 
-def save_artist_similarity(conn, artist_id: str, similar_artists: list[dict[str, Any]]) -> int:
+def save_artist_similarity(cur, artist_id: str, similar_artists: list[dict[str, Any]]) -> int:
     """Save artist similarity relationships to database."""
     saved = 0
     for similar in similar_artists:
-        similar_result = conn.execute(
-            "SELECT id FROM artists WHERE name = ?", [similar["name"]]
-        ).fetchone()
+        cur.execute(
+            "SELECT id FROM artists WHERE name = %s", [similar["name"]]
+        )
+        similar_result = cur.fetchone()
 
         if similar_result:
             similar_artist_id = similar_result[0]
-            conn.execute(
+            cur.execute(
                 """
                 INSERT INTO artist_similarity (artist_id, similar_artist_id, similarity)
-                VALUES (?, ?, ?)
+                VALUES (%s, %s, %s)
                 ON CONFLICT (artist_id, similar_artist_id) DO UPDATE SET similarity = excluded.similarity
                 """,
                 [artist_id, similar_artist_id, similar["match"]],
@@ -163,12 +165,12 @@ def save_artist_similarity(conn, artist_id: str, similar_artists: list[dict[str,
     return saved
 
 
-def save_track_stats(conn, track_id: str, stats: dict[str, int]) -> None:
+def save_track_stats(cur, track_id: str, stats: dict[str, int]) -> None:
     """Save Last.fm stats for a track."""
-    conn.execute(
+    cur.execute(
         """
         INSERT INTO lastfm_stats (track_id, playcount, listeners, fetched_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
         ON CONFLICT (track_id) DO UPDATE SET
             playcount = excluded.playcount,
             listeners = excluded.listeners,
@@ -185,8 +187,9 @@ async def enrich_artists_from_lastfm(
     """Fetch tags and similar artists for all artists in the database."""
     network = get_lastfm_network()
     conn = get_connection()
+    cur = conn.cursor()
 
-    artists = conn.execute(
+    cur.execute(
         """
         SELECT a.id, a.name
         FROM artists a
@@ -194,7 +197,8 @@ async def enrich_artists_from_lastfm(
         WHERE alt.artist_id IS NULL
         ORDER BY (SELECT COUNT(*) FROM tracks t WHERE t.artist_id = a.id) DESC
         """
-    ).fetchall()
+    )
+    artists = cur.fetchall()
 
     stats = {"artists_processed": 0, "tags_added": 0, "similarities_added": 0}
     logger.info(f"Enriching {len(artists)} artists from Last.fm")
@@ -202,11 +206,11 @@ async def enrich_artists_from_lastfm(
     for i, (artist_id, artist_name) in enumerate(artists):
         tags = await fetch_artist_tags(network, artist_name)
         if tags:
-            stats["tags_added"] += save_artist_tags(conn, artist_id, tags)
+            stats["tags_added"] += save_artist_tags(cur, artist_id, tags)
 
         similar = await fetch_similar_artists(network, artist_name)
         if similar:
-            stats["similarities_added"] += save_artist_similarity(conn, artist_id, similar)
+            stats["similarities_added"] += save_artist_similarity(cur, artist_id, similar)
 
         stats["artists_processed"] += 1
 
@@ -220,6 +224,7 @@ async def enrich_artists_from_lastfm(
         await asyncio.sleep(delay_between_requests)
 
     conn.commit()
+    cur.close()
     conn.close()
     return stats
 
@@ -232,6 +237,7 @@ async def enrich_tracks_from_lastfm(
     """Fetch tags for tracks from Last.fm. Prioritizes tracks without tags."""
     network = get_lastfm_network()
     conn = get_connection()
+    cur = conn.cursor()
 
     query = """
         SELECT t.id, t.title, a.name as artist_name
@@ -244,7 +250,8 @@ async def enrich_tracks_from_lastfm(
     if max_tracks:
         query += f" LIMIT {max_tracks}"
 
-    tracks = conn.execute(query).fetchall()
+    cur.execute(query)
+    tracks = cur.fetchall()
 
     stats = {"tracks_processed": 0, "tags_added": 0, "stats_added": 0}
     logger.info(f"Enriching {len(tracks)} tracks from Last.fm")
@@ -252,11 +259,11 @@ async def enrich_tracks_from_lastfm(
     for i, (track_id, title, artist_name) in enumerate(tracks):
         tags = await fetch_track_tags(network, artist_name, title)
         if tags:
-            stats["tags_added"] += save_track_tags(conn, track_id, tags)
+            stats["tags_added"] += save_track_tags(cur, track_id, tags)
 
         track_stats = await fetch_track_stats(network, artist_name, title)
         if track_stats:
-            save_track_stats(conn, track_id, track_stats)
+            save_track_stats(cur, track_id, track_stats)
             stats["stats_added"] += 1
 
         stats["tracks_processed"] += 1
@@ -271,5 +278,6 @@ async def enrich_tracks_from_lastfm(
         await asyncio.sleep(delay_between_requests)
 
     conn.commit()
+    cur.close()
     conn.close()
     return stats

@@ -2,49 +2,56 @@
 
 ## Project Overview
 
-A prompt-driven playlist generation system that creates intelligent, curated playlists from a Jellyfin music library using semantic understanding, trajectory-based composition, and AI-generated titles.
+A prompt-driven playlist generation system that creates intelligent, curated playlists from local music files using semantic understanding, trajectory-based composition, and AI-generated titles. Exports to M3U for use with any media service (Jellyfin, Plex, Kodi, etc.).
 
 **Live URL**: https://playlist-generator.4eva.me
-**Local Dev**: http://localhost:3100 (frontend), http://localhost:8100 (backend)
+**Local Dev**: http://localhost:3000 (frontend), http://localhost:8000 (backend)
 
-## Architecture
+## Architecture (v4)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Frontend (Nuxt 4)                       │
 │  - Streaming progress UI via SSE                                │
-│  - Sync controls for Jellyfin/Last.fm/Embeddings                │
-│  - Nuxt UI Pro components                                       │
+│  - Trajectory visualization                                     │
+│  - Track explanations                                           │
+│  - M3U export with multiple modes                               │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Backend (FastAPI)                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │  Trajectory │  │  Embeddings │  │      Last.fm            │  │
-│  │   Engine    │  │  Generator  │  │    Enrichment           │  │
-│  │             │  │             │  │                         │  │
-│  │ - Intent    │  │ - Sentence  │  │ - Artist tags           │  │
-│  │   parsing   │  │   Transform │  │ - Track tags            │  │
-│  │ - Arc types │  │ - Semantic  │  │ - Artist similarity     │  │
-│  │ - Waypoints │  │   search    │  │                         │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │                    Playlist Composer                        ││
-│  │  - Multi-factor scoring (semantic, artist, genre, energy)  ││
-│  │  - Diversity penalties                                      ││
-│  │  - Smooth transitions                                       ││
-│  │  - AI title generation (OpenAI)                             ││
+│  │                    V4 Playlist Composer                     ││
+│  │  1. Single semantic search → global candidate pool          ││
+│  │  2. Position-based pools → re-score per trajectory target   ││
+│  │  3. Beam search sequencing → path optimization              ││
+│  │  4. Dual-anchor gravity → prevent stylistic drift           ││
+│  │  5. Auto bridge scoring → smooth cluster transitions        ││
 │  └─────────────────────────────────────────────────────────────┘│
+│                              │                                   │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐ │
+│  │ 4D Trajectories  │  │ Scene Clustering │  │ Audio Analysis │ │
+│  │ - Energy         │  │ - Multi-cluster  │  │ - BPM          │ │
+│  │ - Tempo          │  │   weights        │  │ - Loudness     │ │
+│  │ - Darkness       │  │ - Auto bridges   │  │ - Brightness   │ │
+│  │ - Texture        │  │ - Centroids      │  │ - (Optional)   │ │
+│  └──────────────────┘  └──────────────────┘  └────────────────┘ │
+│                              │                                   │
+│  ┌──────────────────┐  ┌──────────────────────────────────────┐ │
+│  │ Observability    │  │         M3U Exporter                 │ │
+│  │ - Generation log │  │ - Absolute / Relative / Mapped paths │ │
+│  │ - Track memory   │  │ - Configurable path mappings         │ │
+│  │ - TTL caching    │  │                                      │ │
+│  └──────────────────┘  └──────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                        DuckDB Database                          │
-│  tracks, artists, albums, genres, lastfm_tags, track_embeddings │
-│  artist_similarity, playlists, playlist_tracks                  │
+│                   PostgreSQL + pgvector                         │
+│  tracks, track_files, artists, albums, track_embeddings,        │
+│  track_profiles (4D), scene_clusters, artist_clusters,          │
+│  track_audio_features, track_usage, playlist_generation_log     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -62,76 +69,124 @@ playlist-generator/
 ├── service/                  # FastAPI backend
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── routes.py    # API endpoints
+│   │   │   ├── routes_v3.py # v3 API endpoints (PostgreSQL)
+│   │   │   ├── routes.py    # Legacy API (DuckDB)
 │   │   │   └── schemas.py   # Pydantic models
 │   │   ├── trajectory/
-│   │   │   ├── intent.py    # Prompt parsing, arc detection
-│   │   │   ├── composer.py  # Playlist composition logic
+│   │   │   ├── intent.py    # Prompt parsing, 4D waypoints, dimension weights
+│   │   │   ├── curves.py    # Spline interpolation, trajectory curves (v4)
+│   │   │   ├── gravity.py   # Dual-anchor gravity wells (v4)
+│   │   │   ├── candidates.py # Position-based candidate pools (v4)
+│   │   │   ├── sequencer.py # Beam search with constraints (v4)
+│   │   │   ├── composer_v4.py # Main v4 orchestration
+│   │   │   ├── composer.py  # Legacy composition (v3)
 │   │   │   └── title_generator.py  # AI title generation
+│   │   ├── clustering/
+│   │   │   └── scenes.py    # Multi-cluster artist grouping (v4)
+│   │   ├── audio/
+│   │   │   └── analyzer.py  # Librosa audio features (v4, optional)
 │   │   ├── embeddings/
 │   │   │   └── generator.py # Sentence-transformers embeddings
 │   │   ├── ingestion/
-│   │   │   ├── jellyfin.py  # Jellyfin sync & playlist creation
+│   │   │   ├── scanner.py   # File-based library scanner
 │   │   │   └── lastfm.py    # Last.fm enrichment
-│   │   ├── database.py      # DuckDB schema & connections
+│   │   ├── profiles/
+│   │   │   └── generator.py # Semantic track profiles (4D: energy, darkness, tempo, texture)
+│   │   ├── export/
+│   │   │   └── m3u.py       # M3U playlist exporter
+│   │   ├── migrations/      # Database migrations
+│   │   ├── database_pg.py   # PostgreSQL + pgvector
+│   │   ├── observability.py # Logging, caching, cold start (v4)
 │   │   ├── config.py        # Settings from environment
 │   │   └── main.py          # FastAPI app entry
 │   ├── Dockerfile
 │   └── requirements.txt
-├── nginx/                    # SWAG proxy config
-├── data/                     # Local DuckDB database
-└── docker-compose.yml        # Local development
+├── data/                     # Database files
+└── docker-compose.yml        # Local development (includes PostgreSQL)
 ```
 
 ## Key Technologies
 
 - **Frontend**: Nuxt 4, Vue 3, Nuxt UI v4, TailwindCSS v4
 - **Backend**: FastAPI, Python 3.12, uvicorn
-- **Database**: DuckDB (embedded, file-based)
+- **Database**: PostgreSQL 16 + pgvector (vector similarity search)
 - **Embeddings**: sentence-transformers (all-MiniLM-L6-v2)
+- **Tag Extraction**: mutagen (audio file metadata)
 - **AI**: OpenAI GPT-4o-mini for title generation
-- **External APIs**: Jellyfin, Last.fm
+- **External APIs**: Last.fm
 
-## API Endpoints
+## API Endpoints (v3)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
 | `/stats` | GET | Library statistics |
-| `/generate-playlist` | POST | Generate playlist (non-streaming) |
-| `/generate-playlist/stream` | POST | Generate with SSE progress |
-| `/sync/status` | GET | Check if sync is in progress |
-| `/sync/jellyfin` | POST | Sync library from Jellyfin |
-| `/sync/jellyfin/stream` | POST | Sync with SSE progress (returns 409 if already syncing) |
-| `/sync/lastfm/artists` | POST | Enrich artists from Last.fm |
-| `/sync/lastfm/tracks` | POST | Enrich tracks from Last.fm |
-| `/sync/embeddings` | POST | Generate track embeddings |
+| `/scan/status` | GET | Check scan progress |
+| `/scan` | POST | Trigger library scan |
+| `/scan/stream` | POST | Scan with SSE progress |
+| `/enrich/lastfm` | POST | Enrich artists from Last.fm |
+| `/enrich/embeddings` | POST | Generate track embeddings |
+| `/enrich/profiles` | POST | Generate semantic profiles |
+| `/path-mappings` | GET/POST | Manage path mappings |
+| `/path-mappings/{name}` | DELETE | Delete path mapping |
+| `/generate-playlist` | POST | Generate playlist |
+| `/playlists` | GET | List generated playlists |
+| `/playlists/{id}` | GET | Get playlist details |
+| `/export/m3u` | POST | Export tracks to M3U content |
+| `/export/m3u/file` | POST | Export to M3U file on server |
+| `/export/m3u/download/{id}` | GET | Download playlist as M3U |
 | `/search` | GET | Semantic search tracks |
+| `/db/init` | POST | Initialize database schema |
 
-## Trajectory Engine
+## V4 Trajectory Engine
 
-The system parses natural language prompts into structured intents:
+The v4 system uses a sophisticated multi-stage pipeline:
 
 ### Arc Types
 - **rise**: Building energy (workout, party warmup)
 - **fall**: Decreasing energy (wind down, sleep)
-- **peak**: Build → climax → resolve
+- **peak**: Build → climax → resolve (60% build, 15% peak, 25% resolve)
 - **steady**: Consistent mood throughout
+- **journey**: Narrative arc with intro/build/climax/denouement
+- **wave**: Oscillating energy pattern
 
-### Scoring Factors
-1. **Semantic similarity**: Embedding cosine similarity to prompt
-2. **Artist similarity**: Last.fm similar artists graph
-3. **Genre matching**: Tag overlap scoring
-4. **Energy estimation**: Based on genre/tags
-5. **Diversity penalty**: Avoid artist repetition
+### 4D Trajectory Dimensions
+- **Energy**: Intensity/loudness (0-1)
+- **Tempo**: Speed/BPM correlation (0-1)
+- **Darkness**: Mood valence (0-1, 1=darkest)
+- **Texture**: Density + complexity (0-1)
+
+### V4 Scoring Components (Normalized 0-1)
+```python
+total_score = (
+    semantic_score * 0.25 +
+    trajectory_score * 0.35 +
+    transition_score * 0.2 +
+    bridge_bonus * 0.05 -
+    gravity_penalty * 0.15
+)
+```
+
+### Key V4 Features
+- **Single semantic search**: Query once, re-score per position
+- **Position-based pools**: Candidate pool per track position
+- **Dual-anchor gravity**: Prompt + weighted scene centroid
+- **Beam search**: Path optimization with lookahead
+- **Auto bridges**: Tracks connecting distant clusters
+- **Playlist memory**: Time-decayed track usage penalty
 
 ## Environment Variables
 
 ```bash
-# Jellyfin
-JELLYFIN_URL=http://jellyfin:8096
-JELLYFIN_API_KEY=your-api-key
-JELLYFIN_USER_ID=your-user-id
+# Database (PostgreSQL + pgvector) - native install on localhost
+DATABASE_URL=postgresql://playlist:password@localhost:5432/playlist_generator
+
+# Music Library
+MUSIC_DIRECTORIES=/mnt/drive-next/Music
+SCAN_THREADS=4
+
+# M3U Export
+M3U_OUTPUT_DIR=/home/tom/projects/playlist-generator/playlists
 
 # Last.fm
 LASTFM_API_KEY=your-api-key
@@ -139,63 +194,83 @@ LASTFM_API_SECRET=your-api-secret
 
 # OpenAI (for title generation)
 OPENAI_API_KEY=your-api-key
-
-# Database
-DATABASE_PATH=/data/music.duckdb
-
-# Frontend (Nuxt)
-NUXT_MUSIC_SERVICE_URL=http://playlist-generator-service:8000
 ```
 
 ## Development
 
 ```bash
-# Backend
-cd service
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8100
+# Backend (already running as systemd service)
+systemctl --user status playlist-generator-backend
 
-# Frontend
+# For development with hot reload:
+cd service
+source .venv/bin/activate
+systemctl --user stop playlist-generator-backend  # stop production
+uvicorn app.main:app --reload --port 8000
+
+# Frontend (already running via PM2)
+pm2 status
+
+# For development with hot reload:
 cd frontend
-pnpm install
-pnpm dev --port 3100
+pm2 stop playlist-generator-frontend  # stop production
+pnpm dev --port 3000
 ```
 
-## Deployment
+## Deployment (Native Services)
 
-Deployed via Docker Compose in `~/nas/docker-compose.yml`:
-- `playlist-generator-service`: FastAPI backend
-- `playlist-generator-frontend`: Nuxt frontend
-- SWAG reverse proxy at `playlist-generator.4eva.me`
+Services run natively on the host (no Docker), managed by systemd and PM2:
+
+| Service | Port | Management |
+|---------|------|------------|
+| PostgreSQL 16 + pgvector | 5432 | `systemctl status postgresql` |
+| Backend (FastAPI) | 8000 | `systemctl --user status playlist-generator-backend` |
+| Frontend (Nuxt SSR) | 3000 | `pm2 status playlist-generator-frontend` |
+
+SWAG reverse proxy (in `~/nas/docker-compose.yml`) routes `playlist-generator.4eva.me` → `172.30.0.1:3000`
 
 ### Deploying Frontend Changes
 
 ```bash
-# Build locally
-cd frontend && pnpm build
-
-# Copy to container and restart
-docker exec playlist-generator-frontend rm -rf /app/.output
-docker cp frontend/.output playlist-generator-frontend:/app/
-docker restart playlist-generator-frontend
+cd frontend
+pnpm build
+pm2 restart playlist-generator-frontend
 ```
 
 ### Deploying Backend Changes
 
-The backend service mounts source code from the host via docker-compose volume:
-```yaml
-volumes:
-  - /home/tom/projects/playlist-generator/service/app:/app/app
-```
-
-To apply changes, restart the container:
 ```bash
-docker restart playlist-generator-service
+systemctl --user restart playlist-generator-backend
 ```
 
 **Note**: The service takes ~60 seconds to start on Pi 5 due to sentence-transformers model loading.
+
+### Service Configuration Files
+
+- **Backend systemd**: `~/.config/systemd/user/playlist-generator-backend.service`
+- **Backend env**: `/home/tom/projects/playlist-generator/service/.env`
+- **Frontend PM2**: `/home/tom/projects/playlist-generator/frontend/ecosystem.config.cjs`
+- **SWAG proxy**: `~/nas/swag/playlist-generator.subdomain.conf`
+
+### Logs
+
+```bash
+# Backend
+journalctl --user -u playlist-generator-backend -f
+
+# Frontend
+pm2 logs playlist-generator-frontend
+
+# PostgreSQL
+sudo journalctl -u postgresql -f
+```
+
+### Persistence Across Reboots
+
+All services auto-start on boot:
+- PostgreSQL: `systemctl enable postgresql`
+- Backend: `systemctl --user enable playlist-generator-backend` + `loginctl enable-linger tom`
+- Frontend: PM2 startup script (`pm2 startup` + `pm2 save`)
 
 ### Frontend Auth
 
@@ -223,16 +298,18 @@ css: ['~/assets/css/main.css'],
 
 ## Data Flow
 
-1. **Sync**: Jellyfin → DuckDB (tracks, artists, albums, genres)
-2. **Enrich**: Last.fm → DuckDB (tags, artist similarity)
-3. **Embed**: tracks → sentence-transformers → DuckDB (embeddings)
-4. **Generate**: prompt → intent → candidates → scoring → composition → Jellyfin playlist
+1. **Scan**: Music files → PostgreSQL (tracks, track_files, artists, albums, genres)
+2. **Enrich**: Last.fm → PostgreSQL (tags, artist similarity)
+3. **Embed**: tracks → sentence-transformers → pgvector (embeddings)
+4. **Profile**: tags → heuristics → PostgreSQL (energy, darkness, tempo, texture)
+5. **Cluster**: artist embeddings → KMeans → scene_clusters, artist_clusters
+6. **Generate (v4)**: prompt → 4D trajectory → single semantic search → position pools → beam search → M3U export
 
 ## Known Limitations
 
 - Last.fm track enrichment is slow due to API rate limits
 - Embedding generation takes ~1 hour for 35k tracks on Pi 5
-- Jellyfin sync is blocking (no background task persistence yet)
+- Initial file scan can take 10-30 minutes for large libraries
 
 ## Troubleshooting
 
@@ -247,7 +324,7 @@ If styles don't appear after deployment:
 
 The sentence-transformers model takes ~60 seconds to load on Pi 5. Wait for health check to pass:
 ```bash
-docker logs playlist-generator-service --tail 5
+journalctl --user -u playlist-generator-backend --tail 10
 # Should show: "Application startup complete"
 ```
 
@@ -259,12 +336,3 @@ curl https://playlist-generator.4eva.me/api/sync/status
 ```
 
 Returns `{"is_syncing": true/false, ...}`. The frontend polls this on load and shows progress if sync is running.
-
-### Docker BuildKit Errors
-
-If `docker compose build` fails with BuildKit errors:
-```bash
-DOCKER_BUILDKIT=0 docker compose build <service>
-```
-
-Or use the volume mount approach for backend (already configured in docker-compose.yml).
