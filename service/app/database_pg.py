@@ -440,6 +440,10 @@ def get_stats() -> dict:
             stats["scene_clusters"] = 0
             stats["artists_clustered"] = 0
 
+        # Audio features
+        cur.execute("SELECT COUNT(*) FROM track_audio_features")
+        stats["tracks_with_audio_features"] = cur.fetchone()[0]
+
         # IVFFlat index status
         cur.execute("""
             SELECT COUNT(*) FROM pg_indexes

@@ -34,6 +34,7 @@ from app.observability import (
     update_track_usage,
     check_cold_start,
 )
+from app.transitions import load_transition_bonuses, record_transitions
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,11 @@ def compose_playlist_v4(
                 track.cluster_id = cluster_id
                 track.cluster_weight = weight
 
-    # 6. Sequence playlist using beam search
+    # 6. Load historical transition bonuses (batch query — no N+1)
+    all_candidate_ids = list({t.id for pool in position_pools for t in pool})
+    transition_bonuses = load_transition_bonuses(all_candidate_ids)
+
+    # 7. Sequence playlist using beam search
     if config is None:
         config = SequencerConfig()
 
@@ -108,9 +113,10 @@ def compose_playlist_v4(
         config=config,
         cluster_centroids=cluster_centroids,
         cluster_ids=cluster_ids,
+        transition_bonuses=transition_bonuses,
     )
 
-    # 7. Compute metrics
+    # 8. Compute metrics
     metrics = compute_playlist_metrics(playlist, position_pools)
 
     generation_time = int((time.time() - start_time) * 1000)
@@ -127,8 +133,9 @@ def compose_playlist_v4(
         metrics=metrics,
     )
 
-    # Update track usage for playlist memory
+    # Update track usage and record transitions for playlist memory
     update_track_usage([t.id for t in playlist])
+    record_transitions([t.id for t in playlist])
 
     return PlaylistResult(
         tracks=playlist,
@@ -189,6 +196,9 @@ def compose_playlist_v4_streaming(
                 track.cluster_weight = weight
 
     report(5, 6, "Sequencing playlist...")
+    all_candidate_ids = list({t.id for pool in position_pools for t in pool})
+    transition_bonuses = load_transition_bonuses(all_candidate_ids)
+
     if config is None:
         config = SequencerConfig()
 
@@ -197,6 +207,7 @@ def compose_playlist_v4_streaming(
         config=config,
         cluster_centroids=cluster_centroids,
         cluster_ids=cluster_ids,
+        transition_bonuses=transition_bonuses,
     )
 
     report(6, 6, "Computing metrics...")
@@ -204,6 +215,8 @@ def compose_playlist_v4_streaming(
 
     generation_time = int((time.time() - start_time) * 1000)
     metrics["generation_time_ms"] = generation_time
+
+    record_transitions([t.id for t in playlist])
 
     return PlaylistResult(
         tracks=playlist,

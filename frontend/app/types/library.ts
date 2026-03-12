@@ -19,6 +19,7 @@ export interface LibraryStats {
   tracks_with_tags?: number
   tracks_with_embeddings?: number
   tracks_with_profiles?: number
+  tracks_with_audio_features?: number
   scene_clusters?: number
   artists_clustered?: number
   vector_index_built?: boolean

@@ -34,6 +34,7 @@ const embeddingPct = computed(() => coveragePct(props.stats.tracks_with_embeddin
 const profilePct = computed(() => coveragePct(props.stats.tracks_with_profiles, props.stats.tracks))
 const lastfmPct = computed(() => coveragePct(props.stats.artists_with_tags, props.stats.artists))
 const clusterPct = computed(() => coveragePct(props.stats.artists_clustered, props.stats.artists))
+const audioPct = computed(() => coveragePct(props.stats.tracks_with_audio_features, props.stats.tracks))
 
 function coverageColor(pct: number): string {
   if (pct >= 80) return 'text-green-600 dark:text-green-400'
@@ -108,7 +109,7 @@ const latestOutcome = computed(() => {
     </details>
 
     <!-- Coverage grid -->
-    <div class="grid grid-cols-2 gap-3 text-sm">
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
       <!-- Embeddings -->
       <div class="space-y-1">
         <div class="flex items-center justify-between">
@@ -183,6 +184,26 @@ const latestOutcome = computed(() => {
         <div class="text-xs text-gray-400">
           {{ (stats.artists_clustered ?? 0).toLocaleString() }} / {{ stats.artists.toLocaleString() }} artists
           <span v-if="stats.vector_index_built" class="ml-1 text-green-500">· index ✓</span>
+        </div>
+      </div>
+
+      <!-- Audio Features -->
+      <div class="space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-gray-500 dark:text-gray-400 text-xs">Audio Features</span>
+          <span :class="coverageColor(audioPct)" class="text-xs font-semibold">
+            {{ audioPct }}%
+          </span>
+        </div>
+        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div
+            class="h-full bg-teal-500 rounded-full transition-all duration-500"
+            :style="{ width: `${audioPct}%` }"
+            :class="{ 'animate-pulse': audio.isRunning.value }"
+          />
+        </div>
+        <div class="text-xs text-gray-400">
+          {{ (stats.tracks_with_audio_features ?? 0).toLocaleString() }} / {{ stats.tracks.toLocaleString() }} tracks
         </div>
       </div>
     </div>

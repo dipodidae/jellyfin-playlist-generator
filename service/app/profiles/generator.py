@@ -27,6 +27,14 @@ ENERGY_KEYWORDS = {
     'speed metal': 0.9,
     'crossover': 0.85,
 
+    'crossover thrash': 0.88,
+    'bay area thrash': 0.91,
+    'teutonic thrash': 0.91,
+    'blackened thrash': 0.89,
+    'technical thrash': 0.90,
+    'proto-thrash': 0.82,
+    'death thrash': 0.92,
+
     # Medium-high energy (0.6-0.8)
     'black metal': 0.75,
     'heavy metal': 0.7,
@@ -101,9 +109,17 @@ DARKNESS_KEYWORDS = {
     'deathcore': 0.7,
     'grindcore': 0.65,
 
+    'bay area thrash': 0.74,
+    'teutonic thrash': 0.78,
+    'blackened thrash': 0.88,
+    'technical thrash': 0.70,
+    'proto-thrash': 0.65,
+    'death thrash': 0.85,
+    'speed metal': 0.60,
+
     # Neutral-dark (0.4-0.6)
     'heavy metal': 0.5,
-    'thrash metal': 0.55,
+    'thrash metal': 0.72,
     'progressive metal': 0.5,
     'metalcore': 0.55,
     'hardcore': 0.5,
@@ -145,6 +161,13 @@ TEMPO_KEYWORDS = {
     'speedcore': 1.0,
     'gabber': 0.95,
     'thrash metal': 0.85,
+    'crossover thrash': 0.85,
+    'bay area thrash': 0.88,
+    'teutonic thrash': 0.88,
+    'blackened thrash': 0.86,
+    'technical thrash': 0.88,
+    'proto-thrash': 0.78,
+    'death thrash': 0.86,
     'death metal': 0.8,
     'speed metal': 0.9,
     'powerviolence': 0.95,
@@ -197,6 +220,14 @@ TEXTURE_KEYWORDS = {
     'symphonic metal': 0.85,
     'orchestral': 0.85,
     'noise': 0.9,
+
+    'bay area thrash': 0.78,
+    'teutonic thrash': 0.78,
+    'blackened thrash': 0.80,
+    'technical thrash': 0.90,
+    'proto-thrash': 0.70,
+    'death thrash': 0.83,
+    'speed metal': 0.72,
 
     # Dense (0.6-0.8)
     'black metal': 0.75,
@@ -320,9 +351,14 @@ def get_track_tags(cur, track_id: str) -> tuple[list[str], list[str]]:
 
 async def generate_profiles(
     progress_callback: callable = None,
-    batch_size: int = 500
+    batch_size: int = 500,
+    force: bool = False,
 ) -> dict[str, int]:
     """Generate semantic profiles for tracks that don't have them.
+
+    Args:
+        force: When True, regenerate profiles for ALL tracks, not just missing
+               ones. Use this after updating keyword maps.
 
     Returns:
         Stats dict with counts
@@ -336,12 +372,15 @@ async def generate_profiles(
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # Get tracks without profiles
-            cur.execute("""
-                SELECT t.id FROM tracks t
-                LEFT JOIN track_profiles tp ON t.id = tp.track_id
-                WHERE tp.track_id IS NULL
-            """)
+            # Get tracks to process
+            if force:
+                cur.execute("SELECT t.id FROM tracks t")
+            else:
+                cur.execute("""
+                    SELECT t.id FROM tracks t
+                    LEFT JOIN track_profiles tp ON t.id = tp.track_id
+                    WHERE tp.track_id IS NULL
+                """)
             track_ids = [row[0] for row in cur.fetchall()]
 
             if not track_ids:

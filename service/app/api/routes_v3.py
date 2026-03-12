@@ -3,13 +3,14 @@
 import asyncio
 import json
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator
 from uuid import UUID
 import time
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 
@@ -28,6 +29,7 @@ from app.trajectory.title_generator import generate_playlist_title
 from app.observability import log_generation, update_track_usage, check_cold_start
 from app.clustering.scenes import generate_clusters
 from app.audio.analyzer import analyze_library
+from app.transitions import record_skip
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -651,7 +653,14 @@ def _make_enrichment_stream(label: str, coro_factory):
 
         async def run():
             try:
-                result_holder["stats"] = await coro_factory(progress_callback)
+                # Call the factory - returns coroutine for async, result for sync
+                result = coro_factory(progress_callback)
+                if asyncio.iscoroutine(result):
+                    # Async function - await it
+                    result_holder["stats"] = await result
+                else:
+                    # Sync function already executed and returned result
+                    result_holder["stats"] = result
             except Exception as exc:
                 result_holder["error"] = str(exc)
             finally:
@@ -680,7 +689,7 @@ def _make_enrichment_stream(label: str, coro_factory):
     return StreamingResponse(
         generate_events(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
 
 
@@ -755,12 +764,45 @@ async def trigger_audio_analysis(background_tasks: BackgroundTasks):
     return {"status": "started", "message": "Audio analysis started in background"}
 
 
+_audio_analysis_lock = asyncio.Lock()
+
+
 @router.post("/enrich/audio/stream")
-async def trigger_audio_analysis_stream():
+async def trigger_audio_analysis_stream(request: Request):
     """Trigger audio feature analysis with SSE progress (requires librosa)."""
+
+    if _audio_analysis_lock.locked():
+        raise HTTPException(status_code=409, detail="Audio analysis is already running")
+
+    stop_event = threading.Event()
+
+    async def analyze_library_async(progress_callback):
+        """Wrap sync analyze_library in thread pool."""
+        loop = asyncio.get_running_loop()
+
+        def threadsafe_callback(current: int, total: int, message: str):
+            loop.call_soon_threadsafe(progress_callback, current, total, message)
+
+        async with _audio_analysis_lock:
+            return await asyncio.to_thread(
+                analyze_library,
+                progress_callback=threadsafe_callback,
+                stop_event=stop_event,
+            )
+
+    async def watch_disconnect():
+        """Signal stop_event when the client disconnects."""
+        while not stop_event.is_set():
+            if await request.is_disconnected():
+                stop_event.set()
+                return
+            await asyncio.sleep(2)
+
+    asyncio.create_task(watch_disconnect())
+
     return _make_enrichment_stream(
         "Audio analysis",
-        lambda cb: analyze_library(progress_callback=cb),
+        analyze_library_async,
     )
 
 
@@ -1130,6 +1172,28 @@ async def search_tracks(q: str, limit: int = 50):
         return {"query": q, "results": results}
     except Exception as e:
         logger.error(f"Search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Transition Feedback
+# ============================================================================
+
+class TransitionFeedbackRequest(BaseModel):
+    track_a_id: str
+    track_b_id: str
+    skipped: bool = False
+
+
+@router.post("/transitions/record")
+async def record_transition_feedback(req: TransitionFeedbackRequest):
+    """Record user feedback for a track transition (skip or play signal)."""
+    try:
+        if req.skipped:
+            record_skip(req.track_a_id, req.track_b_id)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error recording transition: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

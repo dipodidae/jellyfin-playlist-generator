@@ -9,15 +9,16 @@ Implements the v4 architecture:
 
 import logging
 import math
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
 
 from app.database_pg import get_connection
+from app.embeddings.generator import generate_embedding
 from app.trajectory.curves import TrajectoryPoint
 from app.trajectory.gravity import GravityAnchors, compute_gravity_penalty
-from app.trajectory.intent import PlaylistIntent, DimensionWeights
+from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType
 
 logger = logging.getLogger(__name__)
 
@@ -65,17 +66,30 @@ class CandidateTrack:
     cluster_id: int | None = None
     cluster_weight: float = 1.0
 
+    # Genre tags (for genre continuity and Jaccard scoring)
+    genres: list = field(default_factory=list)  # list[str]
+
+    # Acoustic features (from track_audio_features, optional)
+    bpm_norm: float | None = None
+    loudness_norm: float | None = None
+    brightness_norm: float | None = None
+
     # Scoring components (all normalized 0-1)
-    semantic_score: float = 0.0
+    semantic_score: float = 0.0   # combined retrieval: 0.65*cosine + 0.35*keyword
+    keyword_score: float = 0.0    # raw BM25 score (before normalization)
     trajectory_score: float = 0.0
     gravity_penalty: float = 0.0
     duration_penalty: float = 0.0
+    year_score: float = 0.0       # soft year-range bonus/penalty
+    genre_match_score: float = 0.0  # Jaccard(intent.genre_hints, track.genres)
 
     @property
     def total_score(self) -> float:
         return (
             self.semantic_score * 0.25 +
-            self.trajectory_score * 0.35 -
+            self.trajectory_score * 0.35 +
+            self.genre_match_score * 0.20 +
+            self.year_score -
             self.gravity_penalty * 0.15 -
             self.duration_penalty * 0.10
         )
@@ -88,7 +102,7 @@ class CandidateTrack:
 def get_adaptive_pool_size(library_size: int) -> int:
     """Calculate adaptive pool size based on library size."""
     size = int(math.sqrt(library_size) * 1.5)
-    return max(25, min(80, size))
+    return max(50, min(180, size))
 
 
 def get_library_size() -> int:
@@ -138,7 +152,13 @@ def semantic_search(
                     te.embedding,
                     tp.energy, tp.darkness, tp.tempo, tp.texture,
                     tf.path,
-                    1 - (te.embedding <=> %s::vector) as similarity
+                    1 - (te.embedding <=> %s::vector) as similarity,
+                    ARRAY(
+                        SELECT g.name FROM track_genres tg2
+                        JOIN genres g ON tg2.genre_id = g.id
+                        WHERE tg2.track_id = t.id
+                    ) AS genres,
+                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -147,6 +167,7 @@ def semantic_search(
                 LEFT JOIN artists a ON ta.artist_id = a.id
                 LEFT JOIN track_albums tal ON tal.track_id = t.id
                 LEFT JOIN albums al ON tal.album_id = al.id
+                LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 WHERE te.embedding IS NOT NULL
                 {year_filter}
                 ORDER BY te.embedding <=> %s::vector
@@ -172,10 +193,243 @@ def semantic_search(
             texture=row[11] if row[11] is not None else 0.5,
             file_path=row[12],
             semantic_score=row[13] if row[13] is not None else 0.0,
+            genres=list(row[14]) if row[14] else [],
+            bpm_norm=row[15],
+            loudness_norm=row[16],
+            brightness_norm=row[17],
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
     return candidates
+
+
+# ---------------------------------------------------------------------------
+# BM25 keyword search (Fix 8)
+# ---------------------------------------------------------------------------
+
+GENRE_SYNONYMS: dict[str, str] = {
+    "evil": "dark",
+    "filthy": "raw",
+    "bestial": "war metal",
+    "teutonic": "german thrash",
+    "necro": "black metal",
+    "evil thrash": "thrash metal dark",
+    "satanic": "black metal dark",
+    "brutal": "death metal",
+}
+
+
+def expand_query(prompt: str) -> str:
+    """Expand underground/niche genre terms for better BM25 recall."""
+    expanded = prompt.lower()
+    for term, replacement in GENRE_SYNONYMS.items():
+        if term in expanded:
+            expanded = expanded.replace(term, f"{term} {replacement}")
+    return expanded
+
+
+def keyword_search(
+    prompt: str,
+    limit: int = 200,
+) -> list["CandidateTrack"]:
+    """BM25 full-text search using Postgres tsvector / ts_rank."""
+    expanded = expand_query(prompt)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    t.id, t.title,
+                    a.name as artist_name,
+                    ta.artist_id,
+                    al.title as album_name,
+                    t.year, t.duration_ms,
+                    tf.path,
+                    tp.energy, tp.darkness, tp.tempo, tp.texture,
+                    ts_rank(t.search_vector,
+                            plainto_tsquery('simple', %s)) AS keyword_score,
+                    ARRAY(
+                        SELECT g.name FROM track_genres tg2
+                        JOIN genres g ON tg2.genre_id = g.id
+                        WHERE tg2.track_id = t.id
+                    ) AS genres,
+                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm
+                FROM tracks t
+                LEFT JOIN track_profiles tp ON t.id = tp.track_id
+                LEFT JOIN track_files tf ON t.id = tf.track_id
+                    AND tf.missing_since IS NULL
+                LEFT JOIN track_artists ta ON ta.track_id = t.id
+                    AND ta.role = 'primary'
+                LEFT JOIN artists a ON ta.artist_id = a.id
+                LEFT JOIN track_albums tal ON tal.track_id = t.id
+                LEFT JOIN albums al ON tal.album_id = al.id
+                LEFT JOIN track_audio_features taf ON t.id = taf.track_id
+                WHERE t.search_vector @@ plainto_tsquery('simple', %s)
+                ORDER BY keyword_score DESC
+                LIMIT %s
+            """, (expanded, expanded, limit))
+            rows = cur.fetchall()
+
+    candidates = []
+    for row in rows:
+        candidates.append(CandidateTrack(
+            id=str(row[0]),
+            title=row[1] or "Unknown",
+            artist_name=row[2] or "Unknown",
+            artist_id=str(row[3]) if row[3] else None,
+            album_name=row[4] or "Unknown",
+            year=row[5],
+            duration_ms=row[6] or 0,
+            file_path=row[7],
+            energy=row[8] if row[8] is not None else 0.5,
+            darkness=row[9] if row[9] is not None else 0.5,
+            tempo=row[10] if row[10] is not None else 0.5,
+            texture=row[11] if row[11] is not None else 0.5,
+            keyword_score=float(row[12]) if row[12] is not None else 0.0,
+            semantic_score=0.0,
+            genres=list(row[13]) if row[13] else [],
+            bpm_norm=row[14],
+            loudness_norm=row[15],
+            brightness_norm=row[16],
+        ))
+
+    logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
+    return candidates
+
+
+def _fetch_candidates_by_ids(
+    track_ids: list[str],
+) -> list["CandidateTrack"]:
+    """Batch-fetch CandidateTrack metadata for a list of track IDs.
+
+    Used to hydrate genre/year pool results without N+1 queries.
+    """
+    if not track_ids:
+        return []
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    t.id, t.title,
+                    a.name as artist_name,
+                    ta.artist_id,
+                    al.title as album_name,
+                    t.year, t.duration_ms,
+                    tf.path,
+                    tp.energy, tp.darkness, tp.tempo, tp.texture,
+                    ARRAY(
+                        SELECT g.name FROM track_genres tg2
+                        JOIN genres g ON tg2.genre_id = g.id
+                        WHERE tg2.track_id = t.id
+                    ) AS genres,
+                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm
+                FROM tracks t
+                LEFT JOIN track_profiles tp ON t.id = tp.track_id
+                LEFT JOIN track_files tf ON t.id = tf.track_id
+                    AND tf.missing_since IS NULL
+                LEFT JOIN track_artists ta ON ta.track_id = t.id
+                    AND ta.role = 'primary'
+                LEFT JOIN artists a ON ta.artist_id = a.id
+                LEFT JOIN track_albums tal ON tal.track_id = t.id
+                LEFT JOIN albums al ON tal.album_id = al.id
+                LEFT JOIN track_audio_features taf ON t.id = taf.track_id
+                WHERE t.id = ANY(%s)
+            """, (track_ids,))
+            rows = cur.fetchall()
+
+    candidates = []
+    for row in rows:
+        candidates.append(CandidateTrack(
+            id=str(row[0]),
+            title=row[1] or "Unknown",
+            artist_name=row[2] or "Unknown",
+            artist_id=str(row[3]) if row[3] else None,
+            album_name=row[4] or "Unknown",
+            year=row[5],
+            duration_ms=row[6] or 0,
+            file_path=row[7],
+            energy=row[8] if row[8] is not None else 0.5,
+            darkness=row[9] if row[9] is not None else 0.5,
+            tempo=row[10] if row[10] is not None else 0.5,
+            texture=row[11] if row[11] is not None else 0.5,
+            genres=list(row[12]) if row[12] else [],
+            bpm_norm=row[13],
+            loudness_norm=row[14],
+            brightness_norm=row[15],
+            semantic_score=0.0,
+        ))
+
+    return candidates
+
+
+def build_phase_queries(intent: PlaylistIntent) -> list[str]:
+    """
+    Build phase-specific text queries for multi-query semantic retrieval.
+
+    For non-STEADY arcs, expands the base prompt with phase descriptions
+    (intro/peak/resolve) to widen the candidate pool.
+    """
+    prompt = intent.raw_prompt
+    arc = intent.arc_type
+
+    phase_map: dict[ArcType, list[str]] = {
+        ArcType.RISE: [
+            f"{prompt} quiet gentle intro",
+            f"{prompt} energetic intense climax",
+        ],
+        ArcType.FALL: [
+            f"{prompt} high energy opening",
+            f"{prompt} gentle quiet fade outro",
+        ],
+        ArcType.PEAK: [
+            f"{prompt} calm subdued intro",
+            f"{prompt} intense explosive peak climax",
+            f"{prompt} resolve mellow denouement",
+        ],
+        ArcType.VALLEY: [
+            f"{prompt} high energy opening",
+            f"{prompt} subdued quiet center",
+        ],
+        ArcType.WAVE: [
+            f"{prompt} build energy rise",
+            f"{prompt} peak intense climax",
+            f"{prompt} resolve calm",
+        ],
+        ArcType.JOURNEY: [
+            f"{prompt} intro beginning",
+            f"{prompt} peak intense climax",
+            f"{prompt} resolve ending denouement",
+        ],
+    }
+
+    return phase_map.get(arc, [prompt])
+
+
+def multi_query_semantic_search(
+    intent: PlaylistIntent,
+    limit_per_query: int = 200,
+    year_range: tuple[int | None, int | None] = (None, None),
+) -> list["CandidateTrack"]:
+    """
+    Run semantic search for each arc phase query and union results.
+
+    Tracks appearing in multiple queries retain the highest semantic score.
+    """
+    phase_queries = build_phase_queries(intent)
+    pool_map: dict[str, "CandidateTrack"] = {}
+
+    for query in phase_queries:
+        embedding = generate_embedding(query)
+        candidates = semantic_search(embedding, limit=limit_per_query, year_range=year_range)
+        for c in candidates:
+            if c.id not in pool_map or c.semantic_score > pool_map[c.id].semantic_score:
+                pool_map[c.id] = c
+
+    logger.info(
+        f"Multi-query search: {len(phase_queries)} queries → {len(pool_map)} unique candidates"
+    )
+    return list(pool_map.values())
 
 
 def score_trajectory_match(
@@ -233,10 +487,13 @@ def generate_position_pools(
     """
     Generate candidate pools for each playlist position.
 
-    This is the core v4 algorithm:
-    1. Single semantic search for global candidates
-    2. Re-score each candidate per position against trajectory target
-    3. Select top-k for each position pool
+    V4 algorithm (extended):
+    1. Semantic (pgvector) search → global candidate pool
+    2. BM25 keyword search → merge via combined retrieval score
+    3. Genre-filtered pool → union for intent.genre_hints
+    4. Year+genre pool → union when year_range + genre_hints present
+    5. Re-score each candidate per position against trajectory target
+    6. Select top-k for each position pool
     """
     # Determine pool size
     if pool_size is None:
@@ -246,24 +503,124 @@ def generate_position_pools(
     # Scale global search limit based on playlist size
     global_limit = min(400, pool_size * intent.target_size // 2)
 
-    # Single semantic search
-    global_candidates = semantic_search(
-        intent.prompt_embedding,
-        limit=global_limit,
-        year_range=intent.year_range,
-    )
+    # --- 1. Semantic search (multi-query for non-STEADY arcs) ---
+    if intent.arc_type == ArcType.STEADY:
+        semantic_candidates = semantic_search(
+            intent.prompt_embedding,
+            limit=global_limit,
+            year_range=intent.year_range,
+        )
+    else:
+        semantic_candidates = multi_query_semantic_search(
+            intent,
+            limit_per_query=global_limit,
+            year_range=intent.year_range,
+        )
+
+    # Build a mutable pool keyed by track ID
+    pool_map: dict[str, CandidateTrack] = {c.id: c for c in semantic_candidates}
+
+    # --- 2. BM25 keyword search + merge ---
+    try:
+        kw_candidates = keyword_search(intent.raw_prompt, limit=200)
+        if kw_candidates:
+            # Normalize keyword scores
+            max_kw = max(c.keyword_score for c in kw_candidates) or 1.0
+            for c in kw_candidates:
+                norm_kw = c.keyword_score / max_kw
+                if c.id in pool_map:
+                    # Existing: combine retrieval scores
+                    existing = pool_map[c.id]
+                    combined = 0.65 * existing.semantic_score + 0.35 * norm_kw
+                    pool_map[c.id] = replace(
+                        existing,
+                        keyword_score=norm_kw,
+                        semantic_score=combined,
+                    )
+                else:
+                    # New from BM25: semantic_score = 0.35 * kw contribution
+                    pool_map[c.id] = replace(
+                        c,
+                        keyword_score=norm_kw,
+                        semantic_score=0.35 * norm_kw,
+                    )
+    except Exception as e:
+        logger.warning(f"BM25 keyword search failed (search_vector may not exist yet): {e}")
+
+    # --- 3. Genre-based secondary pool (Fix 1) ---
+    if intent.genre_hints:
+        patterns = [f"%{g}%" for g in intent.genre_hints]
+        try:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT DISTINCT tg.track_id::text
+                        FROM track_genres tg
+                        JOIN genres g ON tg.genre_id = g.id
+                        WHERE g.name ILIKE ANY(%s)
+                        LIMIT 500
+                    """, (patterns,))
+                    genre_ids = [row[0] for row in cur.fetchall()
+                                 if row[0] not in pool_map]
+
+            if genre_ids:
+                genre_tracks = _fetch_candidates_by_ids(genre_ids)
+                for t in genre_tracks:
+                    pool_map[t.id] = t
+                logger.info(f"Genre pool added {len(genre_tracks)} candidates")
+        except Exception as e:
+            logger.warning(f"Genre pool query failed: {e}")
+
+    # --- 4. Year+genre third pool (Fix 2) ---
+    yr0, yr1 = intent.year_range
+    if yr0 and yr1 and intent.genre_hints:
+        patterns = [f"%{g}%" for g in intent.genre_hints]
+        try:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT DISTINCT t.id::text
+                        FROM tracks t
+                        JOIN track_genres tg ON tg.track_id = t.id
+                        JOIN genres g ON tg.genre_id = g.id
+                        WHERE t.year BETWEEN %s AND %s
+                          AND g.name ILIKE ANY(%s)
+                        LIMIT 300
+                    """, (yr0, yr1, patterns))
+                    year_ids = [row[0] for row in cur.fetchall()
+                                if row[0] not in pool_map]
+
+            if year_ids:
+                year_tracks = _fetch_candidates_by_ids(year_ids)
+                for t in year_tracks:
+                    pool_map[t.id] = t
+                logger.info(f"Year+genre pool added {len(year_tracks)} candidates")
+        except Exception as e:
+            logger.warning(f"Year+genre pool query failed: {e}")
+
+    global_candidates = list(pool_map.values())
 
     if not global_candidates:
-        logger.warning("No candidates found in semantic search")
+        logger.warning("No candidates found across all pool sources")
         return []
+
+    logger.info(f"Total global candidate pool: {len(global_candidates)} tracks")
+
+    # Precompute genre hint set for Jaccard scoring
+    hint_set = {h.lower() for h in intent.genre_hints} if intent.genre_hints else set()
+
+    # Precompute year midpoint for soft year scoring
+    year_midpoint: float | None = None
+    if yr0 and yr1:
+        year_midpoint = (yr0 + yr1) / 2.0
 
     position_pools: list[list[CandidateTrack]] = []
     prev_duration: int | None = None
 
     for position in range(intent.target_size):
         # Get trajectory target at this position
-        t = position / (intent.target_size - 1) if intent.target_size > 1 else 0.5
-        target = intent.trajectory_curve.evaluate(t)
+        t_norm = position / (intent.target_size - 1) if intent.target_size > 1 else 0.5
+        target = intent.trajectory_curve.evaluate(t_norm)
 
         # Score all candidates for this position
         scored_candidates: list[tuple[CandidateTrack, float]] = []
@@ -274,7 +631,7 @@ def generate_position_pools(
 
             # Gravity penalty
             grav_penalty = compute_gravity_penalty(
-                track.embedding, anchors, position=t
+                track.embedding, anchors, position=t_norm
             ) if track.embedding else 0.0
 
             # Duration penalty
@@ -282,14 +639,29 @@ def generate_position_pools(
                 track.duration_ms, prev_duration
             )
 
+            # Soft year scoring (Fix 2)
+            year_score = 0.0
+            if year_midpoint is not None and track.year:
+                distance = abs(track.year - year_midpoint)
+                year_score = max(-0.12, 0.08 - distance * 0.01)
+
+            # Genre Jaccard match score (Fix 6)
+            genre_match = 0.0
+            if hint_set and track.genres:
+                genre_set = {g.lower() for g in track.genres}
+                intersection = hint_set & genre_set
+                union = hint_set | genre_set
+                genre_match = len(intersection) / len(union) if union else 0.0
+
             scored_track = replace(
                 track,
                 trajectory_score=traj_score,
                 gravity_penalty=grav_penalty,
                 duration_penalty=dur_penalty,
+                year_score=year_score,
+                genre_match_score=genre_match,
             )
 
-            # Compute total for sorting
             total = scored_track.total_score
             scored_candidates.append((scored_track, total))
 
@@ -300,7 +672,7 @@ def generate_position_pools(
 
         # Update prev_duration for next position (use median of pool)
         if pool:
-            durations = sorted([t.duration_ms for t in pool if t.duration_ms > 0])
+            durations = sorted([tk.duration_ms for tk in pool if tk.duration_ms > 0])
             if durations:
                 prev_duration = durations[len(durations) // 2]
 

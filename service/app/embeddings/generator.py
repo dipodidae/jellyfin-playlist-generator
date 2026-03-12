@@ -23,43 +23,81 @@ def get_model() -> SentenceTransformer:
     return _model
 
 
+def _mood_label(darkness: float) -> str:
+    if darkness >= 0.75:
+        return "dark"
+    elif darkness >= 0.40:
+        return "neutral"
+    return "bright"
+
+
+def _energy_label(energy: float) -> str:
+    if energy >= 0.75:
+        return "aggressive"
+    elif energy >= 0.40:
+        return "moderate"
+    return "calm"
+
+
 def build_track_text(track: dict[str, Any]) -> str:
-    """Build a text representation of a track for embedding.
+    """
+    Build a text representation of a track for embedding.
 
     Combines multiple metadata fields into a rich text description.
+    Structured so the most important signals appear first.
     """
-    parts = []
+    from app.profiles.generator import score_dimension, ENERGY_KEYWORDS, DARKNESS_KEYWORDS
 
-    # Core metadata
-    if track.get("title"):
-        parts.append(track["title"])
-    if track.get("artist_name"):
-        parts.append(f"by {track['artist_name']}")
-    if track.get("album_name"):
-        parts.append(f"from album {track['album_name']}")
-    if track.get("year"):
-        parts.append(f"({track['year']})")
+    lines = []
+
+    # Lead with title and artist (highest signal weight)
+    title = track.get("title") or ""
+    artist = track.get("artist_name") or ""
+    if title and artist:
+        lines.append(f"{title} - {artist}")
+    elif title:
+        lines.append(title)
+    elif artist:
+        lines.append(artist)
+
+    # Album and year
+    album = track.get("album_name") or ""
+    year = track.get("year")
+    if album and year:
+        lines.append(f"Album: {album} ({year})")
+    elif album:
+        lines.append(f"Album: {album}")
+    elif year:
+        lines.append(f"Year: {year}")
 
     # Genre information
-    if track.get("genres"):
-        parts.append(f"genres: {', '.join(track['genres'])}")
+    genres = track.get("genres") or []
+    if genres:
+        lines.append(f"Genres: {', '.join(genres)}")
 
     # Last.fm tags (weighted by importance)
-    if track.get("tags"):
-        # Sort by weight and take top tags
-        sorted_tags = sorted(track["tags"], key=lambda t: t.get("weight", 0), reverse=True)
+    tags_raw = track.get("tags") or []
+    artist_tags_raw = track.get("artist_tags") or []
+    if tags_raw:
+        sorted_tags = sorted(tags_raw, key=lambda t: t.get("weight", 0), reverse=True)
         top_tags = [t["name"] for t in sorted_tags[:10]]
         if top_tags:
-            parts.append(f"tags: {', '.join(top_tags)}")
-
-    # Artist tags (if no track-specific tags)
-    if not track.get("tags") and track.get("artist_tags"):
-        sorted_tags = sorted(track["artist_tags"], key=lambda t: t.get("weight", 0), reverse=True)
+            lines.append(f"Tags: {', '.join(top_tags)}")
+    elif artist_tags_raw:
+        sorted_tags = sorted(artist_tags_raw, key=lambda t: t.get("weight", 0), reverse=True)
         top_tags = [t["name"] for t in sorted_tags[:5]]
         if top_tags:
-            parts.append(f"artist style: {', '.join(top_tags)}")
+            lines.append(f"Tags: {', '.join(top_tags)}")
 
-    return " ".join(parts)
+    # Mood and energy labels derived from genre/tag profile scores
+    all_tags = genres + [t["name"] for t in (tags_raw or artist_tags_raw)]
+    if all_tags:
+        energy_val = score_dimension(all_tags, ENERGY_KEYWORDS)
+        darkness_val = score_dimension(all_tags, DARKNESS_KEYWORDS)
+        lines.append(f"Mood: {_mood_label(darkness_val)}")
+        lines.append(f"Energy: {_energy_label(energy_val)}")
+
+    return "\n".join(lines)
 
 
 def generate_embedding(text: str) -> list[float]:
@@ -153,13 +191,22 @@ async def generate_track_embeddings(
     batch_size: int = 100,
     max_tracks: int | None = None,
     progress_callback=None,
+    force: bool = False,
 ) -> dict[str, int]:
-    """Generate embeddings for tracks that don't have them yet (PostgreSQL)."""
+    """Generate embeddings for tracks that don't have them yet (PostgreSQL).
+
+    Args:
+        force: When True, regenerate embeddings for all tracks even if they
+               already have one. Use this after updating build_track_text().
+    """
     stats = {"processed": 0, "embedded": 0, "errors": 0}
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            query = """
+            if force:
+                query = "SELECT t.id FROM tracks t"
+            else:
+                query = """
                 SELECT t.id FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 WHERE te.track_id IS NULL OR te.status != 'ready'

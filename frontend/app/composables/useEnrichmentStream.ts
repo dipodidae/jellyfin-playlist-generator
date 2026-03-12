@@ -36,6 +36,7 @@ export function useEnrichmentStream(options?: { onCompleted?: () => void }) {
 
     abortController = new AbortController()
     let sawTerminalEvent = false
+    let alreadyRunning = false
 
     try {
       const response = await fetch(endpoint, {
@@ -45,8 +46,22 @@ export function useEnrichmentStream(options?: { onCompleted?: () => void }) {
 
       if (!response.ok || !response.body) {
         const responseText = await response.text().catch(() => '')
-        error.value = responseText || `Request failed: ${response.status}`
-        status.value = 'error'
+        let errorMessage = responseText || `Request failed: ${response.status}`
+        try {
+          const parsed = JSON.parse(responseText)
+          errorMessage = parsed.detail || parsed.message || errorMessage
+        }
+        catch {}
+
+        if (response.status === 409) {
+          alreadyRunning = true
+          message.value = errorMessage
+          status.value = 'running'
+        }
+        else {
+          error.value = errorMessage
+          status.value = 'error'
+        }
         return
       }
 
@@ -102,11 +117,13 @@ export function useEnrichmentStream(options?: { onCompleted?: () => void }) {
       }
     }
     finally {
-      if (!sawTerminalEvent && !error.value) {
+      if (!alreadyRunning && !sawTerminalEvent && !error.value) {
         error.value = `${label} ended unexpectedly before reporting completion.`
         status.value = 'error'
       }
-      isRunning.value = false
+      if (!alreadyRunning) {
+        isRunning.value = false
+      }
       abortController = null
     }
   }

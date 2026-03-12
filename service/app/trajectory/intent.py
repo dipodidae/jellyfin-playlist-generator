@@ -153,8 +153,16 @@ GENRE_ALIASES = {
 }
 
 
-def detect_arc_type(prompt: str) -> tuple[ArcType, float]:
+def detect_arc_type(
+    prompt: str,
+    genre_hints: list[str] | None = None,
+) -> tuple[ArcType, float]:
     """Detect the trajectory arc type from prompt keywords.
+
+    When no arc keywords match but genre hints are present and the prompt is
+    short (< 6 words), defaults to JOURNEY instead of STEADY.  This gives
+    genre-only prompts (e.g. "true evil 80s thrash") a wider candidate gravity
+    (0.3) rather than the maximum-tightness steady-state tunnel (0.8).
 
     Returns:
         Tuple of (arc_type, confidence) where confidence is [0, 1]
@@ -173,6 +181,9 @@ def detect_arc_type(prompt: str) -> tuple[ArcType, float]:
             arc_scores[arc_type] = score
 
     if not arc_scores:
+        # Fallback: if genre hints are present and prompt is short, explore
+        if genre_hints and len(prompt.split()) < 6:
+            return ArcType.JOURNEY, 0.5
         return ArcType.STEADY, 0.3  # Low confidence default
 
     # Find best match
@@ -397,10 +408,12 @@ def parse_prompt(prompt: str, target_size: int = 20) -> PlaylistIntent:
     # Generate embedding for the full prompt
     prompt_embedding = generate_embedding(prompt)
 
-    # Extract components
-    arc_type, arc_confidence = detect_arc_type(prompt)
-    mood_keywords = extract_mood_keywords(prompt)
+    # Extract genre hints first so they can inform arc detection
     genre_hints = extract_genre_hints(prompt)
+
+    # Extract remaining components
+    arc_type, arc_confidence = detect_arc_type(prompt, genre_hints=genre_hints)
+    mood_keywords = extract_mood_keywords(prompt)
     artist_seeds = extract_artist_seeds(prompt)
     year_range = extract_year_range(prompt)
     abstract_concepts = extract_abstract_concepts(prompt)

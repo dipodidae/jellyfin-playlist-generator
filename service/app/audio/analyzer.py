@@ -278,9 +278,10 @@ def score_audio_transition(
     return similarity * weight
 
 
-async def analyze_library(
+def analyze_library(
     batch_size: int = 100,
     progress_callback: callable = None,
+    stop_event=None,
 ) -> dict[str, int]:
     """
     Analyze audio features for all tracks in library.
@@ -316,6 +317,10 @@ async def analyze_library(
         return stats
 
     for i, (track_id, file_path) in enumerate(tracks):
+        if stop_event and stop_event.is_set():
+            logger.info("Audio analysis cancelled by client disconnect")
+            break
+
         if not file_path or not os.path.exists(file_path):
             stats["skipped"] += 1
             continue
