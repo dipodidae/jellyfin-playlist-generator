@@ -699,7 +699,7 @@ def save_clusters(
             # Bulk insert clusters
             from psycopg2.extras import execute_values
             cluster_rows = [
-                (c.cluster_id, c.name, c.centroid.tolist(), c.size)
+                (int(c.cluster_id), c.name, c.centroid.tolist(), int(c.size))
                 for c in cluster_infos
             ]
             execute_values(
@@ -711,7 +711,7 @@ def save_clusters(
 
             # Bulk insert artist assignments
             assignment_rows = [
-                (artist_id, cluster_id, weight)
+                (artist_id, int(cluster_id), float(weight))
                 for artist_id, weights in artist_cluster_weights.items()
                 for cluster_id, weight in weights
             ]
@@ -831,7 +831,7 @@ def assign_small_artists_to_clusters(
                     INSERT INTO artist_clusters (artist_id, cluster_id, weight)
                     VALUES (%s, %s, 1.0)
                     ON CONFLICT (artist_id, cluster_id) DO NOTHING
-                """, (artist_id, best_cluster))
+                """, (artist_id, int(best_cluster)))
                 assigned += 1
 
     elapsed = time.perf_counter() - t0
