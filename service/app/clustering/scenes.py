@@ -846,7 +846,7 @@ def assign_small_artists_to_clusters(
 # 7. Main pipeline entry point
 # ---------------------------------------------------------------------------
 
-async def generate_clusters(
+def generate_clusters(
     n_clusters: int | None = None,
     progress_callback: callable = None,
 ) -> dict[str, Any]:
@@ -854,6 +854,9 @@ async def generate_clusters(
     Generate scene clusters from artist embeddings.
 
     Uses UMAP + HDBSCAN pipeline with tag-enriched embeddings.
+    This is a synchronous CPU-bound function. When called from an async
+    context (e.g. SSE streaming), wrap with ``asyncio.to_thread`` and a
+    thread-safe progress callback to avoid blocking the event loop.
 
     Args:
         n_clusters: Ignored (HDBSCAN auto-determines cluster count).

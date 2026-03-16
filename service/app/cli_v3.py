@@ -144,6 +144,44 @@ async def cmd_sync_all(args):
     logger.info(f"Tracks with profiles: {final_stats.get('tracks_with_profiles', 0)}")
 
 
+def cmd_analyze_audio(args):
+    """Analyze audio features for tracks."""
+    from app.audio.analyzer import analyze_library
+
+    init_db()
+
+    def progress(current, total, message):
+        if total > 0:
+            pct = int((current / total) * 100)
+            print(f"\r  [{pct:3d}%] {current}/{total} - {message}", end="", flush=True)
+        else:
+            print(f"\r  {message}", end="", flush=True)
+
+    logger.info("Analyzing audio features...")
+    stats = analyze_library(progress_callback=progress)
+    print()
+    logger.info(f"Audio analysis complete: {json.dumps(stats, indent=2)}")
+
+
+def cmd_generate_clusters(args):
+    """Generate scene clusters."""
+    from app.clustering.scenes import generate_clusters
+
+    init_db()
+
+    def progress(current, total, message):
+        if total > 0:
+            pct = int((current / total) * 100)
+            print(f"\r  [{pct:3d}%] {current}/{total} - {message}", end="", flush=True)
+        else:
+            print(f"\r  {message}", end="", flush=True)
+
+    logger.info("Generating scene clusters...")
+    stats = generate_clusters(progress_callback=progress)
+    print()
+    logger.info(f"Clustering complete: {json.dumps(stats, default=str, indent=2)}")
+
+
 def cmd_stats(args):
     """Show library statistics."""
     from app.database_pg import get_stats
@@ -232,6 +270,12 @@ def main():
     # generate-profiles
     subparsers.add_parser("generate-profiles", help="Generate semantic profiles")
     
+    # analyze-audio
+    subparsers.add_parser("analyze-audio", help="Analyze audio features (BPM, loudness, etc.)")
+    
+    # generate-clusters
+    subparsers.add_parser("generate-clusters", help="Generate scene clusters (UMAP + HDBSCAN)")
+    
     # stats
     subparsers.add_parser("stats", help="Show library statistics")
     
@@ -266,6 +310,10 @@ def main():
         asyncio.run(cmd_generate_embeddings(args))
     elif args.command == "generate-profiles":
         asyncio.run(cmd_generate_profiles(args))
+    elif args.command == "analyze-audio":
+        cmd_analyze_audio(args)
+    elif args.command == "generate-clusters":
+        cmd_generate_clusters(args)
     elif args.command == "stats":
         cmd_stats(args)
     elif args.command == "export-m3u":

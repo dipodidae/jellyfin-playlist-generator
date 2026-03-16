@@ -794,11 +794,22 @@ async def trigger_cluster_generation(background_tasks: BackgroundTasks):
 
 @router.post("/enrich/clusters/stream")
 async def trigger_cluster_generation_stream():
-    """Trigger scene clustering with SSE progress."""
-    return _make_enrichment_stream(
-        "Scene clustering",
-        lambda cb: generate_clusters(progress_callback=cb),
-    )
+    """Trigger scene clustering with SSE progress.
+
+    generate_clusters is CPU-bound (UMAP + HDBSCAN), so we run it in a
+    thread to keep the event loop free for flushing SSE events.
+    """
+    def factory(cb):
+        loop = asyncio.get_running_loop()
+
+        def threadsafe_cb(current: int, total: int, message: str):
+            loop.call_soon_threadsafe(cb, current, total, message)
+
+        return asyncio.to_thread(
+            generate_clusters, progress_callback=threadsafe_cb,
+        )
+
+    return _make_enrichment_stream("Scene clustering", factory)
 
 
 @router.post("/enrich/audio")
