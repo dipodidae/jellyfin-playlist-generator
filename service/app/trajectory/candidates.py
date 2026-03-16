@@ -18,7 +18,7 @@ from app.database_pg import get_connection
 from app.embeddings.generator import generate_embedding
 from app.trajectory.curves import TrajectoryPoint
 from app.trajectory.gravity import GravityAnchors, compute_gravity_penalty
-from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType
+from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType, PromptType
 
 logger = logging.getLogger(__name__)
 
@@ -82,16 +82,25 @@ class CandidateTrack:
     duration_penalty: float = 0.0
     year_score: float = 0.0       # soft year-range bonus/penalty
     genre_match_score: float = 0.0  # Jaccard(intent.genre_hints, track.genres)
+    usage_penalty: float = 0.0     # time-decayed track usage penalty
+
+    # Adaptive scoring weights (set per-prompt by generate_position_pools)
+    _w_semantic: float = 0.25
+    _w_trajectory: float = 0.35
+    _w_genre: float = 0.20
+    _w_gravity: float = 0.15
+    _w_duration: float = 0.10
 
     @property
     def total_score(self) -> float:
         return (
-            self.semantic_score * 0.25 +
-            self.trajectory_score * 0.35 +
-            self.genre_match_score * 0.20 +
+            self.semantic_score * self._w_semantic +
+            self.trajectory_score * self._w_trajectory +
+            self.genre_match_score * self._w_genre +
             self.year_score -
-            self.gravity_penalty * 0.15 -
-            self.duration_penalty * 0.10
+            self.gravity_penalty * self._w_gravity -
+            self.duration_penalty * self._w_duration -
+            self.usage_penalty
         )
 
     def profile_array(self) -> np.ndarray:
@@ -208,14 +217,59 @@ def semantic_search(
 # ---------------------------------------------------------------------------
 
 GENRE_SYNONYMS: dict[str, str] = {
-    "evil": "dark",
-    "filthy": "raw",
-    "bestial": "war metal",
-    "teutonic": "german thrash",
-    "necro": "black metal",
-    "evil thrash": "thrash metal dark",
-    "satanic": "black metal dark",
-    "brutal": "death metal",
+    # Mood / attitude descriptors → genre/tag expansions
+    "evil": "dark black metal thrash metal",
+    "filthy": "raw sludge crust punk",
+    "bestial": "war metal bestial black metal",
+    "teutonic": "german thrash teutonic thrash",
+    "necro": "raw black metal lo-fi",
+    "evil thrash": "thrash metal dark blackened thrash",
+    "satanic": "black metal dark satanic",
+    "brutal": "death metal brutal death metal",
+    "pure evil": "black metal dark thrash metal",
+    "true": "black metal raw",
+    "kvlt": "black metal raw underground",
+    "grim": "black metal depressive raw",
+    "occult": "occult rock black metal ritual",
+    "ritual": "ritual ambient dark ambient neofolk",
+    "bleak": "depressive post-punk coldwave darkwave",
+    "cold": "coldwave cold wave minimal wave post-punk",
+    "frozen": "black metal atmospheric ambient",
+    "icy": "coldwave atmospheric black metal",
+    "nocturnal": "dark ambient gothic darkwave",
+    "urban": "post-punk ebm coldwave darkwave",
+    "industrial": "industrial ebm power electronics",
+    "raw": "raw black metal punk crust",
+    "underground": "underground raw lo-fi",
+    "old school": "old school death metal classic nwobhm",
+    "classic": "classic rock nwobhm heavy metal",
+    "progressive": "progressive metal progressive rock",
+    "atmospheric": "atmospheric black metal ambient post-rock",
+    "melodic": "melodic death metal melodic black metal",
+    "technical": "technical death metal technical thrash",
+    "crushing": "doom metal sludge death metal",
+    "heavy": "heavy metal doom metal sludge",
+    "fast": "thrash metal speed metal grindcore",
+    "slow": "doom metal funeral doom drone ambient",
+    "noisy": "noise harsh noise noise rock",
+    "ethereal": "ethereal darkwave dream pop shoegaze",
+    "dreamy": "dream pop shoegaze ambient",
+    "hypnotic": "krautrock techno psychedelic trance",
+    "groovy": "stoner rock groove metal funk",
+    "psychedelic": "psychedelic rock psychedelic space rock acid rock",
+    "epic": "epic heavy metal epic doom metal symphonic power metal",
+    "majestic": "symphonic metal power metal epic",
+    "sinister": "black metal dark death metal",
+    "aggressive": "thrash metal death metal hardcore punk",
+    "melancholic": "doom metal gothic darkwave depressive",
+    "triumphant": "power metal epic heavy metal",
+    "mechanical": "industrial ebm techno",
+    "minimal": "minimal wave minimal synth coldwave",
+    "lo-fi": "lo-fi raw underground",
+    "vintage": "nwobhm classic rock heavy metal",
+    "80s": "new wave synth-pop nwobhm thrash metal coldwave",
+    "70s": "classic rock heavy metal progressive rock krautrock punk",
+    "90s": "grunge alternative rock death metal black metal",
 }
 
 
@@ -479,6 +533,42 @@ def score_duration_compatibility(
         return 0.3 * (ratio - 1.5) / (max_ratio - 1.5)
 
 
+# ---------------------------------------------------------------------------
+# Adaptive scoring weights per prompt type  (Phase 3b)
+# ---------------------------------------------------------------------------
+
+def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
+    """Return scoring weights tuned for the prompt classification.
+
+    Genre-focused prompts boost genre Jaccard + semantic (which includes BM25)
+    and reduce trajectory weight.  Arc-focused prompts do the opposite.
+    """
+    if prompt_type == PromptType.GENRE:
+        return {
+            "semantic": 0.30,
+            "trajectory": 0.15,
+            "genre": 0.35,
+            "gravity": 0.10,
+            "duration": 0.10,
+        }
+    elif prompt_type == PromptType.ARC:
+        return {
+            "semantic": 0.25,
+            "trajectory": 0.40,
+            "genre": 0.10,
+            "gravity": 0.15,
+            "duration": 0.10,
+        }
+    else:  # MIXED
+        return {
+            "semantic": 0.25,
+            "trajectory": 0.35,
+            "genre": 0.20,
+            "gravity": 0.15,
+            "duration": 0.10,
+        }
+
+
 def generate_position_pools(
     intent: PlaylistIntent,
     anchors: GravityAnchors,
@@ -489,12 +579,17 @@ def generate_position_pools(
 
     V4 algorithm (extended):
     1. Semantic (pgvector) search → global candidate pool
+       - For genre-focused prompts: enhance query text with genre names
     2. BM25 keyword search → merge via combined retrieval score
+       - BM25 matches boosted for genre-focused prompts
     3. Genre-filtered pool → union for intent.genre_hints
     4. Year+genre pool → union when year_range + genre_hints present
-    5. Re-score each candidate per position against trajectory target
-    6. Select top-k for each position pool
+    5. Apply track usage penalties (playlist memory)
+    6. Re-score each candidate per position against trajectory target
+    7. Select top-k for each position pool
     """
+    from app.observability import get_track_usage_penalties
+
     # Determine pool size
     if pool_size is None:
         library_size = get_library_size()
@@ -503,10 +598,30 @@ def generate_position_pools(
     # Scale global search limit based on playlist size
     global_limit = min(400, pool_size * intent.target_size // 2)
 
+    # Get adaptive scoring weights based on prompt type
+    weights = get_adaptive_weights(intent.prompt_type)
+    w_semantic = weights["semantic"]
+    w_trajectory = weights["trajectory"]
+    w_genre = weights["genre"]
+    w_gravity = weights["gravity"]
+    w_duration = weights["duration"]
+
+    logger.info(f"Adaptive weights ({intent.prompt_type.value}): "
+                f"sem={w_semantic}, traj={w_trajectory}, genre={w_genre}")
+
     # --- 1. Semantic search (multi-query for non-STEADY arcs) ---
+    # For genre-focused prompts, enhance the embedding query with genre names
+    # so the embedding space is pushed toward the right neighbourhood.
+    search_embedding = intent.prompt_embedding
+    if intent.prompt_type == PromptType.GENRE and intent.genre_hints:
+        genre_text = " ".join(intent.genre_hints)
+        enhanced_query = f"{intent.raw_prompt} {genre_text}"
+        search_embedding = generate_embedding(enhanced_query)
+        logger.info(f"Enhanced semantic query for genre prompt: +'{genre_text}'")
+
     if intent.arc_type == ArcType.STEADY:
         semantic_candidates = semantic_search(
-            intent.prompt_embedding,
+            search_embedding,
             limit=global_limit,
             year_range=intent.year_range,
         )
@@ -526,23 +641,28 @@ def generate_position_pools(
         if kw_candidates:
             # Normalize keyword scores
             max_kw = max(c.keyword_score for c in kw_candidates) or 1.0
+            # For genre-focused prompts, give BM25 matches a bigger boost
+            kw_weight = 0.50 if intent.prompt_type == PromptType.GENRE else 0.35
+            sem_weight = 1.0 - kw_weight
+
             for c in kw_candidates:
                 norm_kw = c.keyword_score / max_kw
                 if c.id in pool_map:
                     # Existing: combine retrieval scores
                     existing = pool_map[c.id]
-                    combined = 0.65 * existing.semantic_score + 0.35 * norm_kw
+                    combined = sem_weight * existing.semantic_score + kw_weight * norm_kw
                     pool_map[c.id] = replace(
                         existing,
                         keyword_score=norm_kw,
                         semantic_score=combined,
                     )
                 else:
-                    # New from BM25: semantic_score = 0.35 * kw contribution
+                    # New from BM25: give them a meaningful semantic score
+                    # so they can compete with pure-semantic results
                     pool_map[c.id] = replace(
                         c,
                         keyword_score=norm_kw,
-                        semantic_score=0.35 * norm_kw,
+                        semantic_score=kw_weight * norm_kw,
                     )
     except Exception as e:
         logger.warning(f"BM25 keyword search failed (search_vector may not exist yet): {e}")
@@ -566,10 +686,39 @@ def generate_position_pools(
             if genre_ids:
                 genre_tracks = _fetch_candidates_by_ids(genre_ids)
                 for t in genre_tracks:
-                    pool_map[t.id] = t
+                    # Give genre-pool tracks a baseline genre_match_score
+                    # so they aren't invisible when merged
+                    t_with_score = replace(t, semantic_score=0.15)
+                    pool_map[t.id] = t_with_score
                 logger.info(f"Genre pool added {len(genre_tracks)} candidates")
         except Exception as e:
             logger.warning(f"Genre pool query failed: {e}")
+
+    # --- 3b. Last.fm artist tag pool (covers artist-level tags) ---
+    if intent.genre_hints:
+        tag_patterns = [f"%{g}%" for g in intent.genre_hints]
+        try:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT DISTINCT ta.track_id::text
+                        FROM track_artists ta
+                        JOIN artist_lastfm_tags alt ON alt.artist_id = ta.artist_id
+                        JOIN lastfm_tags lt ON lt.id = alt.tag_id
+                        WHERE lt.name ILIKE ANY(%s)
+                          AND alt.weight >= 50
+                        LIMIT 500
+                    """, (tag_patterns,))
+                    tag_ids = [row[0] for row in cur.fetchall()
+                               if row[0] not in pool_map]
+
+            if tag_ids:
+                tag_tracks = _fetch_candidates_by_ids(tag_ids)
+                for t in tag_tracks:
+                    pool_map[t.id] = replace(t, semantic_score=0.15)
+                logger.info(f"Artist-tag pool added {len(tag_tracks)} candidates")
+        except Exception as e:
+            logger.warning(f"Artist-tag pool query failed: {e}")
 
     # --- 4. Year+genre third pool (Fix 2) ---
     yr0, yr1 = intent.year_range
@@ -606,8 +755,18 @@ def generate_position_pools(
 
     logger.info(f"Total global candidate pool: {len(global_candidates)} tracks")
 
+    # --- 5. Fetch track usage penalties (playlist memory) ---
+    all_ids = [c.id for c in global_candidates]
+    usage_penalties = get_track_usage_penalties(all_ids)
+
     # Precompute genre hint set for Jaccard scoring
     hint_set = {h.lower() for h in intent.genre_hints} if intent.genre_hints else set()
+    # Also add canonical families for the hints so Jaccard is more generous
+    from app.trajectory.intent import _ALIAS_TO_FAMILY
+    for h in list(hint_set):
+        fam = _ALIAS_TO_FAMILY.get(h)
+        if fam:
+            hint_set.add(fam)
 
     # Precompute year midpoint for soft year scoring
     year_midpoint: float | None = None
@@ -649,9 +808,17 @@ def generate_position_pools(
             genre_match = 0.0
             if hint_set and track.genres:
                 genre_set = {g.lower() for g in track.genres}
+                # Also add families for track genres
+                for g in list(genre_set):
+                    fam = _ALIAS_TO_FAMILY.get(g)
+                    if fam:
+                        genre_set.add(fam)
                 intersection = hint_set & genre_set
                 union = hint_set | genre_set
                 genre_match = len(intersection) / len(union) if union else 0.0
+
+            # Track usage penalty (playlist memory)
+            u_penalty = usage_penalties.get(track.id, 0.0)
 
             scored_track = replace(
                 track,
@@ -660,6 +827,12 @@ def generate_position_pools(
                 duration_penalty=dur_penalty,
                 year_score=year_score,
                 genre_match_score=genre_match,
+                usage_penalty=u_penalty,
+                _w_semantic=w_semantic,
+                _w_trajectory=w_trajectory,
+                _w_genre=w_genre,
+                _w_gravity=w_gravity,
+                _w_duration=w_duration,
             )
 
             total = scored_track.total_score

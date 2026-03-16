@@ -284,6 +284,10 @@ def sequence_playlist(
     if config is None:
         config = SequencerConfig()
 
+    # Metrics tracking
+    total_constraint_rejections = 0
+    total_beam_dead_ends = 0
+
     # Initialize beam with empty path
     beam: list[BeamPath] = [BeamPath()]
 
@@ -294,10 +298,14 @@ def sequence_playlist(
         next_pool = position_pools[position + 1] if position + 1 < len(position_pools) else None
 
         for path in beam:
+            path_had_valid_extension = False
             for candidate in candidates:
                 # Check constraints
                 if not is_valid_extension(path, candidate, position, config):
+                    total_constraint_rejections += 1
                     continue
+
+                path_had_valid_extension = True
 
                 # Compute scores
                 prev_track = path.tracks[-1] if path.tracks else None
@@ -345,11 +353,15 @@ def sequence_playlist(
 
                 new_candidates.append((new_path, new_path.cumulative_score))
 
+            if not path_had_valid_extension:
+                total_beam_dead_ends += 1
+
         # Select diverse beam
         if new_candidates:
             beam = select_diverse_beam(new_candidates, config.beam_width, config.diversity_threshold)
         else:
             logger.warning(f"No valid candidates at position {position}")
+            total_beam_dead_ends += len(beam)
             # Keep current beam, will result in shorter playlist
             break
 
@@ -359,7 +371,16 @@ def sequence_playlist(
 
     # Return best path
     best_path = max(beam, key=lambda p: p.cumulative_score)
-    logger.info(f"Sequenced playlist: {len(best_path.tracks)} tracks, score={best_path.cumulative_score:.2f}")
+    logger.info(
+        f"Sequenced playlist: {len(best_path.tracks)} tracks, "
+        f"score={best_path.cumulative_score:.2f}, "
+        f"dead_ends={total_beam_dead_ends}, "
+        f"constraint_rejections={total_constraint_rejections}"
+    )
+
+    # Attach metrics to the returned list for the caller to pick up
+    best_path.tracks._beam_dead_ends = total_beam_dead_ends  # type: ignore[attr-defined]
+    best_path.tracks._constraint_rejections = total_constraint_rejections  # type: ignore[attr-defined]
 
     return best_path.tracks
 
@@ -414,4 +435,6 @@ def compute_playlist_metrics(
         "avg_transition_cost": avg_trans_cost,
         "pool_entropy": pool_entropy,
         "playlist_length": len(playlist),
+        "beam_dead_ends": getattr(playlist, '_beam_dead_ends', 0),
+        "constraint_rejections": getattr(playlist, '_constraint_rejections', 0),
     }

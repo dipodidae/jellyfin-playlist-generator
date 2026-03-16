@@ -213,6 +213,29 @@ export function useLibrarySync(options?: { onCompleted?: () => void }) {
           }
         }
       }
+
+      // Flush any remaining data left in the buffer after the stream closes
+      if (buffer.trim()) {
+        for (const line of buffer.split('\n\n')) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event: ScanStatus = JSON.parse(line.slice(6))
+              applyScanStatus(event, 'stream')
+
+              if (event.stage === 'complete') {
+                options?.onCompleted?.()
+                await fetchHistory()
+              }
+              if (event.stage === 'error') {
+                syncError.value = event.error ?? 'Sync failed'
+              }
+            }
+            catch {
+              // Skip malformed SSE lines
+            }
+          }
+        }
+      }
     }
     catch (e) {
       syncError.value = e instanceof Error ? e.message : 'Sync failed'

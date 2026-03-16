@@ -6,18 +6,32 @@ Parses user prompts into structured intent objects that define:
 - Genre/style preferences
 - Temporal constraints
 - Abstract concepts to interpret
+- Prompt type classification (genre-focused vs arc-focused vs mixed)
+
+Supports LLM-powered parsing (gpt-4o-mini) with fallback to keyword-based parsing.
 """
 
+import json
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+import openai
+
+from app.config import settings
 from app.embeddings.generator import generate_embedding
 from app.trajectory.curves import TrajectoryCurve, TrajectoryPoint, generate_trajectory_curve
 
 logger = logging.getLogger(__name__)
+
+
+class PromptType(str, Enum):
+    """Classification of prompt intent for adaptive scoring."""
+    GENRE = "genre"      # Genre/style-focused (e.g. "coldwave", "thrash metal")
+    ARC = "arc"          # Arc/mood-focused (e.g. "wind down for sleep")
+    MIXED = "mixed"      # Both genre + arc signals (e.g. "build from doom to thrash")
 
 
 class ArcType(str, Enum):
@@ -100,6 +114,9 @@ class PlaylistIntent:
     target_size: int = 20
     target_duration_minutes: int | None = None
 
+    # Prompt type classification (for adaptive scoring)
+    prompt_type: PromptType = PromptType.MIXED
+
     # Mood/style
     mood_keywords: list[str] = field(default_factory=list)
     genre_hints: list[str] = field(default_factory=list)
@@ -141,16 +158,214 @@ ENERGY_KEYWORDS = {
     "low": ["calm", "quiet", "soft", "gentle", "peaceful", "ambient", "slow", "minimal"],
 }
 
-# Common genre aliases
-GENRE_ALIASES = {
-    "metal": ["metal", "heavy metal", "death metal", "black metal", "thrash", "doom"],
-    "electronic": ["electronic", "techno", "house", "ambient", "idm", "synth"],
-    "rock": ["rock", "alternative", "indie", "punk", "grunge"],
-    "jazz": ["jazz", "bebop", "fusion", "smooth jazz"],
-    "classical": ["classical", "orchestral", "symphony", "chamber"],
-    "hip-hop": ["hip-hop", "rap", "trap", "boom bap"],
-    "folk": ["folk", "acoustic", "singer-songwriter", "americana"],
+# ---------------------------------------------------------------------------
+# Comprehensive genre taxonomy built from actual library data (400 genres +
+# 2 296 Last.fm artist tags).  Every alias is stored **lowercase**.
+#
+# The dict maps canonical genre family → list of aliases that a user might
+# type in a prompt.  `extract_genre_hints()` walks this to recognise genres.
+# ---------------------------------------------------------------------------
+GENRE_ALIASES: dict[str, list[str]] = {
+    # --- Metal super-families ------------------------------------------
+    "black metal": [
+        "black metal", "atmospheric black metal", "depressive black metal",
+        "raw black metal", "melodic black metal", "symphonic black metal",
+        "avant-garde black metal", "pagan black metal", "post-black metal",
+        "blackgaze", "dsbm", "nsbm", "ambient black metal",
+        "progressive folk black metal", "folk black metal",
+        "crust black metal", "industrial black metal", "blackened",
+        "svartmetall", "bestial black metal", "black 'n' roll",
+    ],
+    "death metal": [
+        "death metal", "melodic death metal", "technical death metal",
+        "brutal death metal", "old school death metal", "death-doom metal",
+        "blackened death metal", "deathgrind", "experimental death metal",
+        "death thrash", "progressive death metal", "slam",
+    ],
+    "thrash metal": [
+        "thrash metal", "thrash", "crossover thrash", "bay area thrash",
+        "teutonic thrash", "blackened thrash", "blackened thrash metal",
+        "technical thrash metal", "technical thrash", "progressive thrash metal",
+        "speed thrash metal", "black thrash metal", "power thrash metal",
+        "avantgarde thrash metal", "speed thrash",
+    ],
+    "doom metal": [
+        "doom metal", "doom", "funeral doom metal", "funeral doom",
+        "traditional doom metal", "trad doom metal", "epic doom metal",
+        "death-doom metal", "doom death metal", "stoner doom metal",
+        "sludge metal", "sludge", "drone metal", "blackened doom metal",
+    ],
+    "heavy metal": [
+        "heavy metal", "nwobhm", "speed metal", "classic heavy metal",
+        "epic heavy metal", "traditional heavy metal", "power metal",
+        "symphonic metal", "operatic metal", "operatic symphonic metal",
+        "progressive metal", "glam metal", "hair metal", "aor",
+    ],
+    "grindcore": [
+        "grindcore", "deathgrind", "goregrind", "powerviolence",
+        "noisecore", "grind",
+    ],
+    "industrial metal": [
+        "industrial metal", "industrial rock", "industrial gothic metal",
+        "electronic industrial metal", "nu metal",
+    ],
+    "metalcore": [
+        "metalcore", "deathcore", "mathcore", "post-hardcore", "screamo",
+    ],
+    "groove metal": [
+        "groove metal",
+    ],
+    "viking metal": [
+        "viking metal", "viking", "pagan metal",
+    ],
+    "gothic metal": [
+        "gothic metal", "gothic", "goth metal",
+    ],
+    "folk metal": [
+        "folk metal",
+    ],
+    "avant-garde metal": [
+        "avant-garde metal", "avantgarde", "avant-garde",
+    ],
+
+    # --- Rock families -------------------------------------------------
+    "rock": [
+        "rock", "classic rock", "hard rock", "blues rock", "psychedelic rock",
+        "acid rock", "garage rock", "stoner rock", "southern rock",
+        "progressive rock", "art rock", "krautrock", "space rock",
+        "psychedelic space rock", "boogie rock", "arena rock",
+        "alternative rock", "indie rock", "noise rock", "experimental rock",
+        "heavy psych", "occult rock",
+    ],
+    "punk": [
+        "punk", "punk rock", "hardcore punk", "d-beat", "crust punk",
+        "crust", "oi", "proto-punk", "post-punk", "art punk",
+        "dance-punk", "pop punk", "metal punk",
+    ],
+    "post-punk": [
+        "post-punk", "gothic rock", "goth", "deathrock", "batcave",
+    ],
+    "grunge": [
+        "grunge",
+    ],
+    "shoegaze": [
+        "shoegaze", "dream pop", "blackgaze",
+    ],
+    "post-rock": [
+        "post-rock",
+    ],
+
+    # --- Electronic families -------------------------------------------
+    "electronic": [
+        "electronic", "electro", "electronica",
+    ],
+    "industrial": [
+        "industrial", "ebm", "dark electro", "power electronics",
+        "rhythmic noise", "death industrial", "martial industrial",
+        "futurepop", "electro-industrial", "industrial techno",
+    ],
+    "synth-pop": [
+        "synth-pop", "synthpop", "synth pop", "electropop",
+        "minimal synth", "minimal wave",
+    ],
+    "coldwave": [
+        "coldwave", "cold wave", "minimal wave", "minimal synth",
+    ],
+    "darkwave": [
+        "darkwave", "dark wave", "ethereal", "ethereal wave",
+        "neoclassical darkwave",
+    ],
+    "new wave": [
+        "new wave", "neue deutsche welle", "ndw", "no wave",
+    ],
+    "techno": [
+        "techno", "acid house", "house", "acid techno",
+        "industrial techno",
+    ],
+    "ambient": [
+        "ambient", "dark ambient", "space ambient", "ritual ambient",
+        "drone", "dungeon synth", "winter synth", "berlin school",
+    ],
+    "synthwave": [
+        "synthwave", "retrowave",
+    ],
+    "trance": [
+        "trance",
+    ],
+    "downtempo": [
+        "downtempo", "trip hop", "trip-hop", "chillout", "lo-fi",
+        "leftfield",
+    ],
+    "drum and bass": [
+        "drum and bass", "drum n bass", "breakcore",
+    ],
+    "disco": [
+        "disco", "alternative dance", "dance", "dance-rock",
+    ],
+
+    # --- Hip-hop -------------------------------------------------------
+    "hip-hop": [
+        "hip-hop", "hip hop", "rap", "boom bap", "gangsta rap",
+        "east coast hip hop", "southern hip hop", "hardcore hip hop",
+        "conscious hip hop", "jazz rap", "pop rap", "trap",
+        "horrorcore",
+    ],
+
+    # --- Jazz ----------------------------------------------------------
+    "jazz": [
+        "jazz", "free jazz", "avant-garde jazz", "jazz fusion",
+        "hard bop", "contemporary jazz", "dark jazz",
+        "post-bop", "big band", "swing",
+    ],
+
+    # --- Classical & orchestral ----------------------------------------
+    "classical": [
+        "classical", "modern classical", "neoclassical",
+        "orchestral", "chamber", "symphony",
+    ],
+
+    # --- Folk & acoustic -----------------------------------------------
+    "folk": [
+        "folk", "folk rock", "neofolk", "dark folk",
+        "apocalyptic folk", "singer-songwriter", "acoustic",
+        "americana", "celtic",
+    ],
+    "neofolk": [
+        "neofolk", "dark folk", "apocalyptic folk", "martial",
+    ],
+
+    # --- Noise & experimental ------------------------------------------
+    "noise": [
+        "noise", "harsh noise", "noise rock", "power electronics",
+        "musique concrete", "glitch", "illbient",
+    ],
+    "experimental": [
+        "experimental", "avant-garde", "avantgarde",
+    ],
+
+    # --- Blues, soul, funk, reggae, world -------------------------------
+    "blues": [
+        "blues", "blues rock", "british blues",
+    ],
+    "pop": [
+        "pop", "pop rock", "art pop", "indie pop", "psychedelic pop",
+    ],
+    "reggae": [
+        "reggae", "dub",
+    ],
+    "funk": [
+        "funk", "soul",
+    ],
+    "spoken word": [
+        "spoken word",
+    ],
 }
+
+# Build a fast reverse-lookup: normalised alias → canonical family.
+_ALIAS_TO_FAMILY: dict[str, str] = {}
+for _fam, _aliases in GENRE_ALIASES.items():
+    for _a in _aliases:
+        _ALIAS_TO_FAMILY[_a.lower()] = _fam
 
 
 def detect_arc_type(
@@ -229,16 +444,41 @@ def extract_mood_keywords(prompt: str) -> list[str]:
 
 
 def extract_genre_hints(prompt: str) -> list[str]:
-    """Extract genre hints from the prompt."""
-    genres = []
+    """Extract genre hints from the prompt using the comprehensive taxonomy.
+
+    Uses case-insensitive matching with word-boundary awareness so that
+    "coldwave" matches even when the user wrote "Coldwave" or "cold wave".
+    """
+    genres: set[str] = set()
     prompt_lower = prompt.lower()
 
-    for genre_family, aliases in GENRE_ALIASES.items():
+    # Check every alias in the taxonomy
+    for _family, aliases in GENRE_ALIASES.items():
         for alias in aliases:
-            if alias in prompt_lower:
-                genres.append(alias)
+            # Use word-boundary matching to avoid false positives
+            # (e.g. "ambient" shouldn't match inside "ambidextrous")
+            pattern = r'(?:^|[\s,;/\-"(])' + re.escape(alias) + r'(?:[\s,;/\-")]|$)'
+            if re.search(pattern, prompt_lower):
+                genres.add(alias)
 
-    return list(set(genres))
+    # Fallback: also check individual tokens directly against alias set
+    # for very short prompts like "coldwave" or "thrash"
+    tokens = re.split(r'[\s,;/]+', prompt_lower)
+    for token in tokens:
+        token = token.strip('"\'()')
+        if token in _ALIAS_TO_FAMILY:
+            genres.add(token)
+        # Also check 2-gram and 3-gram tokens
+    for i in range(len(tokens) - 1):
+        bigram = f"{tokens[i]} {tokens[i+1]}".strip('"\'()')
+        if bigram in _ALIAS_TO_FAMILY:
+            genres.add(bigram)
+    for i in range(len(tokens) - 2):
+        trigram = f"{tokens[i]} {tokens[i+1]} {tokens[i+2]}".strip('"\'()')
+        if trigram in _ALIAS_TO_FAMILY:
+            genres.add(trigram)
+
+    return list(genres)
 
 
 def extract_artist_seeds(prompt: str) -> list[str]:
@@ -306,6 +546,35 @@ def extract_abstract_concepts(prompt: str) -> list[str]:
     concepts.extend([p.strip() for p in for_patterns if len(p.strip()) > 3])
 
     return list(set(concepts))
+
+
+def classify_prompt_type(
+    genre_hints: list[str],
+    arc_type: ArcType,
+    arc_confidence: float,
+    mood_keywords: list[str],
+    prompt: str,
+) -> PromptType:
+    """Classify prompt as genre-focused, arc-focused, or mixed.
+
+    Used by the adaptive scoring system to rebalance weights:
+    - genre-focused → boost genre/BM25 weight, reduce trajectory weight
+    - arc-focused   → boost trajectory weight, reduce genre weight
+    - mixed         → balanced weights (current defaults)
+    """
+    has_genres = len(genre_hints) > 0
+    has_strong_arc = arc_confidence >= 0.7 and arc_type != ArcType.STEADY
+
+    if has_genres and has_strong_arc:
+        return PromptType.MIXED
+    if has_genres:
+        return PromptType.GENRE
+    if has_strong_arc:
+        return PromptType.ARC
+    # Short prompts with mood keywords but no genre → arc
+    if mood_keywords and not has_genres:
+        return PromptType.ARC
+    return PromptType.MIXED
 
 
 def extract_dimension_weights(prompt: str, mood_keywords: list[str]) -> DimensionWeights:
@@ -401,13 +670,354 @@ def generate_waypoints(arc_type: ArcType, num_waypoints: int = 5) -> list[Trajec
     return generate_waypoints_from_curve(curve, num_waypoints)
 
 
+_LLM_INTENT_SYSTEM_PROMPT = """\
+You are a music playlist intent parser. Given a user's natural language prompt, \
+extract structured parameters for a playlist generation engine.
+
+## Output Schema (JSON)
+
+Return a JSON object with these fields:
+
+- "arc_type": One of "steady", "rise", "fall", "peak", "valley", "wave", "journey"
+  - "steady": Consistent mood/energy throughout
+  - "rise": Building energy over time (workout warmup, morning energy)
+  - "fall": Decreasing energy (wind down, sleep preparation)
+  - "peak": Build to climax then resolve (60% build, 15% peak, 25% resolve)
+  - "valley": Start high, dip into calm, return high
+  - "wave": Oscillating energy pattern
+  - "journey": Narrative arc with intro/build/climax/denouement (most versatile)
+
+- "arc_confidence": Float 0.0-1.0. How clearly the prompt implies a specific arc shape. \
+If the user explicitly describes an energy trajectory, use 0.85-1.0. If implied, 0.5-0.7. \
+If no arc intent, use 0.3.
+
+- "base_energy": Float 0.0-1.0. Overall energy/intensity level.
+  - 0.0-0.2: ambient, drone, minimal
+  - 0.3-0.5: mellow, chill, moderate
+  - 0.6-0.8: energetic, driving, powerful
+  - 0.9-1.0: extreme, crushing, relentless
+
+- "base_darkness": Float 0.0-1.0. Mood darkness/heaviness.
+  - 0.0-0.2: bright, uplifting, cheerful
+  - 0.3-0.5: neutral, balanced
+  - 0.6-0.8: dark, melancholic, heavy
+  - 0.9-1.0: extremely dark, oppressive, sinister
+
+- "base_tempo": Float 0.0-1.0. Speed/BPM tendency.
+  - 0.0-0.2: very slow (funeral doom, ambient)
+  - 0.3-0.5: moderate (mid-tempo rock, chill electronic)
+  - 0.6-0.8: fast (punk, thrash, dance)
+  - 0.9-1.0: extreme speed (grindcore, speedcore)
+
+- "base_texture": Float 0.0-1.0. Sonic density and complexity.
+  - 0.0-0.2: sparse, minimal, solo
+  - 0.3-0.5: moderate, standard arrangement
+  - 0.6-0.8: dense, layered, atmospheric
+  - 0.9-1.0: wall of sound, maximalist
+
+- "genre_hints": Array of strings. Specific genres/subgenres detected. Use standard genre \
+names. Include parent genres and subgenres where relevant. Can be empty.
+
+- "artist_seeds": Array of strings. Any artist names mentioned or implied. Preserve exact \
+spelling and capitalisation as the user likely intends.
+
+- "mood_keywords": Array of strings. Mood/atmosphere descriptors.
+
+- "avoid_keywords": Array of strings. Things the user wants to exclude (from "no ...", \
+"avoid ...", "without ...", "not too ...").
+
+- "year_range": Array of [start_year, end_year] or null. Extract decade references \
+("80s" = [1980, 1989]), era references ("early punk era" = [1976, 1982]), and explicit years.
+
+- "target_duration_minutes": Integer or null. If the user specifies a duration \
+("2 hours", "30 minutes", "1hr"), extract it in minutes. Otherwise null.
+
+- "prompt_type": One of "genre", "arc", "mixed"
+  - "genre": Primarily about a specific genre/style
+  - "arc": Primarily about an energy/mood trajectory
+  - "mixed": Both genre and trajectory elements, or abstract/conceptual prompts
+
+- "dimension_weights": Object with "energy", "tempo", "darkness", "texture" as floats 0.15-0.45 \
+that sum to 1.0. Which dimensions matter most for this prompt. If the user talks about speed, \
+boost tempo. If about mood, boost darkness. If about intensity, boost energy. Default all to 0.25.
+
+- "custom_waypoints": Array of objects or null. Only set if the user describes a specific \
+trajectory shape (e.g., "start ambient, build to crushing, end with clean guitar"). Each waypoint:
+  - "position": Float 0.0-1.0 (where in the playlist)
+  - "energy": Float 0.0-1.0
+  - "darkness": Float 0.0-1.0
+  - "tempo": Float 0.0-1.0
+  - "texture": Float 0.0-1.0
+  - "description": Short label for this phase
+  If null, the system will generate waypoints from arc_type and base dimensions.
+
+## Important
+- Be musically literate. Understand genre relationships and implications.
+- "Crushing doom" implies high darkness, low tempo, high texture, moderate-high energy.
+- "Like Neurosis meets Bohren" implies post-metal/doom blended with dark jazz.
+- Infer implicit genre hints even if not stated explicitly (e.g., "headbanging" → metal).
+- Return ONLY valid JSON, no other text."""
+
+
+def _parse_prompt_with_llm(prompt: str) -> dict | None:
+    """Parse a prompt using OpenAI gpt-4o-mini for rich intent extraction.
+
+    Returns a dict of parsed fields, or None if LLM parsing fails/is unavailable.
+    """
+    if not settings.openai_api_key:
+        logger.debug("OpenAI not configured, skipping LLM intent parsing")
+        return None
+
+    try:
+        client = openai.OpenAI(api_key=settings.openai_api_key)
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _LLM_INTENT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=800,
+            temperature=0.3,
+        )
+
+        raw = response.choices[0].message.content
+        if not raw:
+            logger.warning("LLM intent parsing returned empty content")
+            return None
+        parsed = json.loads(raw.strip())
+
+        # Validate required fields exist and have correct types
+        _validate_llm_intent(parsed)
+
+        logger.info(f"LLM intent parsed: arc={parsed.get('arc_type')}, "
+                     f"genres={parsed.get('genre_hints', [])}, "
+                     f"artists={parsed.get('artist_seeds', [])}, "
+                     f"avoid={parsed.get('avoid_keywords', [])}")
+        return parsed
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"LLM intent parsing returned invalid JSON: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"LLM intent parsing failed: {e}")
+        return None
+
+
+def _validate_llm_intent(data: dict) -> None:
+    """Validate and coerce LLM output to expected types. Raises ValueError on invalid data."""
+    # arc_type must be valid
+    valid_arcs = {"steady", "rise", "fall", "peak", "valley", "wave", "journey"}
+    if data.get("arc_type") not in valid_arcs:
+        data["arc_type"] = "journey"
+
+    # Clamp floats to [0, 1]
+    for key in ("arc_confidence", "base_energy", "base_darkness", "base_tempo", "base_texture"):
+        if key in data:
+            try:
+                data[key] = max(0.0, min(1.0, float(data[key])))
+            except (TypeError, ValueError):
+                data[key] = 0.5
+
+    # Lists must be lists of strings
+    for key in ("genre_hints", "artist_seeds", "mood_keywords", "avoid_keywords"):
+        if key not in data or not isinstance(data[key], list):
+            data[key] = []
+        else:
+            data[key] = [str(item) for item in data[key] if item]
+
+    # year_range: [start, end] or null
+    yr = data.get("year_range")
+    if isinstance(yr, list) and len(yr) == 2:
+        try:
+            data["year_range"] = (int(yr[0]), int(yr[1]))
+        except (TypeError, ValueError):
+            data["year_range"] = (None, None)
+    else:
+        data["year_range"] = (None, None)
+
+    # target_duration_minutes: int or None
+    dur = data.get("target_duration_minutes")
+    if dur is not None:
+        try:
+            data["target_duration_minutes"] = int(dur)
+        except (TypeError, ValueError):
+            data["target_duration_minutes"] = None
+
+    # prompt_type must be valid
+    valid_types = {"genre", "arc", "mixed"}
+    if data.get("prompt_type") not in valid_types:
+        data["prompt_type"] = "mixed"
+
+    # dimension_weights: normalise
+    dw = data.get("dimension_weights")
+    if isinstance(dw, dict):
+        try:
+            weights = DimensionWeights(
+                energy=float(dw.get("energy", 0.25)),
+                tempo=float(dw.get("tempo", 0.25)),
+                darkness=float(dw.get("darkness", 0.25)),
+                texture=float(dw.get("texture", 0.25)),
+            )
+            data["dimension_weights"] = weights.normalize()
+        except (TypeError, ValueError):
+            data["dimension_weights"] = DimensionWeights()
+    else:
+        data["dimension_weights"] = DimensionWeights()
+
+    # custom_waypoints: list of dicts or None
+    wps = data.get("custom_waypoints")
+    if isinstance(wps, list) and len(wps) >= 2:
+        validated = []
+        for wp in wps:
+            if isinstance(wp, dict):
+                try:
+                    validated.append({
+                        "position": max(0.0, min(1.0, float(wp.get("position", 0.5)))),
+                        "energy": max(0.0, min(1.0, float(wp.get("energy", 0.5)))),
+                        "darkness": max(0.0, min(1.0, float(wp.get("darkness", 0.5)))),
+                        "tempo": max(0.0, min(1.0, float(wp.get("tempo", 0.5)))),
+                        "texture": max(0.0, min(1.0, float(wp.get("texture", 0.5)))),
+                        "description": str(wp.get("description", "")),
+                    })
+                except (TypeError, ValueError):
+                    continue
+        data["custom_waypoints"] = validated if len(validated) >= 2 else None
+    else:
+        data["custom_waypoints"] = None
+
+
 def parse_prompt(prompt: str, target_size: int = 20) -> PlaylistIntent:
-    """Parse a natural language prompt into a structured PlaylistIntent."""
+    """Parse a natural language prompt into a structured PlaylistIntent.
+
+    Tries LLM-powered parsing first (gpt-4o-mini) for rich semantic understanding,
+    then falls back to keyword-based parsing if LLM is unavailable or fails.
+    """
     logger.info(f"Parsing prompt: {prompt[:100]}...")
 
-    # Generate embedding for the full prompt
+    # Generate embedding for the full prompt (always needed)
     prompt_embedding = generate_embedding(prompt)
 
+    # Try LLM-powered parsing first
+    llm_data = _parse_prompt_with_llm(prompt)
+
+    if llm_data is not None:
+        return _build_intent_from_llm(prompt, prompt_embedding, llm_data, target_size)
+
+    # Fallback: keyword-based parsing
+    logger.info("Using keyword-based prompt parsing (LLM unavailable)")
+    return _build_intent_from_keywords(prompt, prompt_embedding, target_size)
+
+
+def _build_intent_from_llm(
+    prompt: str,
+    prompt_embedding: list[float],
+    data: dict,
+    target_size: int,
+) -> PlaylistIntent:
+    """Build a PlaylistIntent from validated LLM output."""
+    arc_type = ArcType(data["arc_type"])
+    arc_confidence = data.get("arc_confidence", 0.7)
+
+    # Use LLM's dimension weights (already validated as DimensionWeights)
+    dimension_weights = data.get("dimension_weights", DimensionWeights())
+    if not isinstance(dimension_weights, DimensionWeights):
+        dimension_weights = DimensionWeights()
+
+    base_energy = data.get("base_energy", 0.5)
+    base_darkness = data.get("base_darkness", 0.5)
+    base_tempo = data.get("base_tempo", 0.5)
+    base_texture = data.get("base_texture", 0.5)
+
+    prompt_type = PromptType(data.get("prompt_type", "mixed"))
+    genre_hints = data.get("genre_hints", [])
+    artist_seeds = data.get("artist_seeds", [])
+    mood_keywords = data.get("mood_keywords", [])
+    avoid_keywords = data.get("avoid_keywords", [])
+    year_range = data.get("year_range", (None, None))
+    target_duration = data.get("target_duration_minutes")
+
+    # Generate trajectory curve from LLM's base dimensions and arc type
+    trajectory_curve = generate_trajectory_curve(
+        arc_type=arc_type.value,
+        playlist_length=target_size,
+        base_energy=base_energy,
+        base_darkness=base_darkness,
+        base_tempo=base_tempo,
+        base_texture=base_texture,
+    )
+
+    # If LLM provided custom waypoints, use them to override the curve waypoints
+    custom_wps = data.get("custom_waypoints")
+    if custom_wps and len(custom_wps) >= 2:
+        waypoints = [
+            TrajectoryWaypoint(
+                position=wp["position"],
+                energy=wp["energy"],
+                darkness=wp["darkness"],
+                tempo=wp["tempo"],
+                texture=wp["texture"],
+                phase_label=wp.get("description", ""),
+                description=wp.get("description", ""),
+            )
+            for wp in custom_wps
+        ]
+    else:
+        num_waypoints = min(target_size, 10)
+        waypoints = generate_waypoints_from_curve(trajectory_curve, num_waypoints)
+
+    # Enrich waypoints with mood embeddings
+    for i, wp in enumerate(waypoints):
+        phase_descriptions = {
+            0: f"opening: {prompt}",
+            len(waypoints) - 1: f"closing: {prompt}",
+        }
+        wp.description = wp.description or phase_descriptions.get(
+            i, f"{wp.phase_label} phase: {prompt}"
+        )
+        wp.mood_embedding = generate_embedding(wp.description)
+
+    # Extract abstract concepts (still useful for semantic matching)
+    abstract_concepts = extract_abstract_concepts(prompt)
+
+    intent = PlaylistIntent(
+        raw_prompt=prompt,
+        prompt_embedding=prompt_embedding,
+        arc_type=arc_type,
+        arc_confidence=arc_confidence,
+        target_size=target_size,
+        target_duration_minutes=target_duration,
+        prompt_type=prompt_type,
+        mood_keywords=mood_keywords,
+        genre_hints=genre_hints,
+        artist_seeds=artist_seeds,
+        trajectory_curve=trajectory_curve,
+        waypoints=waypoints,
+        dimension_weights=dimension_weights,
+        base_energy=base_energy,
+        base_darkness=base_darkness,
+        base_tempo=base_tempo,
+        base_texture=base_texture,
+        avoid_keywords=avoid_keywords,
+        year_range=year_range,
+        abstract_concepts=abstract_concepts,
+    )
+
+    logger.info(f"LLM-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
+                f"type={prompt_type.value}, "
+                f"moods={mood_keywords}, genres={genre_hints}, "
+                f"artists={artist_seeds}, avoid={avoid_keywords}, "
+                f"weights={dimension_weights.as_dict()}")
+    return intent
+
+
+def _build_intent_from_keywords(
+    prompt: str,
+    prompt_embedding: list[float],
+    target_size: int,
+) -> PlaylistIntent:
+    """Build a PlaylistIntent from keyword-based parsing (original logic)."""
     # Extract genre hints first so they can inform arc detection
     genre_hints = extract_genre_hints(prompt)
 
@@ -421,6 +1031,11 @@ def parse_prompt(prompt: str, target_size: int = 20) -> PlaylistIntent:
     # Extract dimension weights and base values
     dimension_weights = extract_dimension_weights(prompt, mood_keywords)
     base_dims = extract_base_dimensions(mood_keywords, genre_hints)
+
+    # Classify prompt type for adaptive scoring
+    prompt_type = classify_prompt_type(
+        genre_hints, arc_type, arc_confidence, mood_keywords, prompt,
+    )
 
     # Generate 4D trajectory curve
     trajectory_curve = generate_trajectory_curve(
@@ -451,6 +1066,7 @@ def parse_prompt(prompt: str, target_size: int = 20) -> PlaylistIntent:
         arc_type=arc_type,
         arc_confidence=arc_confidence,
         target_size=target_size,
+        prompt_type=prompt_type,
         mood_keywords=mood_keywords,
         genre_hints=genre_hints,
         artist_seeds=artist_seeds,
@@ -465,7 +1081,8 @@ def parse_prompt(prompt: str, target_size: int = 20) -> PlaylistIntent:
         abstract_concepts=abstract_concepts,
     )
 
-    logger.info(f"Parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
+    logger.info(f"Keyword-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
+                f"type={prompt_type.value}, "
                 f"moods={mood_keywords}, genres={genre_hints}, "
                 f"weights={dimension_weights.as_dict()}")
     return intent

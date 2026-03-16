@@ -5,6 +5,11 @@ export default defineNuxtConfig({
     'nuxt-auth-utils',
   ],
 
+  components: [
+    { path: '~/components/observatory', pathPrefix: false },
+    '~/components',
+  ],
+
   ssr: true,
 
   css: ['~/assets/css/main.css'],

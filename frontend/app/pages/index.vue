@@ -1,11 +1,13 @@
 <script setup lang="ts">
 const showExportModal = ref(false)
+const toast = useToast()
 
 const libraryStats = useLibraryStats()
 const sync = useLibrarySync({ onCompleted: libraryStats.fetchStats })
 const playlist = usePlaylistGeneration()
 const mappings = usePathMappings()
 const exporter = usePlaylistExport()
+const jellyfin = useJellyfinExport()
 
 onMounted(async () => {
   await Promise.all([
@@ -13,6 +15,7 @@ onMounted(async () => {
     sync.restoreStatus(),
     sync.fetchHistory(),
     mappings.fetchPathMappings(),
+    jellyfin.checkAvailability(),
   ])
 })
 
@@ -22,6 +25,30 @@ async function handleExportConfirm() {
   if (success) showExportModal.value = false
 }
 
+async function handleJellyfinExport() {
+  if (!playlist.result.value) return
+
+  const result = await jellyfin.exportToJellyfin(playlist.result.value)
+
+  if (result?.success) {
+    const desc = result.matched_count < result.total_count
+      ? `${result.matched_count}/${result.total_count} tracks matched. ${result.unmatched_tracks.map(t => t.title).join(', ')} could not be found.`
+      : `All ${result.matched_count} tracks added.`
+
+    toast.add({
+      title: 'Playlist pushed to Jellyfin',
+      description: desc,
+      color: 'success',
+    })
+  }
+  else {
+    toast.add({
+      title: 'Jellyfin export failed',
+      description: jellyfin.exportError.value || 'Unknown error',
+      color: 'error',
+    })
+  }
+}
 </script>
 
 <template>
@@ -112,7 +139,10 @@ async function handleExportConfirm() {
       v-if="playlist.result.value"
       :result="playlist.result.value"
       :has-library-data="libraryStats.hasLibraryData.value"
+      :jellyfin-available="jellyfin.jellyfinAvailable.value"
+      :is-jellyfin-exporting="jellyfin.isExporting.value"
       @export="showExportModal = true"
+      @jellyfin="handleJellyfinExport"
       @reset="playlist.reset()"
     />
 

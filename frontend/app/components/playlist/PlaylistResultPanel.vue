@@ -4,10 +4,13 @@ import type { GeneratedPlaylist } from '~/types/playlist'
 defineProps<{
   result: GeneratedPlaylist
   hasLibraryData: boolean
+  jellyfinAvailable: boolean
+  isJellyfinExporting: boolean
 }>()
 
 const emit = defineEmits<{
   export: []
+  jellyfin: []
   reset: []
 }>()
 </script>
@@ -24,6 +27,17 @@ const emit = defineEmits<{
         </p>
       </div>
       <div class="flex items-center gap-2">
+        <UButton
+          v-if="jellyfinAvailable"
+          variant="soft"
+          color="primary"
+          icon="i-heroicons-play-circle"
+          :loading="isJellyfinExporting"
+          :disabled="!hasLibraryData || isJellyfinExporting"
+          @click="emit('jellyfin')"
+        >
+          Push to Jellyfin
+        </UButton>
         <UButton
           variant="soft"
           icon="i-heroicons-arrow-down-tray"

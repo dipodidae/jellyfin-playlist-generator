@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 
 from app.config import settings
-from app.database_pg import get_stats, get_cursor, get_connection, init_database
+from app.database_pg import get_stats, get_cursor, get_connection, init_database, rebuild_search_vectors
 from app.ingestion.scanner import scan_library
 from app.ingestion.lastfm import enrich_artists_from_lastfm
 from app.embeddings.generator import generate_track_embeddings, search_tracks_by_text
@@ -25,11 +25,12 @@ from app.export.m3u import (
     export_tracks_to_file, export_playlist_to_file, generate_m3u, get_track_files
 )
 from app.trajectory.composer_v4 import compose_playlist_v4, compose_playlist_v4_streaming
-from app.trajectory.title_generator import generate_playlist_title
+from app.trajectory.title_generator import generate_playlist_title, generate_track_explanations
 from app.observability import log_generation, update_track_usage, check_cold_start
 from app.clustering.scenes import generate_clusters
 from app.audio.analyzer import analyze_library
 from app.transitions import record_skip
+from app.export.jellyfin import test_connection as jellyfin_test_connection, export_to_jellyfin
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -82,6 +83,11 @@ class ExportRequest(BaseModel):
     mode: str = "absolute"  # absolute, relative, mapped
     mapping_name: str | None = None
     playlist_name: str | None = None
+
+
+class JellyfinExportRequest(BaseModel):
+    track_ids: list[str]
+    playlist_name: str
 
 
 class GeneratePlaylistRequest(BaseModel):
@@ -431,6 +437,20 @@ async def get_playlist_generation_stats(days: int = Query(default=7, ge=1, le=90
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/observatory/stats")
+async def get_observatory_statistics(refresh: bool = Query(default=False)):
+    """Get comprehensive music collection statistics for the observatory page.
+
+    Results are cached server-side for 1 hour. Pass ?refresh=true to force recompute.
+    """
+    try:
+        from app.database_pg import get_observatory_stats
+        return get_observatory_stats(force_refresh=refresh)
+    except Exception as e:
+        logger.error(f"Error computing observatory stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # Scan Operations
 # ============================================================================
@@ -491,6 +511,14 @@ async def trigger_scan(full: bool = False):
         }
         job_state = _update_scan_job(job["job_id"], final_payload, status="completed", final=True)
         _set_operation_state(job_state)
+
+        # Rebuild BM25 search vectors after scan (non-blocking best-effort)
+        try:
+            rebuild_search_vectors()
+            logger.info("Search vectors rebuilt after scan")
+        except Exception as rebuild_err:
+            logger.warning(f"Search vector rebuild after scan failed: {rebuild_err}")
+
         return _build_scan_response(job_state, "snapshot")
     except Exception as e:
         error_payload = {
@@ -541,6 +569,14 @@ async def trigger_scan_stream(full: bool = False):
                 job_state = _update_scan_job(job["job_id"], final_payload, status="completed", final=True)
                 _set_operation_state(job_state)
                 scan_result["job"] = job_state
+
+                # Rebuild BM25 search vectors after scan (best-effort)
+                try:
+                    rebuild_search_vectors()
+                    logger.info("Search vectors rebuilt after streaming scan")
+                except Exception as rebuild_err:
+                    logger.warning(f"Search vector rebuild after streaming scan failed: {rebuild_err}")
+
             except Exception as e:
                 scan_result["error"] = str(e)
                 error_payload = {
@@ -696,7 +732,15 @@ def _make_enrichment_stream(label: str, coro_factory):
 @router.post("/enrich/lastfm")
 async def trigger_lastfm_enrichment(background_tasks: BackgroundTasks):
     """Trigger Last.fm artist enrichment (runs in background)."""
-    background_tasks.add_task(enrich_artists_from_lastfm)
+    async def enrich_then_rebuild():
+        await enrich_artists_from_lastfm()
+        try:
+            rebuild_search_vectors()
+            logger.info("Search vectors rebuilt after Last.fm enrichment")
+        except Exception as e:
+            logger.warning(f"Search vector rebuild after Last.fm enrichment failed: {e}")
+
+    background_tasks.add_task(enrich_then_rebuild)
     return {"status": "started", "message": "Last.fm enrichment started in background"}
 
 
@@ -853,11 +897,13 @@ _STEP_TO_STAGE: dict[int, str] = {
     3: "candidates",
     4: "matching",
     5: "composing",
-    6: "saving",
+    6: "metrics",
+    7: "explaining",
+    8: "titling",
 }
 
 
-def _candidate_tracks_to_dicts(tracks) -> list[dict]:
+def _candidate_tracks_to_dicts(tracks, explanations: dict[str, str] | None = None) -> list[dict]:
     """Convert CandidateTrack objects to API-serialisable dicts."""
     return [
         {
@@ -867,6 +913,7 @@ def _candidate_tracks_to_dicts(tracks) -> list[dict]:
             "album_name": t.album_name,
             "year": t.year,
             "duration_ms": t.duration_ms,
+            **({"explanation": explanations[str(t.id)]} if explanations and str(t.id) in explanations else {}),
         }
         for t in tracks
     ]
@@ -903,9 +950,18 @@ async def generate_playlist(request: GeneratePlaylistRequest):
         if not result.tracks:
             raise HTTPException(status_code=404, detail="No matching tracks found")
 
-        tracks = _candidate_tracks_to_dicts(result.tracks)
         artist_names = [t.artist_name for t in result.tracks if t.artist_name and t.artist_name != "Unknown"]
-        title = generate_playlist_title(request.prompt, artist_names)
+        genre_hints = result.intent.genre_hints if result.intent else []
+        arc_type_str = result.intent.arc_type.value if result.intent else "journey"
+
+        explanations = await asyncio.to_thread(
+            generate_track_explanations, request.prompt, result.tracks, arc_type_str, genre_hints,
+        )
+        title = await asyncio.to_thread(
+            generate_playlist_title, request.prompt, artist_names, arc_type_str, genre_hints,
+        )
+
+        tracks = _candidate_tracks_to_dicts(result.tracks, explanations)
 
         playlist_id = None
         if request.save:
@@ -980,9 +1036,34 @@ async def generate_playlist_stream(request: GeneratePlaylistRequest):
             yield "\n\n"
             return
 
-        tracks = _candidate_tracks_to_dicts(result.tracks)
+        # Post-composition LLM stages: explanations then title
         artist_names = [t.artist_name for t in result.tracks if t.artist_name and t.artist_name != "Unknown"]
-        title = await asyncio.to_thread(generate_playlist_title, request.prompt, artist_names)
+        genre_hints = result.intent.genre_hints if result.intent else []
+        arc_type_str = result.intent.arc_type.value if result.intent else "journey"
+
+        # Stage 7: Generate track explanations
+        yield f"data: {json.dumps({'stage': 'explaining', 'progress': 80, 'message': 'Generating track explanations...'})}"
+        yield "\n\n"
+        explanations = await asyncio.to_thread(
+            generate_track_explanations,
+            request.prompt,
+            result.tracks,
+            arc_type_str,
+            genre_hints,
+        )
+
+        # Stage 8: Generate title
+        yield f"data: {json.dumps({'stage': 'titling', 'progress': 90, 'message': 'Naming your playlist...'})}"
+        yield "\n\n"
+        title = await asyncio.to_thread(
+            generate_playlist_title,
+            request.prompt,
+            artist_names,
+            arc_type_str,
+            genre_hints,
+        )
+
+        tracks = _candidate_tracks_to_dicts(result.tracks, explanations)
 
         playlist_id = None
         if request.save:
@@ -1161,6 +1242,35 @@ async def download_playlist_m3u(
 
 
 # ============================================================================
+# Jellyfin Export
+# ============================================================================
+
+@router.get("/jellyfin/status")
+async def jellyfin_status():
+    """Check whether Jellyfin is configured and reachable."""
+    result = await jellyfin_test_connection()
+    return result
+
+
+@router.post("/export/jellyfin")
+async def export_jellyfin(request: JellyfinExportRequest):
+    """Export a playlist to Jellyfin by resolving local tracks to Jellyfin IDs."""
+    try:
+        result = await export_to_jellyfin(
+            track_ids=request.track_ids,
+            playlist_name=request.playlist_name,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Export failed"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Jellyfin export error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # Search
 # ============================================================================
 
@@ -1210,3 +1320,12 @@ async def initialize_database():
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/rebuild-search-vectors")
+async def trigger_rebuild_search_vectors():
+    """Rebuild BM25 search vectors for all tracks (streaming SSE progress)."""
+    return _make_enrichment_stream(
+        "Search vector rebuild",
+        lambda cb: rebuild_search_vectors(progress_callback=cb),
+    )

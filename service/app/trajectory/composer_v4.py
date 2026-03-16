@@ -160,10 +160,10 @@ def compose_playlist_v4_streaming(
         if progress_callback:
             progress_callback(step, total, message)
 
-    report(1, 6, "Parsing prompt...")
+    report(1, 8, "Understanding your prompt...")
     intent = parse_prompt(prompt, target_size=target_size)
 
-    report(2, 6, "Computing gravity anchors...")
+    report(2, 8, "Computing gravity anchors...")
     top_embeddings, top_scores = get_top_semantic_matches(
         intent.prompt_embedding, limit=20
     )
@@ -174,7 +174,7 @@ def compose_playlist_v4_streaming(
         arc_type=intent.arc_type.value,
     )
 
-    report(3, 6, "Generating candidate pools...")
+    report(3, 8, "Generating candidate pools...")
     position_pools = generate_position_pools(intent, anchors)
 
     if not position_pools:
@@ -185,7 +185,7 @@ def compose_playlist_v4_streaming(
             generation_time_ms=int((time.time() - start_time) * 1000),
         )
 
-    report(4, 6, "Loading cluster data...")
+    report(4, 8, "Loading cluster data...")
     cluster_centroids, cluster_ids = get_cluster_centroids()
 
     for pool in position_pools:
@@ -195,7 +195,7 @@ def compose_playlist_v4_streaming(
                 track.cluster_id = cluster_id
                 track.cluster_weight = weight
 
-    report(5, 6, "Sequencing playlist...")
+    report(5, 8, "Sequencing playlist...")
     all_candidate_ids = list({t.id for pool in position_pools for t in pool})
     transition_bonuses = load_transition_bonuses(all_candidate_ids)
 
@@ -210,7 +210,7 @@ def compose_playlist_v4_streaming(
         transition_bonuses=transition_bonuses,
     )
 
-    report(6, 6, "Computing metrics...")
+    report(6, 8, "Computing metrics...")
     metrics = compute_playlist_metrics(playlist, position_pools)
 
     generation_time = int((time.time() - start_time) * 1000)

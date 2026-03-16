@@ -7,7 +7,9 @@ const STEPS = [
   'Gathering candidates...',
   'Matching tracks',
   'Composing playlist...',
-  'Saving playlist...',
+  'Computing metrics...',
+  'Explaining tracks...',
+  'Generating title...',
 ]
 
 const STAGE_INDEX: Record<string, number> = {
@@ -16,8 +18,10 @@ const STAGE_INDEX: Record<string, number> = {
   candidates: 2,
   matching: 3,
   composing: 4,
-  saving: 5,
-  complete: 6,
+  metrics: 5,
+  explaining: 6,
+  titling: 7,
+  complete: 8,
   error: -1,
 }
 
@@ -103,6 +107,21 @@ export function usePlaylistGeneration() {
             handleProgressEvent(data)
           }
         }
+      }
+
+      // Flush any remaining data left in the buffer after the stream closes
+      if (buffer.trim()) {
+        for (const line of buffer.split('\n')) {
+          if (line.startsWith('data: ')) {
+            const data: ProgressEvent = JSON.parse(line.slice(6))
+            handleProgressEvent(data)
+          }
+        }
+      }
+
+      // Safety net: if the stream ended without a terminal event, surface an error
+      if (!result.value && !error.value) {
+        error.value = 'Generation ended unexpectedly without a result. The library may still be rebuilding — try again shortly.'
       }
     }
     catch (e) {

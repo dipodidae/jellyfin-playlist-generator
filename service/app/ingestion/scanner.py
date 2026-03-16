@@ -183,19 +183,25 @@ def extract_tags(file_path: Path) -> dict[str, Any] | None:
                     genres.append(g)
 
         # Featured artists (parse from title or artist field)
+        # NOTE: \b word-boundary before feat/ft/featuring is critical to avoid
+        # matching inside words like "Spellcraft", "Left", "Soft", "Defeat".
         featured_artists = []
         feat_patterns = [
-            r'\s*[\(\[](feat\.?|ft\.?|featuring)\s+([^\)\]]+)[\)\]]',
-            r'\s*(feat\.?|ft\.?|featuring)\s+(.+)$',
+            r'\s*[\(\[]\s*\b(feat\.?|ft\.?|featuring)\s+([^\)\]]+)[\)\]]',
+            r'(?:^|(?<=\s))\b(feat\.?|ft\.?|featuring)\s+(.+)$',
         ]
         for pattern in feat_patterns:
             match = re.search(pattern, title, re.IGNORECASE)
             if match:
                 feat_str = match.group(2)
                 for fa in re.split(r'[,&]', feat_str):
-                    fa = fa.strip()
-                    if fa:
-                        featured_artists.append(fa)
+                    fa = fa.strip().rstrip(')].>')
+                    # Skip fragments that aren't real artist names
+                    if len(fa) < 2:
+                        continue
+                    if re.match(r'^\d{4}\)?$', fa):
+                        continue
+                    featured_artists.append(fa)
                 # Clean title
                 title = re.sub(pattern, '', title, flags=re.IGNORECASE).strip()
                 break

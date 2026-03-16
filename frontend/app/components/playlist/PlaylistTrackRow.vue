@@ -20,6 +20,9 @@ const { formatDuration } = useDurationFormatter()
       <p class="text-sm text-gray-500 truncate">
         {{ track.artist_name }} · {{ track.album_name }}
       </p>
+      <p v-if="track.explanation" class="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5">
+        {{ track.explanation }}
+      </p>
     </div>
     <span class="text-sm text-gray-400">
       {{ formatDuration(track.duration_ms) }}

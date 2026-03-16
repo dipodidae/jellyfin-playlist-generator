@@ -1,6 +1,7 @@
 """PostgreSQL + pgvector database module."""
 
 import logging
+import time
 from contextlib import contextmanager
 from typing import Generator
 
@@ -454,9 +455,1064 @@ def get_stats() -> dict:
         return stats
 
 
+# ============================================================================
+# Observatory Stats (cached)
+# ============================================================================
+
+_observatory_cache: dict = {"data": None, "computed_at": 0.0}
+_OBSERVATORY_TTL = 3600  # 1 hour
+
+
+def get_observatory_stats(force_refresh: bool = False) -> dict:
+    """Compute comprehensive collection statistics for the observatory page.
+
+    Results are cached in-memory for 1 hour to avoid repeated expensive queries.
+    """
+    now = time.time()
+    if (
+        not force_refresh
+        and _observatory_cache["data"] is not None
+        and (now - _observatory_cache["computed_at"]) < _OBSERVATORY_TTL
+    ):
+        return _observatory_cache["data"]
+
+    stats = _compute_observatory_stats()
+    _observatory_cache["data"] = stats
+    _observatory_cache["computed_at"] = time.time()
+    return stats
+
+
+def _compute_observatory_stats() -> dict:
+    """Run all observatory SQL queries in a single connection."""
+    result: dict = {}
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # ── 1. Collection overview ──────────────────────────────────
+            collection: dict = {}
+
+            cur.execute("SELECT COUNT(*) FROM tracks")
+            collection["total_tracks"] = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM artists")
+            collection["total_artists"] = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM albums")
+            collection["total_albums"] = cur.fetchone()[0]
+
+            cur.execute("SELECT COALESCE(SUM(duration_ms), 0) FROM tracks")
+            collection["total_duration_ms"] = cur.fetchone()[0]
+
+            cur.execute("""
+                SELECT COALESCE(AVG(duration_ms), 0),
+                       COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms), 0)
+                FROM tracks
+            """)
+            row = cur.fetchone()
+            collection["avg_duration_ms"] = float(row[0])
+            collection["median_duration_ms"] = float(row[1])
+
+            cur.execute("""
+                SELECT COALESCE(AVG(track_count), 0) FROM (
+                    SELECT COUNT(*) as track_count FROM track_artists
+                    WHERE role = 'primary' GROUP BY artist_id
+                ) sub
+            """)
+            collection["avg_tracks_per_artist"] = round(float(cur.fetchone()[0]), 1)
+
+            cur.execute("""
+                SELECT COALESCE(AVG(track_count), 0) FROM (
+                    SELECT COUNT(*) as track_count FROM track_albums GROUP BY album_id
+                ) sub
+            """)
+            collection["avg_tracks_per_album"] = round(float(cur.fetchone()[0]), 1)
+
+            cur.execute("""
+                SELECT COALESCE(SUM(size), 0)
+                FROM track_files WHERE missing_since IS NULL
+            """)
+            collection["total_file_size_bytes"] = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM track_files WHERE missing_since IS NULL")
+            collection["total_files"] = cur.fetchone()[0]
+
+            result["collection"] = collection
+
+            # ── 2. Format breakdown ─────────────────────────────────────
+            cur.execute("""
+                SELECT LOWER(format) as fmt, COUNT(*) as cnt
+                FROM track_files WHERE missing_since IS NULL
+                GROUP BY LOWER(format) ORDER BY cnt DESC
+            """)
+            result["formats"] = [{"format": r[0], "count": r[1]} for r in cur.fetchall()]
+
+            # ── 3. Timeline (decades + years) ───────────────────────────
+            cur.execute("""
+                SELECT (year / 10) * 10 as decade, COUNT(*) as cnt
+                FROM tracks WHERE year IS NOT NULL AND year >= 1900 AND year <= 2030
+                GROUP BY decade ORDER BY decade
+            """)
+            result["decades"] = [{"decade": r[0], "count": r[1]} for r in cur.fetchall()]
+
+            cur.execute("""
+                SELECT year, COUNT(*) as cnt
+                FROM tracks WHERE year IS NOT NULL AND year >= 1900 AND year <= 2030
+                GROUP BY year ORDER BY year
+            """)
+            result["years"] = [{"year": r[0], "count": r[1]} for r in cur.fetchall()]
+
+            cur.execute("""
+                SELECT MIN(year), MAX(year)
+                FROM tracks WHERE year IS NOT NULL AND year >= 1900
+            """)
+            row = cur.fetchone()
+            result["oldest_year"] = row[0]
+            result["newest_year"] = row[1]
+
+            # Oldest/newest tracks with details
+            cur.execute("""
+                SELECT t.title, a.name as artist, t.year
+                FROM tracks t
+                JOIN track_artists ta ON t.id = ta.track_id AND ta.role = 'primary'
+                JOIN artists a ON ta.artist_id = a.id
+                WHERE t.year IS NOT NULL AND t.year >= 1900
+                ORDER BY t.year ASC, t.title LIMIT 5
+            """)
+            result["oldest_tracks"] = [
+                {"title": r[0], "artist": r[1], "year": r[2]} for r in cur.fetchall()
+            ]
+
+            cur.execute("""
+                SELECT t.title, a.name as artist, t.year
+                FROM tracks t
+                JOIN track_artists ta ON t.id = ta.track_id AND ta.role = 'primary'
+                JOIN artists a ON ta.artist_id = a.id
+                WHERE t.year IS NOT NULL AND t.year >= 1900
+                ORDER BY t.year DESC, t.title LIMIT 5
+            """)
+            result["newest_tracks"] = [
+                {"title": r[0], "artist": r[1], "year": r[2]} for r in cur.fetchall()
+            ]
+
+            # Decade concentration insight
+            cur.execute("""
+                SELECT (year / 10) * 10 as decade, COUNT(*) as cnt
+                FROM tracks WHERE year IS NOT NULL AND year >= 1900
+                GROUP BY decade ORDER BY cnt DESC LIMIT 1
+            """)
+            row = cur.fetchone()
+            if row:
+                total_with_year_q = "SELECT COUNT(*) FROM tracks WHERE year IS NOT NULL AND year >= 1900"
+                cur.execute(total_with_year_q)
+                total_with_year = cur.fetchone()[0]
+                result["dominant_decade"] = {
+                    "decade": row[0],
+                    "count": row[1],
+                    "percentage": round(row[1] / total_with_year * 100, 1) if total_with_year > 0 else 0,
+                }
+            else:
+                result["dominant_decade"] = None
+
+            # ── 4. Tag intelligence ─────────────────────────────────────
+            # Top 50 tags by track count (via artist->tag association)
+            cur.execute("""
+                SELECT lt.name,
+                       COUNT(DISTINCT ta.track_id) as track_count,
+                       COUNT(DISTINCT alt.artist_id) as artist_count
+                FROM lastfm_tags lt
+                JOIN artist_lastfm_tags alt ON lt.id = alt.tag_id
+                JOIN track_artists ta ON ta.artist_id = alt.artist_id AND ta.role = 'primary'
+                GROUP BY lt.id, lt.name
+                ORDER BY track_count DESC
+                LIMIT 50
+            """)
+            result["top_tags"] = [
+                {"name": r[0], "track_count": r[1], "artist_count": r[2]}
+                for r in cur.fetchall()
+            ]
+
+            # Rare / obscure tags (1-3 artists only)
+            cur.execute("""
+                SELECT lt.name, COUNT(DISTINCT alt.artist_id) as artist_count
+                FROM lastfm_tags lt
+                JOIN artist_lastfm_tags alt ON lt.id = alt.tag_id
+                GROUP BY lt.id, lt.name
+                HAVING COUNT(DISTINCT alt.artist_id) BETWEEN 1 AND 3
+                ORDER BY lt.name
+                LIMIT 50
+            """)
+            result["rare_tags"] = [
+                {"name": r[0], "artist_count": r[1]} for r in cur.fetchall()
+            ]
+
+            # Tag co-occurrence (top artist-tag pairs that appear together)
+            cur.execute("""
+                SELECT t1.name as tag1, t2.name as tag2, COUNT(DISTINCT a1.artist_id) as shared_artists
+                FROM artist_lastfm_tags a1
+                JOIN artist_lastfm_tags a2 ON a1.artist_id = a2.artist_id AND a1.tag_id < a2.tag_id
+                JOIN lastfm_tags t1 ON a1.tag_id = t1.id
+                JOIN lastfm_tags t2 ON a2.tag_id = t2.id
+                WHERE a1.weight >= 50 AND a2.weight >= 50
+                GROUP BY t1.name, t2.name
+                HAVING COUNT(DISTINCT a1.artist_id) >= 5
+                ORDER BY shared_artists DESC
+                LIMIT 30
+            """)
+            result["tag_pairs"] = [
+                {"tag1": r[0], "tag2": r[1], "shared_artists": r[2]}
+                for r in cur.fetchall()
+            ]
+
+            # ── 5. Artist intelligence ──────────────────────────────────
+            # Top 20 by track count
+            cur.execute("""
+                SELECT a.name, COUNT(ta.track_id) as track_count
+                FROM artists a
+                JOIN track_artists ta ON a.id = ta.artist_id AND ta.role = 'primary'
+                GROUP BY a.id, a.name
+                ORDER BY track_count DESC
+                LIMIT 20
+            """)
+            result["top_artists_by_tracks"] = [
+                {"name": r[0], "count": r[1]} for r in cur.fetchall()
+            ]
+
+            # Top 20 by total playtime
+            cur.execute("""
+                SELECT a.name, SUM(t.duration_ms) as total_ms
+                FROM artists a
+                JOIN track_artists ta ON a.id = ta.artist_id AND ta.role = 'primary'
+                JOIN tracks t ON t.id = ta.track_id
+                GROUP BY a.id, a.name
+                ORDER BY total_ms DESC
+                LIMIT 20
+            """)
+            result["top_artists_by_playtime"] = [
+                {"name": r[0], "duration_ms": r[1]} for r in cur.fetchall()
+            ]
+
+            # Top 20 by album count
+            cur.execute("""
+                SELECT a.name, COUNT(DISTINCT aa.album_id) as album_count
+                FROM artists a
+                JOIN album_artists aa ON a.id = aa.artist_id
+                GROUP BY a.id, a.name
+                ORDER BY album_count DESC
+                LIMIT 20
+            """)
+            result["top_artists_by_albums"] = [
+                {"name": r[0], "count": r[1]} for r in cur.fetchall()
+            ]
+
+            # One-track artists
+            cur.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT ta.artist_id FROM track_artists ta
+                    WHERE ta.role = 'primary'
+                    GROUP BY ta.artist_id HAVING COUNT(ta.track_id) = 1
+                ) sub
+            """)
+            one_track_count = cur.fetchone()[0]
+            result["one_track_artists"] = {
+                "count": one_track_count,
+                "percentage": round(one_track_count / collection["total_artists"] * 100, 1)
+                if collection["total_artists"] > 0 else 0,
+            }
+
+            # ── 6. Album statistics ─────────────────────────────────────
+            # Albums with most tracks
+            cur.execute("""
+                SELECT al.title,
+                       (SELECT string_agg(a.name, ', ')
+                        FROM album_artists aa JOIN artists a ON aa.artist_id = a.id
+                        WHERE aa.album_id = al.id) as artist,
+                       COUNT(tl.track_id) as track_count
+                FROM albums al
+                JOIN track_albums tl ON al.id = tl.album_id
+                GROUP BY al.id, al.title
+                ORDER BY track_count DESC
+                LIMIT 20
+            """)
+            result["albums_most_tracks"] = [
+                {"title": r[0], "artist": r[1], "track_count": r[2]} for r in cur.fetchall()
+            ]
+
+            # Longest albums by total duration
+            cur.execute("""
+                SELECT al.title,
+                       (SELECT string_agg(a.name, ', ')
+                        FROM album_artists aa JOIN artists a ON aa.artist_id = a.id
+                        WHERE aa.album_id = al.id) as artist,
+                       SUM(t.duration_ms) as total_ms,
+                       COUNT(tl.track_id) as track_count
+                FROM albums al
+                JOIN track_albums tl ON al.id = tl.album_id
+                JOIN tracks t ON t.id = tl.track_id
+                GROUP BY al.id, al.title
+                ORDER BY total_ms DESC
+                LIMIT 20
+            """)
+            result["albums_longest"] = [
+                {"title": r[0], "artist": r[1], "duration_ms": r[2], "track_count": r[3]}
+                for r in cur.fetchall()
+            ]
+
+            # Shortest albums (at least 2 tracks to exclude singles)
+            cur.execute("""
+                SELECT al.title,
+                       (SELECT string_agg(a.name, ', ')
+                        FROM album_artists aa JOIN artists a ON aa.artist_id = a.id
+                        WHERE aa.album_id = al.id) as artist,
+                       SUM(t.duration_ms) as total_ms,
+                       COUNT(tl.track_id) as track_count
+                FROM albums al
+                JOIN track_albums tl ON al.id = tl.album_id
+                JOIN tracks t ON t.id = tl.track_id
+                GROUP BY al.id, al.title
+                HAVING COUNT(tl.track_id) >= 2
+                ORDER BY total_ms ASC
+                LIMIT 20
+            """)
+            result["albums_shortest"] = [
+                {"title": r[0], "artist": r[1], "duration_ms": r[2], "track_count": r[3]}
+                for r in cur.fetchall()
+            ]
+
+            # ── 7. Profile fingerprint (4D) ─────────────────────────────
+            cur.execute("SELECT COUNT(*) FROM track_profiles")
+            profile_count = cur.fetchone()[0]
+
+            if profile_count > 0:
+                cur.execute("""
+                    SELECT AVG(energy), AVG(darkness), AVG(tempo), AVG(texture)
+                    FROM track_profiles
+                """)
+                row = cur.fetchone()
+                result["profile_averages"] = {
+                    "energy": round(float(row[0]), 3),
+                    "darkness": round(float(row[1]), 3),
+                    "tempo": round(float(row[2]), 3),
+                    "texture": round(float(row[3]), 3),
+                    "count": profile_count,
+                }
+
+                # Distribution histograms (10 bins per dimension)
+                distributions = {}
+                for dim in ("energy", "darkness", "tempo", "texture"):
+                    cur.execute(f"""
+                        SELECT FLOOR({dim} * 10)::int as bin, COUNT(*) as cnt
+                        FROM track_profiles
+                        WHERE {dim} IS NOT NULL
+                        GROUP BY bin ORDER BY bin
+                    """)
+                    bins = {r[0]: r[1] for r in cur.fetchall()}
+                    distributions[dim] = [
+                        {"bin": i / 10, "label": f"{i/10:.1f}-{(i+1)/10:.1f}", "count": bins.get(i, 0)}
+                        for i in range(10)
+                    ]
+                result["profile_distributions"] = distributions
+            else:
+                result["profile_averages"] = None
+                result["profile_distributions"] = None
+
+            # ── 8. Scene clusters ───────────────────────────────────────
+            cur.execute("SAVEPOINT sp_obs_clusters")
+            try:
+                cur.execute("""
+                    SELECT sc.id, sc.name, sc.size
+                    FROM scene_clusters sc
+                    ORDER BY sc.size DESC
+                """)
+                clusters = []
+                for crow in cur.fetchall():
+                    cluster_id, cluster_name, cluster_size = crow
+                    # Top 8 artists per cluster
+                    cur.execute("""
+                        SELECT a.name, ac.weight
+                        FROM artist_clusters ac
+                        JOIN artists a ON ac.artist_id = a.id
+                        WHERE ac.cluster_id = %s
+                        ORDER BY ac.weight DESC
+                        LIMIT 8
+                    """, (cluster_id,))
+                    top_artists = [{"name": r[0], "weight": round(float(r[1]), 2)} for r in cur.fetchall()]
+
+                    # Top tags for this cluster's artists
+                    cur.execute("""
+                        SELECT lt.name, COUNT(DISTINCT ac.artist_id) as cnt
+                        FROM artist_clusters ac
+                        JOIN artist_lastfm_tags alt ON ac.artist_id = alt.artist_id
+                        JOIN lastfm_tags lt ON alt.tag_id = lt.id
+                        WHERE ac.cluster_id = %s AND alt.weight >= 50
+                        GROUP BY lt.name
+                        ORDER BY cnt DESC
+                        LIMIT 5
+                    """, (cluster_id,))
+                    top_tags = [{"name": r[0], "count": r[1]} for r in cur.fetchall()]
+
+                    clusters.append({
+                        "id": cluster_id,
+                        "name": cluster_name,
+                        "size": cluster_size,
+                        "top_artists": top_artists,
+                        "top_tags": top_tags,
+                    })
+                cur.execute("RELEASE SAVEPOINT sp_obs_clusters")
+                result["clusters"] = clusters
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_obs_clusters")
+                result["clusters"] = []
+
+            # ── 9. Audio features ───────────────────────────────────────
+            cur.execute("SELECT COUNT(*) FROM track_audio_features")
+            audio_count = cur.fetchone()[0]
+
+            if audio_count > 0:
+                # BPM distribution
+                cur.execute("""
+                    SELECT FLOOR(bpm / 10) * 10 as bpm_bin, COUNT(*) as cnt
+                    FROM track_audio_features
+                    WHERE bpm IS NOT NULL AND bpm > 0
+                    GROUP BY bpm_bin ORDER BY bpm_bin
+                """)
+                result["bpm_distribution"] = [
+                    {"bpm": int(r[0]), "count": r[1]} for r in cur.fetchall()
+                ]
+
+                # Key distribution
+                cur.execute("""
+                    SELECT key_estimate, COUNT(*) as cnt
+                    FROM track_audio_features
+                    WHERE key_estimate IS NOT NULL
+                    GROUP BY key_estimate ORDER BY cnt DESC
+                """)
+                result["key_distribution"] = [
+                    {"key": r[0], "count": r[1]} for r in cur.fetchall()
+                ]
+
+                # Averages
+                cur.execute("""
+                    SELECT AVG(bpm), AVG(loudness_rms), AVG(spectral_centroid)
+                    FROM track_audio_features
+                """)
+                row = cur.fetchone()
+                result["audio_averages"] = {
+                    "avg_bpm": round(float(row[0] or 0), 1),
+                    "avg_loudness_rms": round(float(row[1] or 0), 4),
+                    "avg_spectral_centroid": round(float(row[2] or 0), 1),
+                    "analyzed_count": audio_count,
+                }
+            else:
+                result["bpm_distribution"] = []
+                result["key_distribution"] = []
+                result["audio_averages"] = None
+
+            # ── 10. Generation stats ────────────────────────────────────
+            cur.execute("SELECT COUNT(*) FROM generated_playlists")
+            result["total_playlists"] = cur.fetchone()[0]
+
+            cur.execute("""
+                SELECT arc_type, COUNT(*) as cnt, AVG(generation_time_ms) as avg_time
+                FROM playlist_generation_log
+                WHERE arc_type IS NOT NULL
+                GROUP BY arc_type ORDER BY cnt DESC
+            """)
+            result["arc_type_breakdown"] = [
+                {"arc_type": r[0], "count": r[1], "avg_time_ms": round(float(r[2] or 0))}
+                for r in cur.fetchall()
+            ]
+
+            # Most-used tracks in playlists
+            cur.execute("""
+                SELECT t.title, a.name as artist, tu.usage_count
+                FROM track_usage tu
+                JOIN tracks t ON tu.track_id = t.id
+                JOIN track_artists ta ON t.id = ta.track_id AND ta.role = 'primary'
+                JOIN artists a ON ta.artist_id = a.id
+                ORDER BY tu.usage_count DESC
+                LIMIT 20
+            """)
+            result["most_used_tracks"] = [
+                {"title": r[0], "artist": r[1], "usage_count": r[2]}
+                for r in cur.fetchall()
+            ]
+
+            # ── 12. Cultural map (gravity + tag evolution + genre purity) ─
+            cultural_map: dict = {}
+
+            # Cultural gravity: unique artists per tag (top 50)
+            cur.execute("""
+                SELECT lt.name, COUNT(DISTINCT alt.artist_id) AS artist_count
+                FROM artist_lastfm_tags alt
+                JOIN lastfm_tags lt ON lt.id = alt.tag_id
+                WHERE alt.weight >= 30
+                GROUP BY lt.id, lt.name
+                ORDER BY artist_count DESC
+                LIMIT 50
+            """)
+            cultural_map["cultural_gravity"] = [
+                {"tag": r[0], "artist_count": r[1]} for r in cur.fetchall()
+            ]
+
+            # Tag evolution timeline: top 5 tags per decade
+            cur.execute("""
+                SELECT decade, tag, artist_count FROM (
+                    SELECT
+                        (t.year / 10) * 10 AS decade,
+                        lt.name AS tag,
+                        COUNT(DISTINCT ta.artist_id) AS artist_count,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY (t.year / 10) * 10
+                            ORDER BY COUNT(DISTINCT ta.artist_id) DESC
+                        ) AS rn
+                    FROM tracks t
+                    JOIN track_artists ta ON ta.track_id = t.id AND ta.role = 'primary'
+                    JOIN artist_lastfm_tags alt ON alt.artist_id = ta.artist_id
+                    JOIN lastfm_tags lt ON lt.id = alt.tag_id
+                    WHERE t.year IS NOT NULL AND t.year >= 1900 AND alt.weight >= 30
+                    GROUP BY decade, lt.name
+                ) sub
+                WHERE rn <= 5
+                ORDER BY decade, artist_count DESC
+            """)
+            # Group by decade
+            tag_evolution: dict[int, list] = {}
+            for r in cur.fetchall():
+                decade = r[0]
+                if decade not in tag_evolution:
+                    tag_evolution[decade] = []
+                tag_evolution[decade].append({"tag": r[1], "artist_count": r[2]})
+            cultural_map["tag_evolution"] = [
+                {"decade": d, "tags": tags} for d, tags in sorted(tag_evolution.items())
+            ]
+
+            # Genre purity vs hybridization
+            cur.execute("""
+                SELECT bucket, COUNT(*) AS artist_count FROM (
+                    SELECT
+                        CASE
+                            WHEN cnt = 1 THEN 'pure'
+                            WHEN cnt BETWEEN 2 AND 3 THEN 'hybrid'
+                            ELSE 'highly_hybrid'
+                        END AS bucket
+                    FROM (
+                        SELECT alt.artist_id, COUNT(DISTINCT alt.tag_id) AS cnt
+                        FROM artist_lastfm_tags alt
+                        WHERE alt.weight >= 30
+                        GROUP BY alt.artist_id
+                    ) tag_counts
+                ) sub
+                GROUP BY bucket
+            """)
+            purity_map = {r[0]: r[1] for r in cur.fetchall()}
+            total_tagged = sum(purity_map.values()) or 1
+            cultural_map["genre_purity"] = {
+                "pure": purity_map.get("pure", 0),
+                "hybrid": purity_map.get("hybrid", 0),
+                "highly_hybrid": purity_map.get("highly_hybrid", 0),
+                "total_tagged_artists": total_tagged,
+                "pure_pct": round(purity_map.get("pure", 0) / total_tagged * 100, 1),
+                "hybrid_pct": round(purity_map.get("hybrid", 0) / total_tagged * 100, 1),
+                "highly_hybrid_pct": round(purity_map.get("highly_hybrid", 0) / total_tagged * 100, 1),
+            }
+
+            result["cultural_map"] = cultural_map
+
+            # ── 13. Darkness index ──────────────────────────────────────
+            darkness_index: dict = {}
+
+            # Title-based darkness keywords
+            dark_keywords = [
+                'dark', 'death', 'black', 'blood', 'hell', 'evil',
+                'night', 'doom', 'shadow', 'abyss', 'grave', 'corpse',
+                'satan', 'demon', 'chaos', 'plague', 'void', 'funeral',
+                'sorrow', 'hatred', 'cursed', 'witch', 'occult', 'tomb',
+            ]
+            keyword_placeholders = ", ".join(["%s"] * len(dark_keywords))
+            cur.execute(f"""
+                SELECT kw.word, COUNT(*) AS cnt
+                FROM UNNEST(ARRAY[{keyword_placeholders}]::text[]) AS kw(word)
+                CROSS JOIN LATERAL (
+                    SELECT 1 FROM tracks t
+                    WHERE LOWER(t.title) LIKE '%%' || kw.word || '%%'
+                ) matches
+                GROUP BY kw.word ORDER BY cnt DESC
+            """, dark_keywords)
+            keyword_counts = [{"word": r[0], "count": r[1]} for r in cur.fetchall()]
+            total_dark_titles = 0
+            if keyword_counts:
+                # Count distinct tracks matching any keyword
+                like_clauses = " OR ".join(["LOWER(title) LIKE %s"] * len(dark_keywords))
+                like_params = [f"%{kw}%" for kw in dark_keywords]
+                cur.execute(f"""
+                    SELECT COUNT(*) FROM tracks WHERE {like_clauses}
+                """, like_params)
+                total_dark_titles = cur.fetchone()[0]
+
+            darkness_index["keyword_counts"] = keyword_counts
+            darkness_index["total_dark_title_tracks"] = total_dark_titles
+            darkness_index["total_tracks"] = collection["total_tracks"]
+            darkness_index["dark_title_pct"] = (
+                round(total_dark_titles / collection["total_tracks"] * 100, 1)
+                if collection["total_tracks"] > 0 else 0
+            )
+
+            # Profile-based darkness distribution
+            if profile_count > 0:
+                cur.execute("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE darkness >= 0.8) AS very_dark,
+                        COUNT(*) FILTER (WHERE darkness >= 0.6 AND darkness < 0.8) AS dark,
+                        COUNT(*) FILTER (WHERE darkness >= 0.4 AND darkness < 0.6) AS neutral,
+                        COUNT(*) FILTER (WHERE darkness >= 0.2 AND darkness < 0.4) AS light,
+                        COUNT(*) FILTER (WHERE darkness < 0.2) AS very_light,
+                        ROUND(AVG(darkness)::numeric, 3) AS avg_darkness,
+                        COUNT(*) AS total
+                    FROM track_profiles
+                """)
+                row = cur.fetchone()
+                darkness_index["profile_distribution"] = {
+                    "very_dark": row[0], "dark": row[1], "neutral": row[2],
+                    "light": row[3], "very_light": row[4],
+                    "avg_darkness": float(row[5]), "total": row[6],
+                }
+
+                # Top 20 darkest artists (min 3 tracks)
+                cur.execute("""
+                    SELECT a.name, ROUND(AVG(tp.darkness)::numeric, 3) AS avg_darkness,
+                           COUNT(*) AS track_count
+                    FROM track_profiles tp
+                    JOIN track_artists ta ON ta.track_id = tp.track_id AND ta.role = 'primary'
+                    JOIN artists a ON a.id = ta.artist_id
+                    GROUP BY a.id, a.name
+                    HAVING COUNT(*) >= 3
+                    ORDER BY avg_darkness DESC
+                    LIMIT 20
+                """)
+                darkness_index["darkest_artists"] = [
+                    {"name": r[0], "avg_darkness": float(r[1]), "track_count": r[2]}
+                    for r in cur.fetchall()
+                ]
+            else:
+                darkness_index["profile_distribution"] = None
+                darkness_index["darkest_artists"] = []
+
+            result["darkness_index"] = darkness_index
+
+            # ── 14. Longform compositions + title archetypes ────────────
+            longform: dict = {}
+
+            # Duration thresholds
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE duration_ms >= 600000) AS over_10min,
+                    COUNT(*) FILTER (WHERE duration_ms >= 900000) AS over_15min,
+                    COUNT(*) FILTER (WHERE duration_ms >= 1200000) AS over_20min,
+                    COUNT(*) FILTER (WHERE duration_ms >= 1800000) AS over_30min,
+                    COUNT(*) AS total
+                FROM tracks
+            """)
+            row = cur.fetchone()
+            longform["thresholds"] = {
+                "over_10min": row[0], "over_15min": row[1],
+                "over_20min": row[2], "over_30min": row[3],
+                "total_tracks": row[4],
+            }
+
+            # Top 20 longest tracks
+            cur.execute("""
+                SELECT t.title, a.name AS artist, t.duration_ms
+                FROM tracks t
+                JOIN track_artists ta ON ta.track_id = t.id AND ta.role = 'primary'
+                JOIN artists a ON a.id = ta.artist_id
+                ORDER BY t.duration_ms DESC
+                LIMIT 20
+            """)
+            longform["longest_tracks"] = [
+                {"title": r[0], "artist": r[1], "duration_ms": r[2]}
+                for r in cur.fetchall()
+            ]
+
+            # Title archetypes
+            cur.execute("""
+                SELECT pattern, COUNT(*) AS cnt FROM (
+                    SELECT CASE
+                        WHEN LOWER(title) ~ '^intro($|[^a-z])' THEN 'Intro'
+                        WHEN LOWER(title) ~ '(^|[^a-z])interlude($|[^a-z])' THEN 'Interlude'
+                        WHEN LOWER(title) ~ '^outro($|[^a-z])' THEN 'Outro'
+                        WHEN LOWER(title) ~ 'part\s+[ivxlcdm0-9]+' THEN 'Part I/II/III...'
+                        WHEN LOWER(title) ~ '\(live' OR LOWER(title) ~ 'live at\s' THEN 'Live'
+                        WHEN LOWER(title) ~ '\(demo\)|\sdemo$|demo\s+\d' THEN 'Demo'
+                        WHEN LOWER(title) ~ '\(remix\)|\sremix$|\sremix\s' THEN 'Remix'
+                        WHEN LOWER(title) ~ '\(acoustic\)|\sacoustic' THEN 'Acoustic'
+                        WHEN LOWER(title) ~ 'untitled' THEN 'Untitled'
+                        WHEN LOWER(title) ~ '^prologue($|[^a-z])' THEN 'Prologue'
+                        WHEN LOWER(title) ~ '^epilogue($|[^a-z])' THEN 'Epilogue'
+                        WHEN LOWER(title) ~ '^prelude($|[^a-z])' THEN 'Prelude'
+                        ELSE NULL
+                    END AS pattern
+                    FROM tracks
+                ) sub
+                WHERE pattern IS NOT NULL
+                GROUP BY pattern ORDER BY cnt DESC
+            """)
+            longform["title_archetypes"] = [
+                {"pattern": r[0], "count": r[1]} for r in cur.fetchall()
+            ]
+
+            result["longform"] = longform
+
+            # ── 15. Collection archaeology ──────────────────────────────
+            archaeology: dict = {}
+
+            # Compilation contamination
+            cur.execute("""
+                SELECT COUNT(DISTINCT ta2.track_id) AS compilation_tracks
+                FROM artists a
+                JOIN track_artists ta2 ON ta2.artist_id = a.id
+                WHERE LOWER(a.name) IN ('various artists', 'various', 'va')
+            """)
+            comp_tracks = cur.fetchone()[0]
+            archaeology["compilation"] = {
+                "compilation_tracks": comp_tracks,
+                "total_tracks": collection["total_tracks"],
+                "compilation_pct": (
+                    round(comp_tracks / collection["total_tracks"] * 100, 1)
+                    if collection["total_tracks"] > 0 else 0
+                ),
+            }
+
+            # Artists discovered through compilations
+            cur.execute("""
+                SELECT DISTINCT a_primary.name, COUNT(DISTINCT t.id) AS track_count
+                FROM tracks t
+                JOIN track_artists ta_primary ON ta_primary.track_id = t.id
+                    AND ta_primary.role = 'primary'
+                JOIN artists a_primary ON a_primary.id = ta_primary.artist_id
+                JOIN track_albums tal ON tal.track_id = t.id
+                JOIN albums alb ON alb.id = tal.album_id
+                JOIN album_artists aa ON aa.album_id = alb.id
+                JOIN artists va ON va.id = aa.artist_id
+                    AND LOWER(va.name) IN ('various artists', 'various', 'va')
+                WHERE LOWER(a_primary.name) NOT IN ('various artists', 'various', 'va')
+                GROUP BY a_primary.id, a_primary.name
+                ORDER BY track_count DESC
+                LIMIT 20
+            """)
+            archaeology["compilation_artists"] = [
+                {"name": r[0], "track_count": r[1]} for r in cur.fetchall()
+            ]
+
+            # Forgotten tracks (never used in any playlist)
+            cur.execute("""
+                SELECT COUNT(*) FROM tracks t
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM track_usage tu WHERE tu.track_id = t.id
+                )
+            """)
+            forgotten_count = cur.fetchone()[0]
+            archaeology["forgotten"] = {
+                "forgotten_count": forgotten_count,
+                "total_tracks": collection["total_tracks"],
+                "forgotten_pct": (
+                    round(forgotten_count / collection["total_tracks"] * 100, 1)
+                    if collection["total_tracks"] > 0 else 0
+                ),
+            }
+
+            # Random sample of forgotten tracks
+            cur.execute("""
+                SELECT t.title, a.name AS artist, t.year, t.duration_ms
+                FROM tracks t
+                JOIN track_artists ta ON ta.track_id = t.id AND ta.role = 'primary'
+                JOIN artists a ON a.id = ta.artist_id
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM track_usage tu WHERE tu.track_id = t.id
+                )
+                ORDER BY RANDOM()
+                LIMIT 10
+            """)
+            archaeology["forgotten_sample"] = [
+                {"title": r[0], "artist": r[1], "year": r[2], "duration_ms": r[3]}
+                for r in cur.fetchall()
+            ]
+
+            # Temporal listening bias (release decade vs playlist usage share)
+            cur.execute("""
+                SELECT
+                    (t.year / 10) * 10 AS decade,
+                    COUNT(DISTINCT t.id) AS library_count,
+                    COALESCE(SUM(tu.usage_count), 0) AS total_uses
+                FROM tracks t
+                LEFT JOIN track_usage tu ON tu.track_id = t.id
+                WHERE t.year IS NOT NULL AND t.year >= 1900
+                GROUP BY decade ORDER BY decade
+            """)
+            temporal_rows = cur.fetchall()
+            total_library = sum(r[1] for r in temporal_rows) or 1
+            total_uses = sum(r[2] for r in temporal_rows) or 1
+            archaeology["temporal_bias"] = [
+                {
+                    "decade": r[0],
+                    "library_count": r[1],
+                    "library_pct": round(r[1] / total_library * 100, 1),
+                    "usage_count": r[2],
+                    "usage_pct": round(r[2] / total_uses * 100, 1),
+                }
+                for r in temporal_rows
+            ]
+
+            result["archaeology"] = archaeology
+
+            # ── 16. Genre gateways (bridge artists) ─────────────────────
+            gateways: dict = {}
+
+            # Most cross-genre artists (4+ tags)
+            cur.execute("""
+                SELECT a.name,
+                    COUNT(DISTINCT alt.tag_id) AS tag_count,
+                    ARRAY_AGG(DISTINCT lt.name ORDER BY lt.name) AS tags
+                FROM artists a
+                JOIN artist_lastfm_tags alt ON alt.artist_id = a.id AND alt.weight >= 30
+                JOIN lastfm_tags lt ON lt.id = alt.tag_id
+                GROUP BY a.id, a.name
+                HAVING COUNT(DISTINCT alt.tag_id) >= 5
+                ORDER BY tag_count DESC
+                LIMIT 30
+            """)
+            gateways["bridge_artists"] = [
+                {"name": r[0], "tag_count": r[1], "tags": r[2]}
+                for r in cur.fetchall()
+            ]
+
+            # Genre bridge pairs: two scene-level tags connected by shared artists
+            cur.execute("""
+                WITH scene_tags AS (
+                    SELECT lt.id, lt.name
+                    FROM lastfm_tags lt
+                    JOIN artist_lastfm_tags alt ON alt.tag_id = lt.id AND alt.weight >= 50
+                    GROUP BY lt.id, lt.name
+                    HAVING COUNT(DISTINCT alt.artist_id) >= 10
+                )
+                SELECT st1.name AS tag1, st2.name AS tag2,
+                    COUNT(DISTINCT alt1.artist_id) AS bridge_count
+                FROM scene_tags st1
+                JOIN artist_lastfm_tags alt1 ON alt1.tag_id = st1.id AND alt1.weight >= 50
+                JOIN artist_lastfm_tags alt2 ON alt2.artist_id = alt1.artist_id
+                    AND alt2.tag_id != alt1.tag_id AND alt2.weight >= 50
+                JOIN scene_tags st2 ON st2.id = alt2.tag_id AND st2.id > st1.id
+                GROUP BY st1.name, st2.name
+                HAVING COUNT(DISTINCT alt1.artist_id) >= 3
+                ORDER BY bridge_count DESC
+                LIMIT 30
+            """)
+            gateways["genre_bridges"] = [
+                {"tag1": r[0], "tag2": r[1], "bridge_count": r[2]}
+                for r in cur.fetchall()
+            ]
+
+            result["gateways"] = gateways
+
+            # ── 11. Fun / weird stats ───────────────────────────────────
+            fun: dict = {}
+
+            # Longest track titles
+            cur.execute("""
+                SELECT t.title, LENGTH(t.title) as len, a.name as artist
+                FROM tracks t
+                JOIN track_artists ta ON t.id = ta.track_id AND ta.role = 'primary'
+                JOIN artists a ON ta.artist_id = a.id
+                ORDER BY LENGTH(t.title) DESC
+                LIMIT 5
+            """)
+            fun["longest_titles"] = [
+                {"title": r[0], "length": r[1], "artist": r[2]} for r in cur.fetchall()
+            ]
+
+            # Longest track (by duration)
+            cur.execute("""
+                SELECT t.title, t.duration_ms, a.name as artist
+                FROM tracks t
+                JOIN track_artists ta ON t.id = ta.track_id AND ta.role = 'primary'
+                JOIN artists a ON ta.artist_id = a.id
+                ORDER BY t.duration_ms DESC
+                LIMIT 5
+            """)
+            fun["longest_tracks"] = [
+                {"title": r[0], "duration_ms": r[1], "artist": r[2]} for r in cur.fetchall()
+            ]
+
+            # Shortest track (by duration, > 0)
+            cur.execute("""
+                SELECT t.title, t.duration_ms, a.name as artist
+                FROM tracks t
+                JOIN track_artists ta ON t.id = ta.track_id AND ta.role = 'primary'
+                JOIN artists a ON ta.artist_id = a.id
+                WHERE t.duration_ms > 0
+                ORDER BY t.duration_ms ASC
+                LIMIT 5
+            """)
+            fun["shortest_tracks"] = [
+                {"title": r[0], "duration_ms": r[1], "artist": r[2]} for r in cur.fetchall()
+            ]
+
+            # Most common words in track titles (excluding short words)
+            cur.execute("""
+                SELECT word, COUNT(*) as cnt FROM (
+                    SELECT LOWER(regexp_split_to_table(title, '\s+')) as word
+                    FROM tracks
+                ) sub
+                WHERE LENGTH(word) >= 4
+                GROUP BY word ORDER BY cnt DESC
+                LIMIT 20
+            """)
+            fun["common_title_words"] = [
+                {"word": r[0], "count": r[1]} for r in cur.fetchall()
+            ]
+
+            # Most common words in artist names
+            cur.execute("""
+                SELECT word, COUNT(*) as cnt FROM (
+                    SELECT LOWER(regexp_split_to_table(name, '\s+')) as word
+                    FROM artists
+                ) sub
+                WHERE LENGTH(word) >= 3
+                GROUP BY word ORDER BY cnt DESC
+                LIMIT 20
+            """)
+            fun["common_artist_words"] = [
+                {"word": r[0], "count": r[1]} for r in cur.fetchall()
+            ]
+
+            # Longest file paths
+            cur.execute("""
+                SELECT path, LENGTH(path) as len
+                FROM track_files
+                WHERE missing_since IS NULL
+                ORDER BY LENGTH(path) DESC
+                LIMIT 5
+            """)
+            fun["longest_paths"] = [
+                {"path": r[0], "length": r[1]} for r in cur.fetchall()
+            ]
+
+            # Deepest directory depth
+            cur.execute("""
+                SELECT path,
+                       LENGTH(path) - LENGTH(REPLACE(path, '/', '')) as depth
+                FROM track_files
+                WHERE missing_since IS NULL
+                ORDER BY depth DESC
+                LIMIT 5
+            """)
+            fun["deepest_paths"] = [
+                {"path": r[0], "depth": r[1]} for r in cur.fetchall()
+            ]
+
+            result["fun_stats"] = fun
+
+    logger.info("Observatory stats computed successfully")
+    return result
+
+
 def close_pool() -> None:
     """Close the connection pool."""
     global _pool
     if _pool is not None:
         _pool.closeall()
         _pool = None
+
+
+def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]:
+    """Rebuild the tsvector search_vector column on all tracks.
+
+    This enables BM25 full-text search as a retrieval channel.
+    The vector is composed of:
+      - Weight A: track title + primary artist name + genre names
+      - Weight B: Last.fm tags (track-level if available, else artist-level fallback)
+
+    Args:
+        progress_callback: Optional (current, total, message) callback.
+
+    Returns:
+        Stats dict with counts.
+    """
+    stats = {"total": 0, "updated": 0}
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # 1. Ensure the column exists
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'tracks' AND column_name = 'search_vector'
+            """)
+            if not cur.fetchone():
+                logger.info("Adding search_vector column to tracks table")
+                cur.execute("ALTER TABLE tracks ADD COLUMN search_vector tsvector")
+        conn.commit()
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # 2. Count tracks
+            cur.execute("SELECT COUNT(*) FROM tracks")
+            total = cur.fetchone()[0]
+            stats["total"] = total
+
+            if total == 0:
+                logger.info("No tracks to rebuild search vectors for")
+                return stats
+
+            if progress_callback:
+                progress_callback(0, total, f"Rebuilding search vectors for {total} tracks...")
+
+            # 3. Populate search_vector using artist_lastfm_tags as fallback
+            #    since track_lastfm_tags typically has 0 rows.
+            cur.execute("""
+                UPDATE tracks t
+                SET search_vector =
+                    setweight(to_tsvector('simple', coalesce(t.title, '')), 'A') ||
+                    setweight(to_tsvector('simple', coalesce((
+                        SELECT string_agg(a.name, ' ')
+                        FROM track_artists ta
+                        JOIN artists a ON ta.artist_id = a.id
+                        WHERE ta.track_id = t.id AND ta.role = 'primary'
+                    ), '')), 'A') ||
+                    setweight(to_tsvector('simple', coalesce((
+                        SELECT string_agg(g.name, ' ')
+                        FROM track_genres tg
+                        JOIN genres g ON tg.genre_id = g.id
+                        WHERE tg.track_id = t.id
+                    ), '')), 'A') ||
+                    setweight(to_tsvector('simple', coalesce((
+                        SELECT string_agg(lt.name, ' ')
+                        FROM lastfm_tags lt
+                        JOIN track_lastfm_tags tlt ON lt.id = tlt.tag_id
+                        WHERE tlt.track_id = t.id
+                        ORDER BY tlt.weight DESC
+                        LIMIT 20
+                    ), (
+                        SELECT string_agg(lt2.name, ' ')
+                        FROM lastfm_tags lt2
+                        JOIN artist_lastfm_tags alt ON lt2.id = alt.tag_id
+                        JOIN track_artists ta2 ON ta2.artist_id = alt.artist_id
+                        WHERE ta2.track_id = t.id
+                        ORDER BY alt.weight DESC
+                        LIMIT 20
+                    ), '')), 'B')
+            """)
+            stats["updated"] = cur.rowcount
+
+            # 4. Create GIN index
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_tracks_search_vector
+                ON tracks USING GIN(search_vector)
+            """)
+
+        conn.commit()
+
+    if progress_callback:
+        progress_callback(stats["updated"], stats["total"],
+                          f"Rebuilt search vectors for {stats['updated']} tracks")
+
+    logger.info(f"Search vector rebuild complete: {stats}")
+    return stats

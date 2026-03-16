@@ -105,6 +105,36 @@ export function useEnrichmentStream(options?: { onCompleted?: () => void }) {
           }
         }
       }
+
+      // Flush any remaining data left in the buffer after the stream closes
+      if (!sawTerminalEvent && buffer.trim()) {
+        for (const line of buffer.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event: EnrichmentProgress = JSON.parse(line.slice(6))
+            progress.value = event.progress ?? 0
+            message.value = event.message ?? ''
+            if (event.error) {
+              error.value = event.error
+              status.value = 'error'
+            }
+            if (event.stats) {
+              lastStats.value = event.stats
+            }
+            if (event.done) {
+              sawTerminalEvent = true
+              if (!event.error) {
+                status.value = 'success'
+                lastFinishedMessage.value = event.message ?? `${label} complete`
+                options?.onCompleted?.()
+              }
+            }
+          }
+          catch {
+            // Ignore malformed SSE lines
+          }
+        }
+      }
     }
     catch (err: unknown) {
       if (err instanceof Error && err.name !== 'AbortError') {
