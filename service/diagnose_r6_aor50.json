@@ -1,0 +1,2461 @@
+[
+  {
+    "prompt": "catchiest aor songs",
+    "intent": {
+      "arc_type": "steady",
+      "prompt_type": "genre",
+      "genre_hints": [
+        "AOR",
+        "soft rock",
+        "pop rock",
+        "classic rock",
+        "glam metal",
+        "pop",
+        "rock"
+      ],
+      "mood_keywords": [
+        "catchy",
+        "uplifting",
+        "melodic"
+      ],
+      "year_range": [
+        null,
+        null
+      ],
+      "dimension_weights": {
+        "energy": 0.25,
+        "tempo": 0.25,
+        "darkness": 0.2,
+        "texture": 0.3
+      }
+    },
+    "raw_semantic_top30": [
+      {
+        "id": "4550a457-fdad-4032-9dfb-22911cdc5308",
+        "title": "Prelude - Coup de Grace",
+        "artist_name": "Treat",
+        "album_name": "Coup de Grace",
+        "year": 2010,
+        "duration_ms": 144906,
+        "similarity": 0.4921401436412429,
+        "genres": [
+          "Hard Rock",
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "0594ca16-fcd6-4560-8eff-81f70e68d0c4",
+        "title": "Stay Away",
+        "artist_name": "Treat",
+        "album_name": "Organized Crime",
+        "year": 1989,
+        "duration_ms": 282880,
+        "similarity": 0.4812433719635044,
+        "genres": [
+          "Aor"
+        ]
+      },
+      {
+        "id": "66197806-f3f5-4a83-8c7b-6345ea013399",
+        "title": "Fatal Smile",
+        "artist_name": "Treat",
+        "album_name": "Organized Crime",
+        "year": 1989,
+        "duration_ms": 247626,
+        "similarity": 0.47564768500896515,
+        "genres": [
+          "Aor"
+        ]
+      },
+      {
+        "id": "eaabf2da-2ecc-4483-b160-8b88aa1c9d5d",
+        "title": "All In",
+        "artist_name": "Treat",
+        "album_name": "Coup de Grace",
+        "year": 2010,
+        "duration_ms": 249399,
+        "similarity": 0.4708355349800317,
+        "genres": [
+          "Hard Rock",
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "8b425239-0c5e-4d32-9522-a60bb370b8ea",
+        "title": "All for Love",
+        "artist_name": "Treat",
+        "album_name": "Coup de Grace",
+        "year": 2010,
+        "duration_ms": 228053,
+        "similarity": 0.47042843699455594,
+        "genres": [
+          "Hard Rock",
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "f818b0a8-f1f9-4173-921a-e151f191d730",
+        "title": "No Way Without You",
+        "artist_name": "Treat",
+        "album_name": "Coup de Grace",
+        "year": 2010,
+        "duration_ms": 247453,
+        "similarity": 0.46539342197140665,
+        "genres": [
+          "Hard Rock",
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "b8864599-4a17-45a7-be66-99d8080379ec",
+        "title": "Catch Your Train",
+        "artist_name": "Scorpions",
+        "album_name": "Virgin Killer",
+        "year": 2010,
+        "duration_ms": 211983,
+        "similarity": 0.46396565222535524,
+        "genres": [
+          "Rock"
+        ]
+      },
+      {
+        "id": "b39a0031-febe-4d74-9e70-ff31af4c3946",
+        "title": "Roar",
+        "artist_name": "Treat",
+        "album_name": "Coup de Grace",
+        "year": 2010,
+        "duration_ms": 265519,
+        "similarity": 0.463139770218121,
+        "genres": [
+          "Hard Rock",
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "e603153c-e6ed-4fc7-89d9-1194ad21d4e7",
+        "title": "Tangled Up",
+        "artist_name": "Treat",
+        "album_name": "Coup de Grace",
+        "year": 2010,
+        "duration_ms": 245173,
+        "similarity": 0.46250718608541486,
+        "genres": [
+          "Hard Rock",
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "31a4561a-97ea-43bd-995f-31d1a4e9c4d4",
+        "title": "Onward",
+        "artist_name": "The Sun Ra Arkestra",
+        "album_name": "Rocket Number Nine Take Off for the Planet Venus",
+        "year": 2014,
+        "duration_ms": 212586,
+        "similarity": 0.46159657607058224,
+        "genres": [
+          "Jazz"
+        ]
+      },
+      {
+        "id": "fdb2f8c5-ba2c-46bb-b9c5-56d6c59c572a",
+        "title": "The Observation Deck",
+        "artist_name": "Jonn Serrie",
+        "album_name": "Azurae",
+        "year": 2019,
+        "duration_ms": 537137,
+        "similarity": 0.46106549633330063,
+        "genres": [
+          "Ambient",
+          "New Age",
+          "Electronic"
+        ]
+      },
+      {
+        "id": "72d262dc-6275-4246-8fa7-2440521eae54",
+        "title": "Der Kommissar (Rap' That)",
+        "artist_name": "Falco",
+        "album_name": "Alles Prima! NDW: Das Gr\u00f6\u00dfte der Neuen Deutschen Welle!",
+        "year": 1992,
+        "duration_ms": 229595,
+        "similarity": 0.4555174708366426,
+        "genres": [
+          "NDW",
+          "Deutschrock"
+        ]
+      },
+      {
+        "id": "dd823c0e-fb07-4e16-a151-ab6ce76bb7e7",
+        "title": "Hesitation Dance",
+        "artist_name": "Survivor",
+        "album_name": "Eye of the Tiger",
+        "year": 1999,
+        "duration_ms": 231183,
+        "similarity": 0.45428612283302816,
+        "genres": [
+          "Pop",
+          "Rock"
+        ]
+      },
+      {
+        "id": "67a374ee-809a-4e95-aa89-e96b4ed69b20",
+        "title": "Far Away",
+        "artist_name": "Scorpions",
+        "album_name": "Fly to the Rainbow",
+        "year": 1974,
+        "duration_ms": 341666,
+        "similarity": 0.45419397677147333,
+        "genres": [
+          "Hard Rock"
+        ]
+      },
+      {
+        "id": "fb49582b-428d-42fb-92fd-b5d71883d7f8",
+        "title": "Dancing on the Edge",
+        "artist_name": "Treat",
+        "album_name": "Dreamhunter",
+        "year": 1987,
+        "duration_ms": 276039,
+        "similarity": 0.45375057779256056,
+        "genres": [
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "061ebd9a-949c-46c8-8f45-db67307416a3",
+        "title": "Aoide (Khaidian remix)",
+        "artist_name": "Seventh Harmonic",
+        "album_name": "Awake the Machines, Vol. 7",
+        "year": 2011,
+        "duration_ms": 218000,
+        "similarity": 0.45198128688168127,
+        "genres": [
+          "Gothic Metal"
+        ]
+      },
+      {
+        "id": "4d664ac7-2c48-444a-a97a-ad0be0765c01",
+        "title": "Eye of Noche",
+        "artist_name": "Steve Roach",
+        "album_name": "Rasa Dance: The Music of Connection",
+        "year": 2013,
+        "duration_ms": 799746,
+        "similarity": 0.4516626538828199,
+        "genres": [
+          "Ambient"
+        ]
+      },
+      {
+        "id": "299d2d2c-5426-4a2a-ab6b-5fa6b5b30b1d",
+        "title": "Big Love",
+        "artist_name": "Fleetwood Mac",
+        "album_name": "Tango in the Night",
+        "year": 2011,
+        "duration_ms": 222402,
+        "similarity": 0.4491391717361417,
+        "genres": [
+          "AOR Classic Rock"
+        ]
+      },
+      {
+        "id": "c07a0304-6377-4354-9c50-ea34ffe4f3f0",
+        "title": "The Watcher on the Threshold",
+        "artist_name": "Aoratos",
+        "album_name": "Gods Without Name",
+        "year": 2019,
+        "duration_ms": 293511,
+        "similarity": 0.4490179358742161,
+        "genres": [
+          "Hard Rock",
+          "Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "4ad9477f-08e7-4e66-a641-0136b390c9df",
+        "title": "Make Another Mistake",
+        "artist_name": "Sun Ra",
+        "album_name": "Somewhere Over the Rainbow (Beyond Saturn)",
+        "year": 2021,
+        "duration_ms": 223286,
+        "similarity": 0.4488829045821976,
+        "genres": [
+          "Jazz",
+          "Electronic",
+          "Big Band",
+          "Avant-Garde"
+        ]
+      },
+      {
+        "id": "56ab1dc6-2452-454b-9461-ff5d220332ad",
+        "title": "Best of Me",
+        "artist_name": "Treat",
+        "album_name": "Dreamhunter",
+        "year": 1987,
+        "duration_ms": 325253,
+        "similarity": 0.44839084148407293,
+        "genres": [
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "1e9c9a3f-e6f8-4fa9-b79f-b451a3dbfff8",
+        "title": "Everywhere",
+        "artist_name": "Fleetwood Mac",
+        "album_name": "Tango in the Night",
+        "year": 2011,
+        "duration_ms": 227412,
+        "similarity": 0.4477926163549799,
+        "genres": [
+          "AOR Classic Rock"
+        ]
+      },
+      {
+        "id": "8d098ec3-c8b0-4958-bfe0-dd33f24e6417",
+        "title": "Can\u2019t Stop Lovin\u2019 You",
+        "artist_name": "Shy",
+        "album_name": "Unfinished Business",
+        "year": 2012,
+        "duration_ms": 307853,
+        "similarity": 0.4470739929124121,
+        "genres": [
+          "Hard Rock"
+        ]
+      },
+      {
+        "id": "a3826fc3-c952-4260-ab73-fded7aa3c4eb",
+        "title": "Outer Reach Intensity-Energy",
+        "artist_name": "Sun Ra",
+        "album_name": "Somewhere Over the Rainbow (Beyond Saturn)",
+        "year": 2021,
+        "duration_ms": 233881,
+        "similarity": 0.44576260124222133,
+        "genres": [
+          "Avant-Garde"
+        ]
+      },
+      {
+        "id": "a6840c41-66c5-405a-aa69-ec1d2b12e3f3",
+        "title": "Far Away Chant",
+        "artist_name": "African Head Charge",
+        "album_name": "My Life in a Hole in the Ground",
+        "year": 2015,
+        "duration_ms": 244169,
+        "similarity": 0.4453158676624329,
+        "genres": [
+          "Dub"
+        ]
+      },
+      {
+        "id": "ef2d2fa2-b3de-4b89-8e4b-704bb77b61ca",
+        "title": "Breathless",
+        "artist_name": "Treat",
+        "album_name": "Coup de Grace",
+        "year": 2010,
+        "duration_ms": 260160,
+        "similarity": 0.4442715048790009,
+        "genres": [
+          "Hard Rock",
+          "Rock",
+          "Aor"
+        ]
+      },
+      {
+        "id": "73346b19-ebd7-4588-84a0-e985d3946f08",
+        "title": "Love Complaining",
+        "artist_name": "The Rorschach Garden",
+        "album_name": "Everything Must Burn",
+        "year": 2017,
+        "duration_ms": 287520,
+        "similarity": 0.44307639855601866,
+        "genres": [
+          "Synth-Pop",
+          "Electro",
+          "Electronic"
+        ]
+      },
+      {
+        "id": "efcd23e9-49a3-4321-abca-a81f425a5a37",
+        "title": "Take That",
+        "artist_name": "Anna Domino",
+        "album_name": "Fac. Dance 02: Factory Records 12\" Mixes & Rarities 1980-1987",
+        "year": 2012,
+        "duration_ms": 255506,
+        "similarity": 0.44266950400704186,
+        "genres": [
+          "Singer-Songwriter"
+        ]
+      },
+      {
+        "id": "8fa62c72-d402-440c-8799-8f2be125bd63",
+        "title": "Waltz of King Karl",
+        "artist_name": "Ulver",
+        "album_name": "Svidd neger",
+        "year": 2008,
+        "duration_ms": 197070,
+        "similarity": 0.44242766156361546,
+        "genres": [
+          "Trip Hop",
+          "Ambient",
+          "Modern Classical",
+          "Electronic"
+        ]
+      },
+      {
+        "id": "4c27cf96-7177-4037-a232-7ac361e45a20",
+        "title": "Come Rain or Come Shine",
+        "artist_name": "The Cosmic Rays",
+        "album_name": "Spaceship Lullaby",
+        "year": 2003,
+        "duration_ms": 206454,
+        "similarity": 0.44193848967552496,
+        "genres": [
+          "Jazz"
+        ]
+      }
+    ],
+    "composer_tracks": [
+      {
+        "position": 0,
+        "title": "Exciter",
+        "artist": "Judas Priest",
+        "album": "Stained Class",
+        "year": 2001,
+        "genres": [
+          "Pop"
+        ],
+        "scores": {
+          "semantic": 0.5516,
+          "keyword": 0.0,
+          "trajectory": 0.8428,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6069
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.721,
+          "tempo": 0.621,
+          "darkness": 0.495,
+          "texture": 0.578
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 1,
+        "title": "Rod of Iron",
+        "artist": "Lizzy Borden",
+        "album": "Love You to Pieces",
+        "year": 2002,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5261,
+          "keyword": 0.0,
+          "trajectory": 0.8575,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6014
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.708,
+          "tempo": 0.592,
+          "darkness": 0.436,
+          "texture": 0.592
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 2,
+        "title": "Catch Your Train",
+        "artist": "Scorpions",
+        "album": "Virgin Killer",
+        "year": 2010,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5886,
+          "keyword": 0.0,
+          "trajectory": 0.879,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3134,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6271
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.675,
+          "tempo": 0.555,
+          "darkness": 0.483,
+          "texture": 0.56
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 3,
+        "title": "Feels Like Love",
+        "artist": "Survivor",
+        "album": "Eye of the Tiger",
+        "year": 1999,
+        "genres": [
+          "Rock",
+          "Pop"
+        ],
+        "scores": {
+          "semantic": 0.561,
+          "keyword": 0.0,
+          "trajectory": 0.945,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3317,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6269
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.592,
+          "tempo": 0.504,
+          "darkness": 0.371,
+          "texture": 0.485
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 4,
+        "title": "Get Down, Make Love",
+        "artist": "Queen",
+        "album": "News of the World",
+        "year": 2004,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5333,
+          "keyword": 0.0,
+          "trajectory": 0.9431,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6165
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.592,
+          "tempo": 0.509,
+          "darkness": 0.373,
+          "texture": 0.517
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 5,
+        "title": "Rock Bottom",
+        "artist": "KISS",
+        "album": "Dressed to Kill",
+        "year": 1997,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5255,
+          "keyword": 0.0,
+          "trajectory": 0.9406,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6137
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.6,
+          "tempo": 0.506,
+          "darkness": 0.419,
+          "texture": 0.5
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 6,
+        "title": "Monument",
+        "artist": "Depeche Mode",
+        "album": "A Broken Frame",
+        "year": 2006,
+        "genres": [
+          "Pop"
+        ],
+        "scores": {
+          "semantic": 0.5161,
+          "keyword": 0.0,
+          "trajectory": 0.9489,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3359,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6136
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.557,
+          "tempo": 0.5,
+          "darkness": 0.329,
+          "texture": 0.45
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 7,
+        "title": "Fatal Smile",
+        "artist": "Treat",
+        "album": "Organized Crime",
+        "year": 1989,
+        "genres": [
+          "Aor"
+        ],
+        "scores": {
+          "semantic": 0.5474,
+          "keyword": 0.0,
+          "trajectory": 0.8442,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2884,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.612
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.704,
+          "tempo": 0.591,
+          "darkness": 0.529,
+          "texture": 0.594
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 8,
+        "title": "The Trooper",
+        "artist": "Iron Maiden",
+        "album": "Live After Death",
+        "year": 1998,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4799,
+          "keyword": 0.0,
+          "trajectory": 0.8566,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5875
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.712,
+          "tempo": 0.583,
+          "darkness": 0.459,
+          "texture": 0.588
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 9,
+        "title": "Gettin' Heavy",
+        "artist": "Witchfynde",
+        "album": "Give 'em Hell",
+        "year": 2004,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4908,
+          "keyword": 0.0,
+          "trajectory": 0.828,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5864
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.705,
+          "tempo": 0.6,
+          "darkness": 0.595,
+          "texture": 0.605
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 10,
+        "title": "Popular",
+        "artist": "Lee Aaron",
+        "album": "Fire and Gasoline",
+        "year": 2016,
+        "genres": [
+          "Rock",
+          "Pop Rock"
+        ],
+        "scores": {
+          "semantic": 0.5196,
+          "keyword": 0.0,
+          "trajectory": 0.8999,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3495,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6059
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.629,
+          "tempo": 0.546,
+          "darkness": 0.459,
+          "texture": 0.55
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 11,
+        "title": "Oh, My Lord",
+        "artist": "Horisont",
+        "album": "Tv\u00e5 Sidor Av Horisonten",
+        "year": 2009,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.501,
+          "keyword": 0.0,
+          "trajectory": 0.9191,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3137,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6068
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.58,
+          "tempo": 0.519,
+          "darkness": 0.437,
+          "texture": 0.559
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 12,
+        "title": "Keep It on Ice",
+        "artist": "Savage",
+        "album": "Hyperactive",
+        "year": 1985,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4815,
+          "keyword": 0.0,
+          "trajectory": 0.9372,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.343,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6007
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.606,
+          "tempo": 0.511,
+          "darkness": 0.372,
+          "texture": 0.478
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 13,
+        "title": "Maybe I\u2019m in Love",
+        "artist": "The Handsome Beasts",
+        "album": "Filthy Lucre",
+        "year": 2010,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5012,
+          "keyword": 0.0,
+          "trajectory": 0.8982,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6001
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.671,
+          "tempo": 0.536,
+          "darkness": 0.45,
+          "texture": 0.536
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 14,
+        "title": "New Age",
+        "artist": "Blitz",
+        "album": "A Tribute to Flexi-Pop, Volume 8",
+        "year": null,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5031,
+          "keyword": 0.0,
+          "trajectory": 0.8835,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3295,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6005
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.699,
+          "tempo": 0.606,
+          "darkness": 0.446,
+          "texture": 0.491
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 15,
+        "title": "The Wolf",
+        "artist": "Mot\u00f6rhead",
+        "album": "Rock \u2019n\u2019 Roll",
+        "year": 2013,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4962,
+          "keyword": 0.0,
+          "trajectory": 0.8216,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5871
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.737,
+          "tempo": 0.637,
+          "darkness": 0.528,
+          "texture": 0.603
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 16,
+        "title": "30 Years",
+        "artist": "Lionheart",
+        "album": "Second Nature",
+        "year": 2017,
+        "genres": [
+          "Rock",
+          "Aor"
+        ],
+        "scores": {
+          "semantic": 0.5177,
+          "keyword": 0.0,
+          "trajectory": 0.7988,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3345,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5917
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.795,
+          "tempo": 0.645,
+          "darkness": 0.528,
+          "texture": 0.62
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 17,
+        "title": "The One That Really Matters",
+        "artist": "Survivor",
+        "album": "Eye of the Tiger",
+        "year": 1999,
+        "genres": [
+          "Rock",
+          "Pop"
+        ],
+        "scores": {
+          "semantic": 0.5464,
+          "keyword": 0.0,
+          "trajectory": 0.945,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3057,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6251
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.592,
+          "tempo": 0.504,
+          "darkness": 0.371,
+          "texture": 0.485
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 18,
+        "title": "See You",
+        "artist": "Depeche Mode",
+        "album": "A Broken Frame",
+        "year": 2006,
+        "genres": [
+          "Pop"
+        ],
+        "scores": {
+          "semantic": 0.5102,
+          "keyword": 0.0,
+          "trajectory": 0.9489,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3039,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.615
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.557,
+          "tempo": 0.5,
+          "darkness": 0.329,
+          "texture": 0.45
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 19,
+        "title": "Never\u2010Never",
+        "artist": "Lush",
+        "album": "Split",
+        "year": 1994,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4842,
+          "keyword": 0.0,
+          "trajectory": 0.9548,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.322,
+          "duration_penalty": 0.1391,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5924
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.514,
+          "tempo": 0.464,
+          "darkness": 0.385,
+          "texture": 0.486
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 20,
+        "title": "Since I\u2019ve Been Loving You",
+        "artist": "Led Zeppelin",
+        "album": "Led Zeppelin III",
+        "year": 1970,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4861,
+          "keyword": 0.0,
+          "trajectory": 0.9347,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3437,
+          "duration_penalty": 0.088,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5929
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.588,
+          "tempo": 0.507,
+          "darkness": 0.42,
+          "texture": 0.525
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 21,
+        "title": "It\u2019s a Long Way to the Top (If You Wanna Rock \u2019n\u2019 Roll)",
+        "artist": "AC/DC",
+        "album": "High Voltage",
+        "year": 2003,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4852,
+          "keyword": 0.0,
+          "trajectory": 0.8964,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.595
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.65,
+          "tempo": 0.542,
+          "darkness": 0.462,
+          "texture": 0.546
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 22,
+        "title": "Your Light",
+        "artist": "Scorpions",
+        "album": "Taken by Force",
+        "year": 2010,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5037,
+          "keyword": 0.0,
+          "trajectory": 0.879,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3166,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6013
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.675,
+          "tempo": 0.555,
+          "darkness": 0.483,
+          "texture": 0.56
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 23,
+        "title": "Out of the Way",
+        "artist": "Vardis",
+        "album": "100 M.P.H.",
+        "year": 1980,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4846,
+          "keyword": 0.0,
+          "trajectory": 0.8555,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.318,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5919
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.706,
+          "tempo": 0.572,
+          "darkness": 0.519,
+          "texture": 0.578
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 24,
+        "title": "Watching the Sky",
+        "artist": "Saxon",
+        "album": "Power & The Glory",
+        "year": 2018,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4793,
+          "keyword": 0.0,
+          "trajectory": 0.8634,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3439,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5889
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.704,
+          "tempo": 0.577,
+          "darkness": 0.454,
+          "texture": 0.581
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 25,
+        "title": "Fight From the Inside",
+        "artist": "Queen",
+        "album": "News of the World",
+        "year": 2004,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5157,
+          "keyword": 0.0,
+          "trajectory": 0.9431,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3204,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6141
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.592,
+          "tempo": 0.509,
+          "darkness": 0.373,
+          "texture": 0.517
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 26,
+        "title": "Rock and Roll All Nite",
+        "artist": "KISS",
+        "album": "Dressed to Kill",
+        "year": 1997,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5038,
+          "keyword": 0.0,
+          "trajectory": 0.9406,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3379,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6084
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.6,
+          "tempo": 0.506,
+          "darkness": 0.419,
+          "texture": 0.5
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 27,
+        "title": "Fail",
+        "artist": "Hades",
+        "album": "$avior$elf",
+        "year": 1999,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5178,
+          "keyword": 0.0,
+          "trajectory": 0.8185,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3273,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5954
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.726,
+          "tempo": 0.621,
+          "darkness": 0.564,
+          "texture": 0.615
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 28,
+        "title": "Razor in Your Back",
+        "artist": "Exciter",
+        "album": "Death Machine",
+        "year": 2010,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5494,
+          "keyword": 0.0,
+          "trajectory": 0.732,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3343,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5912
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.832,
+          "tempo": 0.741,
+          "darkness": 0.621,
+          "texture": 0.676
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 29,
+        "title": "Dead Eyes",
+        "artist": "Agent Steel",
+        "album": "Order of the Illuminati",
+        "year": 2003,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4891,
+          "keyword": 0.0,
+          "trajectory": 0.7714,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5774
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.796,
+          "tempo": 0.704,
+          "darkness": 0.526,
+          "texture": 0.656
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 30,
+        "title": "My Home",
+        "artist": "Wolf Spider",
+        "album": "Drifting in the Sullen Sea",
+        "year": 2009,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.503,
+          "keyword": 0.0,
+          "trajectory": 0.731,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5756
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.83,
+          "tempo": 0.72,
+          "darkness": 0.633,
+          "texture": 0.69
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 31,
+        "title": "Greenhouse",
+        "artist": "Evildead",
+        "album": "United States of Anarchy",
+        "year": 2020,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5024,
+          "keyword": 0.0,
+          "trajectory": 0.7211,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5739
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.829,
+          "tempo": 0.769,
+          "darkness": 0.628,
+          "texture": 0.686
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 32,
+        "title": "Behind the Back",
+        "artist": "Tankard",
+        "album": "Stone Cold Sober",
+        "year": 2018,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4898,
+          "keyword": 0.0,
+          "trajectory": 0.6981,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5667
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.862,
+          "tempo": 0.762,
+          "darkness": 0.681,
+          "texture": 0.71
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 33,
+        "title": "On the Loose",
+        "artist": "Europe",
+        "album": "The Final Countdown",
+        "year": 2001,
+        "genres": [
+          "Rock",
+          "Heavy Metal",
+          "Hard Rock",
+          "Pop Rock",
+          "Arena Rock",
+          "Soft Rock",
+          "Aor",
+          "Glam Metal"
+        ],
+        "scores": {
+          "semantic": 0.7692,
+          "keyword": 0.9972,
+          "trajectory": 0.8818,
+          "genre_match": 0.6667,
+          "gravity_penalty": 0.3468,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5617
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.675,
+          "tempo": 0.554,
+          "darkness": 0.476,
+          "texture": 0.555
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 34,
+        "title": "Stay Away",
+        "artist": "Treat",
+        "album": "Organized Crime",
+        "year": 1989,
+        "genres": [
+          "Aor"
+        ],
+        "scores": {
+          "semantic": 0.538,
+          "keyword": 0.0,
+          "trajectory": 0.8442,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2715,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6109
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.704,
+          "tempo": 0.591,
+          "darkness": 0.529,
+          "texture": 0.594
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 35,
+        "title": "Break Out",
+        "artist": "Gravestone",
+        "album": "Back to Attack",
+        "year": 1985,
+        "genres": [
+          "Pop"
+        ],
+        "scores": {
+          "semantic": 0.4791,
+          "keyword": 0.0,
+          "trajectory": 0.7974,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.01,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5773
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.729,
+          "tempo": 0.646,
+          "darkness": 0.533,
+          "texture": 0.668
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 36,
+        "title": "Last Rose of Summer",
+        "artist": "Judas Priest",
+        "album": "Sin After Sin",
+        "year": 2012,
+        "genres": [
+          "Pop"
+        ],
+        "scores": {
+          "semantic": 0.5371,
+          "keyword": 0.0,
+          "trajectory": 0.8428,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3475,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6028
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.721,
+          "tempo": 0.621,
+          "darkness": 0.495,
+          "texture": 0.578
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 37,
+        "title": "I Don't Want to Forget How to Jive",
+        "artist": "Thin Lizzy",
+        "album": "Shades of a Blue Orphanage",
+        "year": 2010,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5265,
+          "keyword": 0.0,
+          "trajectory": 0.8923,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.1875,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.588
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.654,
+          "tempo": 0.546,
+          "darkness": 0.468,
+          "texture": 0.55
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 38,
+        "title": "Had Enough",
+        "artist": "Lee Aaron",
+        "album": "Emotional Rain",
+        "year": 1995,
+        "genres": [
+          "Rock",
+          "Pop Rock"
+        ],
+        "scores": {
+          "semantic": 0.4837,
+          "keyword": 0.0,
+          "trajectory": 0.8999,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5951
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.629,
+          "tempo": 0.546,
+          "darkness": 0.459,
+          "texture": 0.55
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 39,
+        "title": "Eye for an Eye",
+        "artist": "Savage",
+        "album": "Hyperactive",
+        "year": 1985,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4772,
+          "keyword": 0.0,
+          "trajectory": 0.9372,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5987
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.606,
+          "tempo": 0.511,
+          "darkness": 0.372,
+          "texture": 0.478
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 40,
+        "title": "Black Sun",
+        "artist": "Dead Can Dance",
+        "album": "Aion",
+        "year": 1990,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.483,
+          "keyword": 0.0,
+          "trajectory": 0.8292,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3334,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.586
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.371,
+          "tempo": 0.353,
+          "darkness": 0.569,
+          "texture": 0.368
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 41,
+        "title": "Schritte",
+        "artist": "Paysage d\u2019Hiver",
+        "album": "Kerker",
+        "year": 2008,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4908,
+          "keyword": 0.0,
+          "trajectory": 0.8079,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.1596,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5675
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.4,
+          "tempo": 0.375,
+          "darkness": 0.814,
+          "texture": 0.375
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 42,
+        "title": "Fire and Thirst",
+        "artist": "Sun of the Blind",
+        "album": "Skullreader",
+        "year": 2009,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4756,
+          "keyword": 0.0,
+          "trajectory": 0.8856,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.1969,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5708
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.532,
+          "tempo": 0.521,
+          "darkness": 0.79,
+          "texture": 0.536
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 43,
+        "title": "All Must Come to an End, Parts I & II",
+        "artist": "Horisont",
+        "album": "Time Warriors",
+        "year": 2013,
+        "genres": [
+          "Classic Rock"
+        ],
+        "scores": {
+          "semantic": 0.4877,
+          "keyword": 0.0,
+          "trajectory": 0.9173,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5989
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.579,
+          "tempo": 0.52,
+          "darkness": 0.439,
+          "texture": 0.563
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 44,
+        "title": "Run to the Hills",
+        "artist": "Iron Maiden",
+        "album": "Live After Death",
+        "year": 1998,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5046,
+          "keyword": 0.0,
+          "trajectory": 0.8566,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5949
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.712,
+          "tempo": 0.583,
+          "darkness": 0.459,
+          "texture": 0.588
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 45,
+        "title": "Deaf Forever",
+        "artist": "Mot\u00f6rhead",
+        "album": "Orgasmatron",
+        "year": 2001,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5164,
+          "keyword": 0.0,
+          "trajectory": 0.8216,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5932
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.737,
+          "tempo": 0.637,
+          "darkness": 0.528,
+          "texture": 0.603
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 46,
+        "title": "Weakness Within",
+        "artist": "Sigh",
+        "album": "Scorn Defeat",
+        "year": 2000,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.48,
+          "keyword": 0.0,
+          "trajectory": 0.7703,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5745
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.692,
+          "tempo": 0.642,
+          "darkness": 0.641,
+          "texture": 0.729
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 47,
+        "title": "Find the Arise (demo)",
+        "artist": "Xecutioner",
+        "album": "Slowly We Rot",
+        "year": 1997,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5095,
+          "keyword": 0.0,
+          "trajectory": 0.7099,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0178,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5725
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.824,
+          "tempo": 0.728,
+          "darkness": 0.686,
+          "texture": 0.726
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 48,
+        "title": "Intro: The Ultimate Entrance",
+        "artist": "A.R.G.",
+        "album": "Entrance",
+        "year": 2012,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.5716,
+          "keyword": 0.0,
+          "trajectory": 0.6889,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.2396,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5659
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.87,
+          "tempo": 0.79,
+          "darkness": 0.668,
+          "texture": 0.717
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 49,
+        "title": "Frozen Tears",
+        "artist": "Loudblast",
+        "album": "Fragments",
+        "year": 2021,
+        "genres": [
+          "Rock"
+        ],
+        "scores": {
+          "semantic": 0.4819,
+          "keyword": 0.0,
+          "trajectory": 0.6841,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5622
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.841,
+          "tempo": 0.733,
+          "darkness": 0.707,
+          "texture": 0.775
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.5,
+          "darkness": 0.2,
+          "texture": 0.5
+        }
+      }
+    ],
+    "metrics": {
+      "trajectory_deviation": 0.0999240569780666,
+      "avg_transition_cost": 0.19473306109081748,
+      "pool_entropy": 0.6442144125612488,
+      "playlist_length": 50,
+      "beam_dead_ends": 0,
+      "constraint_rejections": 30730,
+      "generation_time_ms": 191823
+    },
+    "genre_coverage": {
+      "Pop": 7,
+      "Rock": 42,
+      "Aor": 4,
+      "Pop Rock": 3,
+      "Heavy Metal": 1,
+      "Hard Rock": 1,
+      "Arena Rock": 1,
+      "Soft Rock": 1,
+      "Glam Metal": 1,
+      "Classic Rock": 1
+    },
+    "generation_time_s": 192.12771105766296
+  }
+]

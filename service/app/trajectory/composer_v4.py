@@ -108,7 +108,7 @@ def compose_playlist_v4(
     if config is None:
         config = SequencerConfig()
 
-    playlist = sequence_playlist(
+    playlist, seq_metrics = sequence_playlist(
         position_pools,
         config=config,
         cluster_centroids=cluster_centroids,
@@ -117,7 +117,7 @@ def compose_playlist_v4(
     )
 
     # 8. Compute metrics
-    metrics = compute_playlist_metrics(playlist, position_pools)
+    metrics = compute_playlist_metrics(playlist, position_pools, seq_metrics)
 
     generation_time = int((time.time() - start_time) * 1000)
     metrics["generation_time_ms"] = generation_time
@@ -202,7 +202,7 @@ def compose_playlist_v4_streaming(
     if config is None:
         config = SequencerConfig()
 
-    playlist = sequence_playlist(
+    playlist, seq_metrics = sequence_playlist(
         position_pools,
         config=config,
         cluster_centroids=cluster_centroids,
@@ -211,7 +211,7 @@ def compose_playlist_v4_streaming(
     )
 
     report(6, 8, "Computing metrics...")
-    metrics = compute_playlist_metrics(playlist, position_pools)
+    metrics = compute_playlist_metrics(playlist, position_pools, seq_metrics)
 
     generation_time = int((time.time() - start_time) * 1000)
     metrics["generation_time_ms"] = generation_time
@@ -226,46 +226,7 @@ def compose_playlist_v4_streaming(
     )
 
 
-def get_track_explanations(
-    playlist: list[CandidateTrack],
-    intent: PlaylistIntent,
-) -> list[dict[str, Any]]:
-    """
-    Generate explanations for each track in the playlist.
-    """
-    explanations = []
 
-    for i, track in enumerate(playlist):
-        # Get trajectory target at this position
-        t = i / (len(playlist) - 1) if len(playlist) > 1 else 0.5
-        target = intent.trajectory_curve.evaluate(t)
-
-        explanation = {
-            "position": i,
-            "phase_label": target.phase_label,
-            "scores": {
-                "semantic": round(track.semantic_score, 3),
-                "trajectory": round(track.trajectory_score, 3),
-                "gravity_penalty": round(track.gravity_penalty, 3),
-                "total": round(track.total_score, 3),
-            },
-            "target": {
-                "energy": round(target.energy, 2),
-                "tempo": round(target.tempo, 2),
-                "darkness": round(target.darkness, 2),
-                "texture": round(target.texture, 2),
-            },
-            "actual": {
-                "energy": round(track.energy, 2),
-                "tempo": round(track.tempo, 2),
-                "darkness": round(track.darkness, 2),
-                "texture": round(track.texture, 2),
-            },
-        }
-
-        explanations.append(explanation)
-
-    return explanations
 
 
 def get_trajectory_visualization(

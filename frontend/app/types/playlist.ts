@@ -1,3 +1,18 @@
+export interface TrackScores {
+  semantic: number
+  trajectory: number
+  genre_match: number
+  gravity_penalty: number
+  total: number
+}
+
+export interface TrackProfile {
+  energy: number
+  tempo: number
+  darkness: number
+  texture: number
+}
+
 export interface Track {
   id: string
   title: string
@@ -5,7 +20,9 @@ export interface Track {
   album_name: string
   year: number
   duration_ms: number
-  explanation?: string
+  genres?: string[]
+  scores?: TrackScores
+  profile?: TrackProfile
 }
 
 export interface GeneratedPlaylist {
@@ -19,7 +36,7 @@ export interface GeneratedPlaylist {
 }
 
 export interface ProgressEvent {
-  stage: 'parsing' | 'trajectory' | 'candidates' | 'matching' | 'composing' | 'metrics' | 'explaining' | 'titling' | 'complete' | 'error'
+  stage: 'parsing' | 'trajectory' | 'candidates' | 'matching' | 'composing' | 'metrics' | 'titling' | 'complete' | 'error'
   progress: number
   message: string
   phase?: string

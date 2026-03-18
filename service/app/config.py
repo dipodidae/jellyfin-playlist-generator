@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     lastfm_api_key: str = ""
     lastfm_api_secret: str = ""
     
-    # OpenAI (for LLM intent parsing, track explanations, and title generation)
+    # OpenAI (for LLM intent parsing and title generation)
     openai_api_key: str = ""
     
     # Jellyfin integration

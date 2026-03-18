@@ -25,6 +25,30 @@ async function handleExportConfirm() {
   if (success) showExportModal.value = false
 }
 
+async function handleCreateMapping(mapping: { name: string, source_prefix: string, target_prefix: string }) {
+  try {
+    await mappings.createPathMapping(mapping)
+    toast.add({ title: 'Path mapping created', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to create mapping', description: e instanceof Error ? e.message : 'Unknown error', color: 'error' })
+  }
+}
+
+async function handleDeleteMapping(name: string) {
+  try {
+    await mappings.deletePathMapping(name)
+    // Clear selection if deleted mapping was selected
+    if (exporter.selectedMapping.value === name) {
+      exporter.selectedMapping.value = null
+    }
+    toast.add({ title: 'Path mapping deleted', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to delete mapping', description: e instanceof Error ? e.message : 'Unknown error', color: 'error' })
+  }
+}
+
 async function handleJellyfinExport() {
   if (!playlist.result.value) return
 
@@ -149,16 +173,19 @@ async function handleJellyfinExport() {
     <!-- Export modal -->
     <PlaylistExportModal
       v-if="playlist.result.value"
-      :model-value="showExportModal"
+      :open="showExportModal"
       :export-mode="exporter.exportMode.value"
       :selected-mapping="exporter.selectedMapping.value"
       :path-mappings="mappings.pathMappings.value"
       :is-exporting="exporter.isExporting.value"
       :can-export="exporter.canExport.value"
-      @update:model-value="showExportModal = $event"
+      :export-error="exporter.exportError.value"
+      @update:open="showExportModal = $event"
       @update:export-mode="exporter.exportMode.value = $event"
       @update:selected-mapping="exporter.selectedMapping.value = $event"
       @confirm="handleExportConfirm"
+      @create-mapping="handleCreateMapping"
+      @delete-mapping="handleDeleteMapping"
     />
 
     <!-- Recent scan jobs -->

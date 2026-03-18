@@ -10,7 +10,9 @@ Implements the v4 architecture:
 
 import logging
 import math
+import unicodedata
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -21,14 +23,30 @@ from app.trajectory.gravity import compute_bridge_bonus
 logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=4096)
+def _normalize_artist(name: str | None) -> str | None:
+    """Normalize artist name for comparison (strip accents, lowercase).
+
+    This ensures variants like "Voivod" / "Voïvod" or "Znöwhite" / "Znowhite"
+    are treated as the same artist in distance/penalty constraints.
+    """
+    if not name:
+        return name
+    # NFKD decomposition splits e.g. 'ï' into 'i' + combining diaeresis
+    decomposed = unicodedata.normalize("NFKD", name)
+    # Strip combining characters (accents)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return stripped.lower()
+
+
 @dataclass
 class SequencerConfig:
     """Configuration for beam search sequencer."""
     beam_width: int = 12
-    min_artist_distance: int = 6
-    max_cluster_per_window: int = 2
+    min_artist_distance: int = 4
+    max_cluster_per_window: int = 8
     cluster_window_size: int = 10
-    max_duration_ratio: float = 2.5
+    max_duration_ratio: float = 3.0
     lookahead_weight: float = 0.3
     bridge_bonus_weight: float = 0.05
     diversity_threshold: float = 0.8
@@ -40,9 +58,11 @@ class BeamPath:
     tracks: list[CandidateTrack] = field(default_factory=list)
     cumulative_score: float = 0.0
 
-    # Tracking for constraints
-    artist_positions: dict[str, int] = field(default_factory=dict)  # artist_id -> last position
+    # Tracking for constraints (keyed by normalized artist name, not ID)
+    artist_positions: dict[str, int] = field(default_factory=dict)  # norm_artist -> last position
+    artist_counts: dict[str, int] = field(default_factory=dict)     # norm_artist -> total appearances
     cluster_counts: dict[int, int] = field(default_factory=dict)  # cluster_id -> count in window
+    track_ids: set = field(default_factory=set)  # track IDs for O(1) duplicate check
 
     def copy(self) -> "BeamPath":
         """Create a copy of this path."""
@@ -50,7 +70,9 @@ class BeamPath:
             tracks=self.tracks.copy(),
             cumulative_score=self.cumulative_score,
             artist_positions=self.artist_positions.copy(),
+            artist_counts=self.artist_counts.copy(),
             cluster_counts=self.cluster_counts.copy(),
+            track_ids=self.track_ids.copy(),
         )
 
     def cluster_sequence(self) -> list[int | None]:
@@ -77,6 +99,7 @@ def is_valid_extension(
     candidate: CandidateTrack,
     position: int,
     config: SequencerConfig,
+    pool_cluster_counts: dict[int | None, int] | None = None,
 ) -> bool:
     """
     Check if candidate is a valid extension of the path.
@@ -84,27 +107,43 @@ def is_valid_extension(
     Enforces hard constraints:
     - No duplicate tracks
     - Minimum artist distance
-    - Maximum cluster repetition in window
+    - Maximum cluster repetition in window (adaptive based on pool diversity)
     - Maximum duration ratio
     """
-    # No duplicate tracks
-    track_ids = {t.id for t in path.tracks}
-    if candidate.id in track_ids:
+    # No duplicate tracks (use pre-built set for O(1) lookup)
+    if candidate.id in path.track_ids:
         return False
 
-    # Artist distance constraint
-    if candidate.artist_id and candidate.artist_id in path.artist_positions:
-        last_pos = path.artist_positions[candidate.artist_id]
+    # Artist distance constraint (use normalized name for accent-insensitive matching)
+    norm_artist = _normalize_artist(candidate.artist_name)
+    if norm_artist and norm_artist in path.artist_positions:
+        last_pos = path.artist_positions[norm_artist]
         if position - last_pos < config.min_artist_distance:
             return False
 
-    # Cluster repetition constraint
+    # Cluster repetition constraint (adaptive)
     if candidate.cluster_id is not None:
         # Count cluster occurrences in recent window
         window_start = max(0, position - config.cluster_window_size)
         window_clusters = [t.cluster_id for t in path.tracks[window_start:]]
         cluster_count = window_clusters.count(candidate.cluster_id)
-        if cluster_count >= config.max_cluster_per_window:
+
+        # Adapt the limit based on pool cluster diversity:
+        # If >80% of the pool is one cluster, allow up to window_size - 2
+        # so we only reserve 2 slots for other clusters.
+        max_allowed = config.max_cluster_per_window
+        if pool_cluster_counts and candidate.cluster_id in pool_cluster_counts:
+            pool_total = sum(pool_cluster_counts.values())
+            if pool_total > 0:
+                dominant_fraction = pool_cluster_counts[candidate.cluster_id] / pool_total
+                if dominant_fraction > 0.8:
+                    max_allowed = max(config.max_cluster_per_window,
+                                      config.cluster_window_size - 2)
+                elif dominant_fraction > 0.5:
+                    max_allowed = max(config.max_cluster_per_window,
+                                      config.cluster_window_size - 4)
+
+        if cluster_count >= max_allowed:
             return False
 
     # Duration ratio constraint
@@ -266,20 +305,230 @@ def select_diverse_beam(
     return selected
 
 
+def _relaxed_config(base: SequencerConfig, level: int) -> SequencerConfig:
+    """Return a progressively relaxed copy of *base* for constraint fallback.
+
+    Level 0 = normal (no relaxation).
+    Level 1 = moderate: halve artist distance, increase cluster limit.
+    Level 2 = aggressive: artist distance 1, cluster nearly unconstrained.
+    Level 3 = emergency: no artist distance, no cluster limit, no duration limit.
+    """
+    if level <= 0:
+        return base
+    if level == 1:
+        return SequencerConfig(
+            beam_width=base.beam_width,
+            min_artist_distance=max(2, base.min_artist_distance // 2),
+            max_cluster_per_window=base.cluster_window_size - 1,
+            cluster_window_size=base.cluster_window_size,
+            max_duration_ratio=5.0,
+            lookahead_weight=base.lookahead_weight,
+            bridge_bonus_weight=base.bridge_bonus_weight,
+            diversity_threshold=base.diversity_threshold,
+        )
+    if level == 2:
+        return SequencerConfig(
+            beam_width=base.beam_width,
+            min_artist_distance=1,
+            max_cluster_per_window=base.cluster_window_size,
+            cluster_window_size=base.cluster_window_size,
+            max_duration_ratio=10.0,
+            lookahead_weight=base.lookahead_weight,
+            bridge_bonus_weight=base.bridge_bonus_weight,
+            diversity_threshold=1.0,  # disable diversity filter
+        )
+    # level >= 3: emergency — basically no constraints except no duplicates
+    return SequencerConfig(
+        beam_width=base.beam_width,
+        min_artist_distance=0,
+        max_cluster_per_window=999,
+        cluster_window_size=base.cluster_window_size,
+        max_duration_ratio=999.0,
+        lookahead_weight=base.lookahead_weight,
+        bridge_bonus_weight=base.bridge_bonus_weight,
+        diversity_threshold=1.0,
+    )
+
+
+MAX_RELAXATION_LEVELS = 4  # 0..3
+
+
+def _precompute_candidate_artists(
+    candidates: list[CandidateTrack],
+) -> list[str | None]:
+    """Pre-normalize artist names for all candidates in a pool (once per position)."""
+    return [_normalize_artist(c.artist_name) for c in candidates]
+
+
+def _extend_single_path(
+    path: BeamPath,
+    candidates: list[CandidateTrack],
+    candidate_artists: list[str | None],
+    position: int,
+    config: SequencerConfig,
+    pool_cluster_counts: dict[int | None, int],
+    next_pool: list[CandidateTrack] | None,
+    cluster_centroids: list[np.ndarray] | None,
+    cluster_ids: list[int] | None,
+    transition_bonuses: dict | None,
+    skip_lookahead: bool = False,
+) -> tuple[list[tuple[BeamPath, float]], int]:
+    """Extend one beam path at *position*.
+
+    Returns (new_candidates, constraint_rejections).
+    """
+    new_candidates: list[tuple[BeamPath, float]] = []
+    constraint_rejections = 0
+    prev_track = path.tracks[-1] if path.tracks else None
+
+    for idx, candidate in enumerate(candidates):
+        if not is_valid_extension(path, candidate, position, config,
+                                  pool_cluster_counts=pool_cluster_counts):
+            constraint_rejections += 1
+            continue
+
+        trans_score = score_transition(prev_track, candidate)
+
+        # Skip expensive lookahead at relaxed levels — diminishing returns
+        if skip_lookahead:
+            lookahead = 0.5  # neutral default
+        else:
+            lookahead = compute_lookahead(candidate, next_pool, config)
+
+        bridge_bonus = 0.0
+        if cluster_centroids and cluster_ids and prev_track and candidate.embedding:
+            bridge_bonus = compute_bridge_bonus(
+                candidate.embedding,
+                cluster_centroids,
+                cluster_ids,
+                prev_track.cluster_id,
+                candidate.cluster_id,
+            )
+
+        trans_bonus = 0.0
+        if transition_bonuses and prev_track:
+            trans_bonus = transition_bonuses.get(
+                (str(prev_track.id), str(candidate.id)), 0.0
+            )
+
+        extension_score = (
+            candidate.total_score +
+            trans_score * 0.2 +
+            lookahead * config.lookahead_weight +
+            bridge_bonus * config.bridge_bonus_weight +
+            trans_bonus
+        )
+
+        # Soft artist-reuse penalty: discourages the same artist from
+        # dominating the playlist, even when the hard distance constraint
+        # has been relaxed.  Uses pre-normalized artist name so accent
+        # variants (Voivod/Voïvod) are treated as the same artist.
+        norm_artist = candidate_artists[idx]
+        if norm_artist and norm_artist in path.artist_positions:
+            last_pos = path.artist_positions[norm_artist]
+            distance = position - last_pos
+            artist_count = path.artist_counts.get(norm_artist, 0)
+            # Recency: 0.15 for immediate repeat, decaying with distance
+            recency_penalty = 0.15 / max(1, distance)
+            # Fatigue: accelerating penalty that grows quadratically.
+            # 1 prior=0.03, 2=0.06, 3=0.11, 4=0.16, 5=0.22, 6+=0.30 cap
+            fatigue_penalty = min(0.30, artist_count * artist_count * 0.015 + artist_count * 0.015)
+            extension_score -= (recency_penalty + fatigue_penalty)
+
+        new_path = path.copy()
+        new_path.tracks.append(candidate)
+        new_path.track_ids.add(candidate.id)
+        new_path.cumulative_score = path.cumulative_score + extension_score
+
+        if norm_artist:
+            new_path.artist_positions[norm_artist] = position
+            new_path.artist_counts[norm_artist] = \
+                new_path.artist_counts.get(norm_artist, 0) + 1
+        if candidate.cluster_id is not None:
+            new_path.cluster_counts[candidate.cluster_id] = \
+                new_path.cluster_counts.get(candidate.cluster_id, 0) + 1
+
+        new_candidates.append((new_path, new_path.cumulative_score))
+
+    return new_candidates, constraint_rejections
+
+
+def _greedy_extend_path(
+    path: BeamPath,
+    candidates: list[CandidateTrack],
+    candidate_artists: list[str | None],
+    position: int,
+    config: SequencerConfig,
+    pool_cluster_counts: dict[int | None, int],
+) -> BeamPath | None:
+    """Emergency greedy: pick best-scoring valid candidate, no lookahead/bridge.
+
+    Much faster than full beam scoring — used at relaxation level 3.
+    """
+    best_score = -999.0
+    best_candidate = None
+    best_norm_artist = None
+
+    for idx, candidate in enumerate(candidates):
+        if not is_valid_extension(path, candidate, position, config,
+                                  pool_cluster_counts=pool_cluster_counts):
+            continue
+
+        score = candidate.total_score
+        norm_artist = candidate_artists[idx]
+        if norm_artist and norm_artist in path.artist_positions:
+            artist_count = path.artist_counts.get(norm_artist, 0)
+            score -= min(0.30, artist_count * artist_count * 0.015 + artist_count * 0.015)
+
+        if score > best_score:
+            best_score = score
+            best_candidate = candidate
+            best_norm_artist = norm_artist
+
+    if best_candidate is None:
+        return None
+
+    new_path = path.copy()
+    new_path.tracks.append(best_candidate)
+    new_path.track_ids.add(best_candidate.id)
+    new_path.cumulative_score = path.cumulative_score + best_score
+
+    if best_norm_artist:
+        new_path.artist_positions[best_norm_artist] = position
+        new_path.artist_counts[best_norm_artist] = \
+            new_path.artist_counts.get(best_norm_artist, 0) + 1
+    if best_candidate.cluster_id is not None:
+        new_path.cluster_counts[best_candidate.cluster_id] = \
+            new_path.cluster_counts.get(best_candidate.cluster_id, 0) + 1
+
+    return new_path
+
+
 def sequence_playlist(
     position_pools: list[list[CandidateTrack]],
     config: SequencerConfig | None = None,
     cluster_centroids: list[np.ndarray] | None = None,
     cluster_ids: list[int] | None = None,
     transition_bonuses: dict | None = None,
-) -> list[CandidateTrack]:
+) -> tuple[list[CandidateTrack], dict[str, Any]]:
     """
     Sequence playlist using beam search through position pools.
 
     This is the core v4 sequencing algorithm.
+
+    Performance optimizations over naive approach:
+    - Only retry dead-end beams at higher relaxation levels (not all beams)
+    - Skip expensive lookahead at relaxation level >= 2
+    - Greedy fallback at emergency level 3 (no full beam scoring)
+    - Pre-normalize candidate artist names once per position
+    - Incremental track_ids set on BeamPath (no rebuild per candidate)
+
+    When all beams hit dead ends at a position, the sequencer
+    progressively relaxes constraints (artist distance, cluster limits,
+    duration ratio) and retries before giving up.
     """
     if not position_pools:
-        return []
+        return [], {}
 
     if config is None:
         config = SequencerConfig()
@@ -287,87 +536,107 @@ def sequence_playlist(
     # Metrics tracking
     total_constraint_rejections = 0
     total_beam_dead_ends = 0
+    total_relaxations = 0
 
     # Initialize beam with empty path
     beam: list[BeamPath] = [BeamPath()]
 
     for position, candidates in enumerate(position_pools):
-        new_candidates: list[tuple[BeamPath, float]] = []
-
         # Get next pool for lookahead
         next_pool = position_pools[position + 1] if position + 1 < len(position_pools) else None
 
-        for path in beam:
-            path_had_valid_extension = False
-            for candidate in candidates:
-                # Check constraints
-                if not is_valid_extension(path, candidate, position, config):
-                    total_constraint_rejections += 1
-                    continue
+        # Precompute per-position data
+        pool_cluster_counts: dict[int | None, int] = {}
+        for c in candidates:
+            pool_cluster_counts[c.cluster_id] = pool_cluster_counts.get(c.cluster_id, 0) + 1
+        candidate_artists = _precompute_candidate_artists(candidates)
 
-                path_had_valid_extension = True
+        # ── Progressive relaxation: only retry beams that were dead-ends ──
+        # Accumulate successful extensions across levels; only retry failed beams.
+        accumulated_candidates: list[tuple[BeamPath, float]] = []
+        remaining_beam = beam  # beams that still need candidates
+        used_level = 0
 
-                # Compute scores
-                prev_track = path.tracks[-1] if path.tracks else None
-                trans_score = score_transition(prev_track, candidate)
-                lookahead = compute_lookahead(candidate, next_pool, config)
+        for level in range(MAX_RELAXATION_LEVELS):
+            if not remaining_beam:
+                break
 
-                # Bridge bonus (if cluster info available)
-                bridge_bonus = 0.0
-                if cluster_centroids and cluster_ids and prev_track:
-                    bridge_bonus = compute_bridge_bonus(
-                        candidate.embedding,
-                        cluster_centroids,
-                        cluster_ids,
-                        prev_track.cluster_id,
-                        candidate.cluster_id,
+            effective_config = _relaxed_config(config, level) if level > 0 else config
+            skip_lookahead = level >= 2
+
+            # Emergency level: greedy fallback (much faster)
+            if level >= 3:
+                for path in remaining_beam:
+                    greedy_path = _greedy_extend_path(
+                        path, candidates, candidate_artists,
+                        position, effective_config, pool_cluster_counts,
                     )
+                    if greedy_path:
+                        accumulated_candidates.append(
+                            (greedy_path, greedy_path.cumulative_score)
+                        )
+                    else:
+                        total_beam_dead_ends += 1
+                if level > 0 and len(accumulated_candidates) > len(accumulated_candidates):
+                    total_relaxations += 1
+                used_level = max(used_level, level)
+                break
 
-                # Historical transition bonus (0–0.05, from transition memory)
-                trans_bonus = 0.0
-                if transition_bonuses and prev_track:
-                    trans_bonus = transition_bonuses.get(
-                        (str(prev_track.id), str(candidate.id)), 0.0
-                    )
+            # Normal/moderate levels: full scoring per beam path
+            level_candidates: list[tuple[BeamPath, float]] = []
+            still_stuck: list[BeamPath] = []
 
-                # Total score for this extension
-                extension_score = (
-                    candidate.total_score +
-                    trans_score * 0.2 +
-                    lookahead * config.lookahead_weight +
-                    bridge_bonus * config.bridge_bonus_weight +
-                    trans_bonus
+            for path in remaining_beam:
+                path_results, rejections = _extend_single_path(
+                    path, candidates, candidate_artists, position,
+                    effective_config, pool_cluster_counts,
+                    next_pool if not skip_lookahead else None,
+                    cluster_centroids, cluster_ids, transition_bonuses,
+                    skip_lookahead=skip_lookahead,
                 )
+                total_constraint_rejections += rejections
 
-                # Create new path
-                new_path = path.copy()
-                new_path.tracks.append(candidate)
-                new_path.cumulative_score = path.cumulative_score + extension_score
+                if path_results:
+                    level_candidates.extend(path_results)
+                else:
+                    still_stuck.append(path)
 
-                # Update tracking
-                if candidate.artist_id:
-                    new_path.artist_positions[candidate.artist_id] = position
-                if candidate.cluster_id is not None:
-                    new_path.cluster_counts[candidate.cluster_id] = \
-                        new_path.cluster_counts.get(candidate.cluster_id, 0) + 1
+            if level_candidates:
+                accumulated_candidates.extend(level_candidates)
+                used_level = max(used_level, level)
+                if level > 0:
+                    total_relaxations += 1
+                    logger.info(
+                        f"Position {position}: relaxation level {level} "
+                        f"rescued {len(remaining_beam) - len(still_stuck)}/{len(remaining_beam)} beams "
+                        f"(artist_dist={effective_config.min_artist_distance}, "
+                        f"cluster_max={effective_config.max_cluster_per_window})"
+                    )
 
-                new_candidates.append((new_path, new_path.cumulative_score))
-
-            if not path_had_valid_extension:
-                total_beam_dead_ends += 1
+            remaining_beam = still_stuck
+            if still_stuck:
+                total_beam_dead_ends += len(still_stuck)
 
         # Select diverse beam
-        if new_candidates:
-            beam = select_diverse_beam(new_candidates, config.beam_width, config.diversity_threshold)
+        if accumulated_candidates:
+            effective_config = _relaxed_config(config, used_level) if used_level > 0 else config
+            beam = select_diverse_beam(
+                accumulated_candidates,
+                config.beam_width,
+                effective_config.diversity_threshold,
+            )
         else:
-            logger.warning(f"No valid candidates at position {position}")
-            total_beam_dead_ends += len(beam)
-            # Keep current beam, will result in shorter playlist
+            logger.warning(
+                f"No valid candidates at position {position} even after "
+                f"{MAX_RELAXATION_LEVELS} relaxation levels — stopping"
+            )
             break
 
     if not beam:
         logger.error("Beam search produced no results")
-        return []
+        return [], {"beam_dead_ends": total_beam_dead_ends,
+                     "constraint_rejections": total_constraint_rejections,
+                     "relaxations": total_relaxations}
 
     # Return best path
     best_path = max(beam, key=lambda p: p.cumulative_score)
@@ -375,19 +644,23 @@ def sequence_playlist(
         f"Sequenced playlist: {len(best_path.tracks)} tracks, "
         f"score={best_path.cumulative_score:.2f}, "
         f"dead_ends={total_beam_dead_ends}, "
-        f"constraint_rejections={total_constraint_rejections}"
+        f"constraint_rejections={total_constraint_rejections}, "
+        f"relaxations={total_relaxations}"
     )
 
-    # Attach metrics to the returned list for the caller to pick up
-    best_path.tracks._beam_dead_ends = total_beam_dead_ends  # type: ignore[attr-defined]
-    best_path.tracks._constraint_rejections = total_constraint_rejections  # type: ignore[attr-defined]
+    seq_metrics = {
+        "beam_dead_ends": total_beam_dead_ends,
+        "constraint_rejections": total_constraint_rejections,
+        "relaxations": total_relaxations,
+    }
 
-    return best_path.tracks
+    return best_path.tracks, seq_metrics
 
 
 def compute_playlist_metrics(
     playlist: list[CandidateTrack],
     position_pools: list[list[CandidateTrack]],
+    sequencer_metrics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Compute metrics for observability.
@@ -435,6 +708,6 @@ def compute_playlist_metrics(
         "avg_transition_cost": avg_trans_cost,
         "pool_entropy": pool_entropy,
         "playlist_length": len(playlist),
-        "beam_dead_ends": getattr(playlist, '_beam_dead_ends', 0),
-        "constraint_rejections": getattr(playlist, '_constraint_rejections', 0),
+        "beam_dead_ends": (sequencer_metrics or {}).get("beam_dead_ends", 0),
+        "constraint_rejections": (sequencer_metrics or {}).get("constraint_rejections", 0),
     }

@@ -8,7 +8,6 @@ const STEPS = [
   'Matching tracks',
   'Composing playlist...',
   'Computing metrics...',
-  'Explaining tracks...',
   'Generating title...',
 ]
 
@@ -19,9 +18,8 @@ const STAGE_INDEX: Record<string, number> = {
   matching: 3,
   composing: 4,
   metrics: 5,
-  explaining: 6,
-  titling: 7,
-  complete: 8,
+  titling: 6,
+  complete: 7,
   error: -1,
 }
 

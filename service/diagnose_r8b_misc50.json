@@ -1,0 +1,4870 @@
+[
+  {
+    "prompt": "danceable goth tracks",
+    "intent": {
+      "arc_type": "steady",
+      "prompt_type": "genre",
+      "genre_hints": [
+        "gothic rock",
+        "darkwave",
+        "dance-punk",
+        "synthpop",
+        "new wave",
+        "coldwave",
+        "post-punk",
+        "synth-pop",
+        "hardcore"
+      ],
+      "genre_hints_primary": [
+        "dance-punk",
+        "darkwave",
+        "gothic rock",
+        "post-punk",
+        "punk",
+        "synth-pop",
+        "synthpop"
+      ],
+      "mood_keywords": [
+        "danceable",
+        "dark",
+        "energetic"
+      ],
+      "year_range": [
+        null,
+        null
+      ],
+      "dimension_weights": {
+        "energy": 0.3,
+        "tempo": 0.3,
+        "darkness": 0.2,
+        "texture": 0.2
+      }
+    },
+    "raw_semantic_top30": [
+      {
+        "id": "0ec1d5a4-adc3-42e1-9f4d-079e3a977b67",
+        "title": "Dancing",
+        "artist_name": "Bauhaus",
+        "album_name": "Press the Eject and Give Me the Tape",
+        "year": 1988,
+        "duration_ms": 152976,
+        "similarity": 0.6404966330232255,
+        "genres": [
+          "Goth"
+        ]
+      },
+      {
+        "id": "e52721ee-ce4b-4ff9-a755-854f36c2aeea",
+        "title": "Pagans Dance",
+        "artist_name": "Sorcerer",
+        "album_name": "In the Shadow of the Inverted Cross",
+        "year": 2015,
+        "duration_ms": 452586,
+        "similarity": 0.5909942808450996,
+        "genres": [
+          "Doom Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "778db266-2ddd-41ff-a227-f2813592a56d",
+        "title": "Threshold",
+        "artist_name": "Dead Can Dance",
+        "album_name": "Dead Can Dance",
+        "year": 2008,
+        "duration_ms": 214311,
+        "similarity": 0.5867968622804647,
+        "genres": [
+          "Rock"
+        ]
+      },
+      {
+        "id": "1ee92400-e81c-49a8-941f-be5a6e4b83ad",
+        "title": "Bela Lugosi\u2019s Dead",
+        "artist_name": "Bauhaus",
+        "album_name": "Press the Eject and Give Me the Tape",
+        "year": 1988,
+        "duration_ms": 575036,
+        "similarity": 0.5855086939920552,
+        "genres": [
+          "Goth"
+        ]
+      },
+      {
+        "id": "d6272755-ab8c-4831-9483-0d992665e195",
+        "title": "And the Dance Goes On",
+        "artist_name": "The Mission",
+        "album_name": "Gods Own Medicine",
+        "year": 2007,
+        "duration_ms": 249546,
+        "similarity": 0.5848047907592359,
+        "genres": []
+      },
+      {
+        "id": "9a642194-61ca-4b9d-a00d-2a43656260c0",
+        "title": "Walk Across The Thunder",
+        "artist_name": "Pagan Myth",
+        "album_name": "Moonrise",
+        "year": 1984,
+        "duration_ms": 268909,
+        "similarity": 0.5758756651952477,
+        "genres": []
+      },
+      {
+        "id": "0e7ca783-df6e-4f99-bc47-3f5c8901952f",
+        "title": "A Passage in Time",
+        "artist_name": "Dead Can Dance",
+        "album_name": "Dead Can Dance",
+        "year": 2008,
+        "duration_ms": 243830,
+        "similarity": 0.5709889786846064,
+        "genres": [
+          "Rock"
+        ]
+      },
+      {
+        "id": "58ff0927-a70f-431f-8906-0d366ebd1f1c",
+        "title": "Beyond the Pale",
+        "artist_name": "The Mission",
+        "album_name": "Children",
+        "year": 1988,
+        "duration_ms": 469490,
+        "similarity": 0.5693897182840623,
+        "genres": [
+          "Goth"
+        ]
+      },
+      {
+        "id": "abe06a60-fc6f-4da7-a0a0-e38b53012fd0",
+        "title": "Dance of the Vampires",
+        "artist_name": "Pagan Altar",
+        "album_name": "The Room of Shadows",
+        "year": 2017,
+        "duration_ms": 393038,
+        "similarity": 0.5692169496650435,
+        "genres": [
+          "Hard Rock",
+          "Traditional Doom Metal",
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "5a979399-bd0a-48d3-8367-6151e52c90e7",
+        "title": "Harmonics",
+        "artist_name": "Sofia Run",
+        "album_name": "Goth Box",
+        "year": 1996,
+        "duration_ms": 305173,
+        "similarity": 0.5652009507893959,
+        "genres": []
+      },
+      {
+        "id": "b897c079-9c35-4ec8-bca9-fe6f10fe47cb",
+        "title": "Boogie Dance",
+        "artist_name": "Hans\u2010Joachim Roedelius",
+        "album_name": "Stunden",
+        "year": 2011,
+        "duration_ms": 314466,
+        "similarity": 0.5645668170114279,
+        "genres": [
+          "Ambient"
+        ]
+      },
+      {
+        "id": "25c707ba-ac4f-4ee4-b18d-ad9ae0724de8",
+        "title": "Sleepwalk",
+        "artist_name": "Christian Death",
+        "album_name": "Catastrophe Ballet",
+        "year": 1999,
+        "duration_ms": 315223,
+        "similarity": 0.5635359547414817,
+        "genres": [
+          "deathrock"
+        ]
+      },
+      {
+        "id": "7310640a-0713-4cda-9066-4cc05d1c64f8",
+        "title": "The Arcane",
+        "artist_name": "Dead Can Dance",
+        "album_name": "Dead Can Dance",
+        "year": 2008,
+        "duration_ms": 229018,
+        "similarity": 0.5633029601989422,
+        "genres": [
+          "Ethnic Fusion"
+        ]
+      },
+      {
+        "id": "5a872cf4-a868-4cd4-b6bf-06130df09858",
+        "title": "Dance on Glass",
+        "artist_name": "The Mission",
+        "album_name": "Gods Own Medicine",
+        "year": 2007,
+        "duration_ms": 313706,
+        "similarity": 0.5632651037099782,
+        "genres": []
+      },
+      {
+        "id": "a7c4ff98-24a8-46eb-94ca-a21a3d4ed217",
+        "title": "Dissolve",
+        "artist_name": "Switchblade Symphony",
+        "album_name": "Goth Box",
+        "year": 1996,
+        "duration_ms": 273800,
+        "similarity": 0.5605139326130282,
+        "genres": []
+      },
+      {
+        "id": "bd74bd17-6e6b-443f-84e5-14a46fb3716d",
+        "title": "Musica Eternal",
+        "artist_name": "Dead Can Dance",
+        "album_name": "Dead Can Dance",
+        "year": 2008,
+        "duration_ms": 231526,
+        "similarity": 0.5594792628598663,
+        "genres": [
+          "Rock"
+        ]
+      },
+      {
+        "id": "db5a855d-01e8-45db-ac6f-9227b39f496b",
+        "title": "The Fall",
+        "artist_name": "Pagan Myth",
+        "album_name": "Moonrise",
+        "year": 1984,
+        "duration_ms": 195166,
+        "similarity": 0.5586898589915131,
+        "genres": []
+      },
+      {
+        "id": "32fb5b0b-a004-4483-a54d-181f8257323e",
+        "title": "The Blue Hour",
+        "artist_name": "Christian Death",
+        "album_name": "Catastrophe Ballet",
+        "year": 1999,
+        "duration_ms": 294325,
+        "similarity": 0.5583395195502209,
+        "genres": [
+          "deathrock"
+        ]
+      },
+      {
+        "id": "1adafec5-0830-4d7b-9324-19f0eba40741",
+        "title": "Below",
+        "artist_name": "Bell, Book & Candle",
+        "album_name": "Goth Box",
+        "year": 1996,
+        "duration_ms": 274506,
+        "similarity": 0.557369377769866,
+        "genres": []
+      },
+      {
+        "id": "7a98bf3a-6f44-4406-98ba-d15ea4ed4c60",
+        "title": "So Sure",
+        "artist_name": "Skeletal Family",
+        "album_name": "Goth Box",
+        "year": 1996,
+        "duration_ms": 418826,
+        "similarity": 0.5573230581301952,
+        "genres": []
+      },
+      {
+        "id": "f4ae7794-ce2f-490a-87d8-53327f3a0e60",
+        "title": "Deep",
+        "artist_name": "The March Violets",
+        "album_name": "Electric Shades",
+        "year": 1985,
+        "duration_ms": 396478,
+        "similarity": 0.557090487653585,
+        "genres": [
+          "Gothic Rock"
+        ]
+      },
+      {
+        "id": "87544e72-53fd-4a1f-8edf-ff8f08951624",
+        "title": "No Soul",
+        "artist_name": "Pagan Myth",
+        "album_name": "Moonrise",
+        "year": 1984,
+        "duration_ms": 406287,
+        "similarity": 0.5567604303360025,
+        "genres": []
+      },
+      {
+        "id": "a205f504-f12c-4421-8939-3f60d1f62b4c",
+        "title": "Heat",
+        "artist_name": "The Mission",
+        "album_name": "Children",
+        "year": 1988,
+        "duration_ms": 314090,
+        "similarity": 0.5558073355016928,
+        "genres": [
+          "Goth"
+        ]
+      },
+      {
+        "id": "f78aa4df-d6ea-44f1-9089-5b061c96c4cf",
+        "title": "Ballet",
+        "artist_name": "Minuit Machine",
+        "album_name": "Infrarouge",
+        "year": 2019,
+        "duration_ms": 214000,
+        "similarity": 0.5550224615626815,
+        "genres": [
+          "Dark Wave"
+        ]
+      },
+      {
+        "id": "e58c1968-203f-4dc4-b1d0-7e65415bda17",
+        "title": "In Shreds",
+        "artist_name": "The Chameleons",
+        "album_name": "Goth Box",
+        "year": 1996,
+        "duration_ms": 239840,
+        "similarity": 0.5542818142687755,
+        "genres": []
+      },
+      {
+        "id": "1fdde2be-1539-4fa2-be2b-d35b3841974d",
+        "title": "Nemesis",
+        "artist_name": "Die Laughing",
+        "album_name": "Goth Box",
+        "year": 1996,
+        "duration_ms": 308040,
+        "similarity": 0.5537820724378791,
+        "genres": []
+      },
+      {
+        "id": "5758f8ea-f05b-4e8c-8723-74a9c1343862",
+        "title": "Guilty",
+        "artist_name": "Brotherhood of Pagans",
+        "album_name": "Goth Box",
+        "year": 1996,
+        "duration_ms": 362400,
+        "similarity": 0.5534532932368948,
+        "genres": []
+      },
+      {
+        "id": "0aa6176f-b190-4e26-b3a3-539e85457bf0",
+        "title": "Stigmata Martyr",
+        "artist_name": "Bauhaus",
+        "album_name": "Press the Eject and Give Me the Tape",
+        "year": 1988,
+        "duration_ms": 214834,
+        "similarity": 0.5533192753791848,
+        "genres": [
+          "Goth"
+        ]
+      },
+      {
+        "id": "0db11234-0678-4c1a-b77a-d496ec46e4e5",
+        "title": "Kick in the Eye",
+        "artist_name": "Bauhaus",
+        "album_name": "Press the Eject and Give Me the Tape",
+        "year": 1988,
+        "duration_ms": 217812,
+        "similarity": 0.5522524549885874,
+        "genres": [
+          "Goth"
+        ]
+      },
+      {
+        "id": "91ae4556-de8d-44a2-8dc9-206487c22522",
+        "title": "Ullyses",
+        "artist_name": "Dead Can Dance",
+        "album_name": "The Serpent\u2019s Egg",
+        "year": 1988,
+        "duration_ms": 309319,
+        "similarity": 0.5517899065142935,
+        "genres": [
+          "Rock"
+        ]
+      }
+    ],
+    "composer_tracks": [
+      {
+        "position": 0,
+        "title": "Bela Lugosi\u2019s Dead",
+        "artist": "Bauhaus",
+        "album": "Press the Eject and Give Me the Tape",
+        "year": 1988,
+        "genres": [
+          "Goth"
+        ],
+        "scores": {
+          "semantic": 0.583,
+          "keyword": 0.0,
+          "trajectory": 0.917,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2543,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.637
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.507,
+          "tempo": 0.447,
+          "darkness": 0.633,
+          "texture": 0.453
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 1,
+        "title": "Scum",
+        "artist": "Clan of Xymox",
+        "album": "Medusa",
+        "year": 1999,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.5791,
+          "keyword": 0.0,
+          "trajectory": 0.92,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3238,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6293
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.496,
+          "tempo": 0.446,
+          "darkness": 0.611,
+          "texture": 0.436
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 2,
+        "title": "Sleepwalk",
+        "artist": "Christian Death",
+        "album": "Catastrophe Ballet",
+        "year": 1999,
+        "genres": [
+          "deathrock"
+        ],
+        "scores": {
+          "semantic": 0.5806,
+          "keyword": 0.0,
+          "trajectory": 0.9145,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2715,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6342
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.525,
+          "tempo": 0.469,
+          "darkness": 0.646,
+          "texture": 0.456
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 3,
+        "title": "Love Less",
+        "artist": "New Order",
+        "album": "Technique",
+        "year": 2008,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.5724,
+          "keyword": 0.5924,
+          "trajectory": 0.9232,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6252
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.562,
+          "tempo": 0.506,
+          "darkness": 0.387,
+          "texture": 0.469
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 4,
+        "title": "Der Sack",
+        "artist": "Mephisto Walz",
+        "album": "Crocosmia",
+        "year": 1992,
+        "genres": [
+          "Deathrock"
+        ],
+        "scores": {
+          "semantic": 0.5255,
+          "keyword": 0.0,
+          "trajectory": 0.8924,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3187,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6096
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.478,
+          "tempo": 0.439,
+          "darkness": 0.685,
+          "texture": 0.428
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 5,
+        "title": "In the Flat Field",
+        "artist": "Bauhaus",
+        "album": "Press the Eject and Give Me the Tape",
+        "year": 1988,
+        "genres": [
+          "Goth"
+        ],
+        "scores": {
+          "semantic": 0.5664,
+          "keyword": 0.0,
+          "trajectory": 0.917,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2869,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6288
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.507,
+          "tempo": 0.447,
+          "darkness": 0.633,
+          "texture": 0.453
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 6,
+        "title": "Endemoniada",
+        "artist": "Fields of the Nephilim",
+        "album": "The Nephilim",
+        "year": 1988,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.5386,
+          "keyword": 0.0,
+          "trajectory": 0.907,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3257,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6151
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.506,
+          "tempo": 0.441,
+          "darkness": 0.675,
+          "texture": 0.463
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 7,
+        "title": "1959",
+        "artist": "The Sisters of Mercy",
+        "album": "Floodland",
+        "year": 1987,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.5078,
+          "keyword": 0.0,
+          "trajectory": 0.9161,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3416,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6056
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.5,
+          "tempo": 0.447,
+          "darkness": 0.637,
+          "texture": 0.444
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 8,
+        "title": "She Cries Alone",
+        "artist": "Skeletal Family",
+        "album": "Futile Combat",
+        "year": 2007,
+        "genres": [
+          "Deathrock"
+        ],
+        "scores": {
+          "semantic": 0.5177,
+          "keyword": 0.0,
+          "trajectory": 0.8902,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3301,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6058
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.514,
+          "tempo": 0.456,
+          "darkness": 0.739,
+          "texture": 0.45
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 9,
+        "title": "Fractures",
+        "artist": "Keluar",
+        "album": "Keluar",
+        "year": 2013,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.4898,
+          "keyword": 0.0,
+          "trajectory": 0.9058,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5978
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.517,
+          "tempo": 0.45,
+          "darkness": 0.619,
+          "texture": 0.391
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 10,
+        "title": "Boys Say Go!",
+        "artist": "Depeche Mode",
+        "album": "Speak & Spell",
+        "year": 1987,
+        "genres": [
+          "Synthpop"
+        ],
+        "scores": {
+          "semantic": 0.5314,
+          "keyword": 0.0,
+          "trajectory": 0.9071,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6105
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.558,
+          "tempo": 0.5,
+          "darkness": 0.335,
+          "texture": 0.454
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 11,
+        "title": "Theme II",
+        "artist": "Clan of Xymox",
+        "album": "Medusa",
+        "year": 1999,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.5952,
+          "keyword": 0.0,
+          "trajectory": 0.92,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3067,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6359
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.496,
+          "tempo": 0.446,
+          "darkness": 0.611,
+          "texture": 0.436
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 12,
+        "title": "Mes souvenirs",
+        "artist": "Minuit Machine",
+        "album": "QUEENDOM",
+        "year": 2025,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.5214,
+          "keyword": 0.0,
+          "trajectory": 0.8902,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6049
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.486,
+          "tempo": 0.427,
+          "darkness": 0.643,
+          "texture": 0.367
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 13,
+        "title": "The Fleeing Somnambulist",
+        "artist": "Christian Death",
+        "album": "Catastrophe Ballet",
+        "year": 1999,
+        "genres": [
+          "deathrock"
+        ],
+        "scores": {
+          "semantic": 0.5721,
+          "keyword": 0.0,
+          "trajectory": 0.9145,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2874,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6301
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.525,
+          "tempo": 0.469,
+          "darkness": 0.646,
+          "texture": 0.456
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 14,
+        "title": "We Are So Glad",
+        "artist": "Colin Potter",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.5001,
+          "keyword": 0.0,
+          "trajectory": 0.8532,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.593
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.4,
+          "tempo": 0.341,
+          "darkness": 0.563,
+          "texture": 0.319
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 15,
+        "title": "Bizarre Love Triangle (Shep Pettibone remix)",
+        "artist": "New Order",
+        "album": "Brotherhood",
+        "year": 2008,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.5377,
+          "keyword": 0.0,
+          "trajectory": 0.9232,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6148
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.562,
+          "tempo": 0.506,
+          "darkness": 0.387,
+          "texture": 0.469
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 16,
+        "title": "Deeper Deepest Dub (1997 reunion)",
+        "artist": "Fields of the Nephilim",
+        "album": "Genesis & Revelation",
+        "year": 2007,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.5328,
+          "keyword": 0.0,
+          "trajectory": 0.907,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6109
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.506,
+          "tempo": 0.441,
+          "darkness": 0.675,
+          "texture": 0.463
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 17,
+        "title": "Nicole",
+        "artist": "Mephisto Walz",
+        "album": "Crocosmia",
+        "year": 1992,
+        "genres": [
+          "Deathrock"
+        ],
+        "scores": {
+          "semantic": 0.524,
+          "keyword": 0.0,
+          "trajectory": 0.8924,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3298,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6081
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.478,
+          "tempo": 0.439,
+          "darkness": 0.685,
+          "texture": 0.428
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 18,
+        "title": "Beyond the Pale",
+        "artist": "The Mission",
+        "album": "Children",
+        "year": 1988,
+        "genres": [
+          "Goth"
+        ],
+        "scores": {
+          "semantic": 0.5983,
+          "keyword": 0.0,
+          "trajectory": 0.935,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2609,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0998,
+          "total": 0.5439
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.527,
+          "tempo": 0.467,
+          "darkness": 0.573,
+          "texture": 0.473
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 19,
+        "title": "Cascade",
+        "artist": "Siouxsie and the Banshees",
+        "album": "A Kiss in the Dreamhouse",
+        "year": 2009,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.6013,
+          "keyword": 0.0,
+          "trajectory": 0.9191,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2775,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0998,
+          "total": 0.5407
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.56,
+          "tempo": 0.497,
+          "darkness": 0.621,
+          "texture": 0.467
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 20,
+        "title": "In the Flat Field",
+        "artist": "Bauhaus",
+        "album": "Press the Eject and Give Me the Tape",
+        "year": 1988,
+        "genres": [
+          "Goth"
+        ],
+        "scores": {
+          "semantic": 0.5664,
+          "keyword": 0.0,
+          "trajectory": 0.917,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2869,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6288
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.507,
+          "tempo": 0.447,
+          "darkness": 0.633,
+          "texture": 0.453
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 21,
+        "title": "Don't Stop Now",
+        "artist": "The Danse Society",
+        "album": "Looking Through",
+        "year": 2007,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.6015,
+          "keyword": 0.0,
+          "trajectory": 0.9157,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3052,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0998,
+          "total": 0.5375
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.503,
+          "tempo": 0.463,
+          "darkness": 0.653,
+          "texture": 0.447
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 22,
+        "title": "Sex Beat",
+        "artist": "The Gun Club",
+        "album": "New Rose Story 1980\u20132000",
+        "year": 2000,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9473,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5371
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.647,
+          "tempo": 0.585,
+          "darkness": 0.487,
+          "texture": 0.491
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 23,
+        "title": "Be Like Them",
+        "artist": "Wire",
+        "album": "Mind Hive",
+        "year": 2020,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.946,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5369
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.658,
+          "tempo": 0.596,
+          "darkness": 0.483,
+          "texture": 0.492
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 24,
+        "title": "North West Passage",
+        "artist": "Public Image Ltd",
+        "album": "End of World",
+        "year": 2023,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9453,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5368
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.6,
+          "tempo": 0.538,
+          "darkness": 0.475,
+          "texture": 0.485
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 25,
+        "title": "New Girls / Neutrons",
+        "artist": "Vice Versa",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9448,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5367
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.612,
+          "tempo": 0.569,
+          "darkness": 0.458,
+          "texture": 0.518
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 26,
+        "title": "Loneliness",
+        "artist": "Tuxedomoon",
+        "album": "Half-Mute",
+        "year": 1980,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9436,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5365
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.55,
+          "tempo": 0.495,
+          "darkness": 0.471,
+          "texture": 0.46
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 27,
+        "title": "Demand for Supply",
+        "artist": "Invisible Limits",
+        "album": "No Songs Tomorrow: Darkwave, Ethereal Rock and Coldwave 1981-1990",
+        "year": 2024,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9431,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5365
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.555,
+          "tempo": 0.495,
+          "darkness": 0.523,
+          "texture": 0.456
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 28,
+        "title": "Shadowplay",
+        "artist": "Joy Division",
+        "album": "Unknown Pleasures",
+        "year": 1986,
+        "genres": [
+          "Post-punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9415,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5362
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.603,
+          "tempo": 0.544,
+          "darkness": 0.457,
+          "texture": 0.485
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 29,
+        "title": "Thorn of Crowns",
+        "artist": "Echo & the Bunnymen",
+        "album": "Ocean Rain",
+        "year": 2004,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9408,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5361
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.55,
+          "tempo": 0.5,
+          "darkness": 0.446,
+          "texture": 0.471
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 30,
+        "title": "Sattelite to Russia",
+        "artist": "Informatics",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.936,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5354
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.567,
+          "tempo": 0.507,
+          "darkness": 0.526,
+          "texture": 0.429
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 31,
+        "title": "Deeper",
+        "artist": "Rosetta Stone",
+        "album": "An Eye for the Main Chance",
+        "year": 2006,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.5922,
+          "keyword": 0.0,
+          "trajectory": 0.909,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2895,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0998,
+          "total": 0.5353
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.539,
+          "tempo": 0.461,
+          "darkness": 0.656,
+          "texture": 0.472
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 32,
+        "title": "Love Me or Leave Me",
+        "artist": "Der Herr kam \u00fcber Sie",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.934,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5351
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.625,
+          "tempo": 0.575,
+          "darkness": 0.456,
+          "texture": 0.444
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 33,
+        "title": "Bull in the Heather",
+        "artist": "Ladies Who Lunch",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9312,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5347
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.537,
+          "tempo": 0.475,
+          "darkness": 0.455,
+          "texture": 0.425
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 34,
+        "title": "Cardbord Lamb",
+        "artist": "Crash Course in Science",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9306,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5346
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.567,
+          "tempo": 0.499,
+          "darkness": 0.536,
+          "texture": 0.425
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 35,
+        "title": "Worth Waiting For",
+        "artist": "Gene Loves Jezebel",
+        "album": "Immigrant",
+        "year": 1989,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9265,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.534
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.527,
+          "tempo": 0.463,
+          "darkness": 0.593,
+          "texture": 0.46
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 36,
+        "title": "Deep",
+        "artist": "The March Violets",
+        "album": "Electric Shades",
+        "year": 1985,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.5767,
+          "keyword": 0.0,
+          "trajectory": 0.9229,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2774,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0998,
+          "total": 0.5339
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.543,
+          "tempo": 0.48,
+          "darkness": 0.607,
+          "texture": 0.463
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 37,
+        "title": "But I\u2019m Not",
+        "artist": "Cocteau Twins",
+        "album": "Garlands",
+        "year": 1987,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9254,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5338
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.45,
+          "tempo": 0.421,
+          "darkness": 0.514,
+          "texture": 0.443
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 38,
+        "title": "Cathedral",
+        "artist": "Felt",
+        "album": "Crumbling the Antiseptic Beauty",
+        "year": 1982,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9253,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5338
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.55,
+          "tempo": 0.48,
+          "darkness": 0.431,
+          "texture": 0.438
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 39,
+        "title": "Dare to Struggle, Dare to Win",
+        "artist": "Difficult Fun",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9239,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5336
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.533,
+          "tempo": 0.478,
+          "darkness": 0.438,
+          "texture": 0.4
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 40,
+        "title": "Michelle",
+        "artist": "Clan of Xymox",
+        "album": "Medusa",
+        "year": 1999,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.5663,
+          "keyword": 0.0,
+          "trajectory": 0.92,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3442,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.6235
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.496,
+          "tempo": 0.446,
+          "darkness": 0.611,
+          "texture": 0.436
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 41,
+        "title": "Danse",
+        "artist": "Deutscher Kaiser",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.923,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5334
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.565,
+          "tempo": 0.5,
+          "darkness": 0.439,
+          "texture": 0.414
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 42,
+        "title": "A + B = C",
+        "artist": "Math\u00e9matiques Modernes",
+        "album": "Les Visiteurs du soir",
+        "year": 1981,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9224,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5334
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.488,
+          "tempo": 0.438,
+          "darkness": 0.538,
+          "texture": 0.379
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 43,
+        "title": "Are You Receiving?",
+        "artist": "Killing Joke",
+        "album": "Turn to Red EP",
+        "year": 1979,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9209,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5331
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.623,
+          "tempo": 0.532,
+          "darkness": 0.582,
+          "texture": 0.522
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 44,
+        "title": "All Rights Reserved",
+        "artist": "Fred",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9184,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5328
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.55,
+          "tempo": 0.513,
+          "darkness": 0.344,
+          "texture": 0.471
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 45,
+        "title": "Schrei",
+        "artist": "Rehearsed Dreams",
+        "album": "Repulsion",
+        "year": 1985,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9174,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5326
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.585,
+          "tempo": 0.527,
+          "darkness": 0.625,
+          "texture": 0.462
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 46,
+        "title": "Dream Reprise",
+        "artist": "Sex Gang Children",
+        "album": "Song and Legend",
+        "year": 2005,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.5956,
+          "keyword": 0.0,
+          "trajectory": 0.8936,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.3046,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0998,
+          "total": 0.5325
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.487,
+          "tempo": 0.443,
+          "darkness": 0.719,
+          "texture": 0.456
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 47,
+        "title": "High Rise",
+        "artist": "Bushido",
+        "album": "No Songs Tomorrow: Darkwave, Ethereal Rock and Coldwave 1981-1990",
+        "year": 2024,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9162,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5324
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.625,
+          "tempo": 0.512,
+          "darkness": 0.412,
+          "texture": 0.487
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 48,
+        "title": "Several Sunsets",
+        "artist": "Ensemble Pittoresque",
+        "album": "A Tribute to Flexi-Pop, Volume 3",
+        "year": null,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9157,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5324
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.547,
+          "tempo": 0.477,
+          "darkness": 0.589,
+          "texture": 0.413
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 49,
+        "title": "Silent Visions (live)",
+        "artist": "Kontravoid",
+        "album": "Live From the Void",
+        "year": 2020,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9143,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5321
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.586,
+          "tempo": 0.495,
+          "darkness": 0.584,
+          "texture": 0.437
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.5,
+          "texture": 0.5
+        }
+      }
+    ],
+    "metrics": {
+      "trajectory_deviation": 0.027774651867740058,
+      "avg_transition_cost": 0.2435825712059562,
+      "pool_entropy": 0.0,
+      "playlist_length": 50,
+      "beam_dead_ends": 1458,
+      "constraint_rejections": 476116,
+      "generation_time_ms": 22922
+    },
+    "genre_coverage": {
+      "Goth": 4,
+      "Dark Wave": 8,
+      "deathrock": 2,
+      "Synth-Pop": 14,
+      "Deathrock": 3,
+      "Gothic Rock": 9,
+      "Synthpop": 1,
+      "Post-Punk": 8,
+      "Post-punk": 1
+    },
+    "generation_time_s": 22.992087841033936
+  },
+  {
+    "prompt": "coldwave",
+    "intent": {
+      "arc_type": "steady",
+      "prompt_type": "genre",
+      "genre_hints": [
+        "coldwave",
+        "darkwave",
+        "minimal wave",
+        "post-punk",
+        "synth-pop",
+        "new wave",
+        "gothic rock"
+      ],
+      "genre_hints_primary": [
+        "coldwave",
+        "darkwave",
+        "minimal wave",
+        "post-punk"
+      ],
+      "mood_keywords": [],
+      "year_range": [
+        null,
+        null
+      ],
+      "dimension_weights": {
+        "energy": 0.25,
+        "tempo": 0.25,
+        "darkness": 0.25,
+        "texture": 0.25
+      }
+    },
+    "raw_semantic_top30": [
+      {
+        "id": "01ea13fa-a3e9-4dff-8ed4-6c9c4ecb7533",
+        "title": "Frosty Nights",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 165426,
+        "similarity": 0.5293759668617438,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "2bc2676b-b39d-4faf-ae41-90d8a09330b8",
+        "title": "Airscape",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 74040,
+        "similarity": 0.5117412070996651,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "4c9e76b8-52ba-43ed-bd51-0122b355e2e0",
+        "title": "Whispering Sons",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 334986,
+        "similarity": 0.4997285008592387,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "bef9ce7f-181f-4acb-a5c4-b22a8a65de91",
+        "title": "Still Remaining",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 127080,
+        "similarity": 0.48912116820342444,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "b132b699-4bd1-4182-b74a-d69b039d84eb",
+        "title": "Cold Whisper Carried by the Wind",
+        "artist_name": "Narbeleth",
+        "album_name": "Svmma Cvm Nox Arcana",
+        "year": 2021,
+        "duration_ms": 251324,
+        "similarity": 0.47539406721521227,
+        "genres": [
+          "Black Metal"
+        ]
+      },
+      {
+        "id": "f43181aa-9327-46f3-b16b-0e74d4eb8734",
+        "title": "Cold Sweat",
+        "artist_name": "Thin Lizzy",
+        "album_name": "Thunder and Lightning",
+        "year": 2001,
+        "duration_ms": 187893,
+        "similarity": 0.46771559311655353,
+        "genres": [
+          "Hard Rock",
+          "Classic Rock",
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "f43181aa-9327-46f3-b16b-0e74d4eb8734",
+        "title": "Cold Sweat",
+        "artist_name": "Thin Lizzy",
+        "album_name": "Life Live",
+        "year": 2001,
+        "duration_ms": 187893,
+        "similarity": 0.46771559311655353,
+        "genres": [
+          "Hard Rock",
+          "Classic Rock",
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "e62ac976-9fa0-45a9-8831-83ecabd6df70",
+        "title": "Wintermass",
+        "artist_name": "Mysticum",
+        "album_name": "Lost Masters of the Universe",
+        "year": 2013,
+        "duration_ms": 306874,
+        "similarity": 0.4640100097671167,
+        "genres": [
+          "Industrial",
+          "Black Metal",
+          "Electronic",
+          "Rock"
+        ]
+      },
+      {
+        "id": "52e7603c-57e2-4226-bbd0-11b406382192",
+        "title": "Cold as Ice",
+        "artist_name": "King Diamond",
+        "album_name": "Give Me Your Soul\u2026 Please",
+        "year": 2007,
+        "duration_ms": 269546,
+        "similarity": 0.4598524844558536,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "f2f03602-6bbe-4b3d-9436-1dde024ef1f3",
+        "title": "Winter",
+        "artist_name": "Atomic Rooster",
+        "album_name": "Atomic Roooster",
+        "year": 1999,
+        "duration_ms": 419085,
+        "similarity": 0.45902770513461344,
+        "genres": [
+          "Hard Rock",
+          "Progressive Rock",
+          "Rock"
+        ]
+      },
+      {
+        "id": "6d4e6a04-0b6c-45ed-9246-9cf2fea616cc",
+        "title": "The Cold Twilight",
+        "artist_name": "Hemlock",
+        "album_name": "Crush the Race of God",
+        "year": 1998,
+        "duration_ms": 173000,
+        "similarity": 0.4511382281780275,
+        "genres": [
+          "Black Metal",
+          "Rock",
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "03b41194-7407-4671-9162-26971ceb0643",
+        "title": "The Average Life",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 160946,
+        "similarity": 0.4500569939681285,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "229473d4-e57e-4028-916c-4f985a06470c",
+        "title": "Welcome (To Deathrow)",
+        "artist_name": "Bernard Szajner",
+        "album_name": "So Young But So Cold: Underground French Music 1977-1983",
+        "year": 2004,
+        "duration_ms": 373763,
+        "similarity": 0.45002481639238023,
+        "genres": [
+          "Electro"
+        ]
+      },
+      {
+        "id": "3cfbcef8-7d51-4c57-9256-7b9af18e07fb",
+        "title": "Chatter",
+        "artist_name": "Forbidden",
+        "album_name": "Omega Wave",
+        "year": 2010,
+        "duration_ms": 136257,
+        "similarity": 0.4374828897406401,
+        "genres": [
+          "Thrash Metal",
+          "Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "fc4e0fbd-35a3-44ad-b66f-73b817d1e85e",
+        "title": "Cold Hate, Warm Blood (live)",
+        "artist_name": "Cryptopsy",
+        "album_name": "The Best of Us Bleed",
+        "year": 2012,
+        "duration_ms": 254295,
+        "similarity": 0.43360283970833136,
+        "genres": [
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "4ef72e43-e8c8-4f5e-a5aa-6395ef0544a1",
+        "title": "Winter",
+        "artist_name": "Judas Priest",
+        "album_name": "Rocka Rolla",
+        "year": 2003,
+        "duration_ms": 101750,
+        "similarity": 0.43200543117555634,
+        "genres": [
+          "Hard Rock",
+          "Metal",
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "cf5303ab-e012-4fec-b9a4-be780cb61208",
+        "title": "Warmaster Returns",
+        "artist_name": "Satanic Warmaster",
+        "album_name": "Nachzehrer",
+        "year": 2013,
+        "duration_ms": 396698,
+        "similarity": 0.42822131086715,
+        "genres": [
+          "Black Metal"
+        ]
+      },
+      {
+        "id": "f5b9c5a5-9655-4a1c-9d18-ec9f49ae10ec",
+        "title": "Cold Hate, Warm Blood",
+        "artist_name": "Cryptopsy",
+        "album_name": "Whisper Supremacy",
+        "year": 1998,
+        "duration_ms": 233848,
+        "similarity": 0.4257447675314414,
+        "genres": [
+          "Technical Death Metal",
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "ac759649-a3cf-4afe-b728-48e879fb51b1",
+        "title": "Cold Hate, Warm Blood (rehearsal)",
+        "artist_name": "Cryptopsy",
+        "album_name": "The Best of Us Bleed",
+        "year": 2012,
+        "duration_ms": 247274,
+        "similarity": 0.42450112554424924,
+        "genres": [
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "3076b1a2-6fa1-4f45-aa43-c4e6ab476e2c",
+        "title": "Teenage Lightning 1",
+        "artist_name": "Coil",
+        "album_name": "Love\u2019s Secret Domain",
+        "year": 2021,
+        "duration_ms": 110226,
+        "similarity": 0.4230837569782946,
+        "genres": [
+          "Techno",
+          "Leftfield",
+          "Experimental"
+        ]
+      },
+      {
+        "id": "28d7c3e3-34cf-4d96-8e62-b88929bb0090",
+        "title": "Nachtgang",
+        "artist_name": "NNHMN",
+        "album_name": "Deception Island Part 1",
+        "year": 2020,
+        "duration_ms": 279353,
+        "similarity": 0.42188718449397067,
+        "genres": [
+          "Synth-Pop",
+          "Synthwave",
+          "Electronic",
+          "Dark Wave",
+          "Coldwave",
+          "Ebm",
+          "Electropop"
+        ]
+      },
+      {
+        "id": "3dbae774-ab43-491e-a39a-d166a56107f1",
+        "title": "Live Wire",
+        "artist_name": "AC/DC",
+        "album_name": "T.N.T.",
+        "year": 2006,
+        "duration_ms": 350000,
+        "similarity": 0.4181585561131578,
+        "genres": [
+          "Blues",
+          "Hard Rock",
+          "Classic Rock",
+          "Rock And Roll",
+          "Boogie Rock",
+          "Rock",
+          "Blues Rock",
+          "Arena Rock"
+        ]
+      },
+      {
+        "id": "aabf6945-870e-4f3e-ac8d-ba4e539a1ea5",
+        "title": "Cosmic Winter",
+        "artist_name": "Helheim",
+        "album_name": "Terrorveldet",
+        "year": 1999,
+        "duration_ms": 345520,
+        "similarity": 0.41729432344436934,
+        "genres": [
+          "Black Metal",
+          "Rock",
+          "Viking Metal"
+        ]
+      },
+      {
+        "id": "f1c0ba70-49ef-4c39-9abb-af9de2aa3af5",
+        "title": "Cold Hate, Warm Blood",
+        "artist_name": "Cryptopsy",
+        "album_name": "None So Live",
+        "year": 2003,
+        "duration_ms": 259946,
+        "similarity": 0.4160758032866543,
+        "genres": [
+          "Rock",
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "5643a9d5-3fca-48af-82d6-c1ce0aef9ec0",
+        "title": "Sleep Don't Talk",
+        "artist_name": "UV P\u00d8P",
+        "album_name": "No Songs Tomorrow",
+        "year": 2011,
+        "duration_ms": 195713,
+        "similarity": 0.41456620866849525,
+        "genres": [
+          "New Wave"
+        ]
+      },
+      {
+        "id": "560584a3-275f-492a-af0b-4b6ccc8c274e",
+        "title": "Cold Hate, Warm Blood",
+        "artist_name": "Cryptopsy",
+        "album_name": "The Best of Us Bleed",
+        "year": 2012,
+        "duration_ms": 234798,
+        "similarity": 0.4116768486307181,
+        "genres": [
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "b8317acc-6853-4ea2-acc9-5e7d7cff5280",
+        "title": "Wintertale",
+        "artist_name": "Cacumen",
+        "album_name": "Cacumen",
+        "year": 2004,
+        "duration_ms": 226985,
+        "similarity": 0.40941041168036607,
+        "genres": [
+          "Hard Rock",
+          "Rock"
+        ]
+      },
+      {
+        "id": "32fef6e9-3914-4231-99b6-5fe484e28fa0",
+        "title": "Break The Ice",
+        "artist_name": "Atomic Rooster",
+        "album_name": "In Hearing Of",
+        "year": 2016,
+        "duration_ms": 299840,
+        "similarity": 0.4082910065824401,
+        "genres": [
+          "Hard Rock",
+          "Progressive Rock",
+          "Rock"
+        ]
+      },
+      {
+        "id": "d3c03571-47f1-41d7-87c2-1fc37d082f7f",
+        "title": "Trapped Under Ice",
+        "artist_name": "Metallica",
+        "album_name": "Ride the Lightning",
+        "year": 2000,
+        "duration_ms": 248533,
+        "similarity": 0.40607045961266275,
+        "genres": [
+          "Thrash Metal",
+          "Metal",
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "717bb157-f8d1-4865-80d2-4ffc8820c46e",
+        "title": "When Thunders Hail",
+        "artist_name": "Satanic Warmaster",
+        "album_name": "Fimbulwinter",
+        "year": 2014,
+        "duration_ms": 300786,
+        "similarity": 0.4029274226979873,
+        "genres": [
+          "Black Metal"
+        ]
+      }
+    ],
+    "composer_tracks": [
+      {
+        "position": 0,
+        "title": "Airscape",
+        "artist": "Moral",
+        "album": "And Life Is ...",
+        "year": 2015,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.6599,
+          "keyword": 0.0,
+          "trajectory": 0.9497,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.2978,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0992,
+          "total": 0.5614
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.459,
+          "tempo": 0.412,
+          "darkness": 0.626,
+          "texture": 0.378
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 1,
+        "title": "Moving by You",
+        "artist": "Trisomie 21",
+        "album": "The First Songs",
+        "year": 1988,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9449,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5367
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.464,
+          "tempo": 0.414,
+          "darkness": 0.657,
+          "texture": 0.387
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 2,
+        "title": "Abyss",
+        "artist": "Sex Gang Children",
+        "album": "Song and Legend",
+        "year": 2005,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9455,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5368
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.487,
+          "tempo": 0.443,
+          "darkness": 0.719,
+          "texture": 0.456
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 3,
+        "title": "Phobia",
+        "artist": "Fields of the Nephilim",
+        "album": "The Nephilim",
+        "year": 1988,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9602,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.539
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.506,
+          "tempo": 0.441,
+          "darkness": 0.675,
+          "texture": 0.463
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 4,
+        "title": "Always a Flame",
+        "artist": "Gene Loves Jezebel",
+        "album": "Immigrant",
+        "year": 1989,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9658,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5399
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.527,
+          "tempo": 0.463,
+          "darkness": 0.593,
+          "texture": 0.46
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 5,
+        "title": "Subterfuge",
+        "artist": "Rosetta Stone",
+        "album": "An Eye for the Main Chance",
+        "year": 2006,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9543,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5381
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.539,
+          "tempo": 0.461,
+          "darkness": 0.656,
+          "texture": 0.472
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 6,
+        "title": "Institution",
+        "artist": "The Danse Society",
+        "album": "Looking Through",
+        "year": 2007,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.957,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5385
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.503,
+          "tempo": 0.463,
+          "darkness": 0.653,
+          "texture": 0.447
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 7,
+        "title": "Louise (7\u2033 version)",
+        "artist": "Clan of Xymox",
+        "album": "No Songs Tomorrow: Darkwave, Ethereal Rock and Coldwave 1981-1990",
+        "year": 2024,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9648,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5397
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.497,
+          "tempo": 0.447,
+          "darkness": 0.628,
+          "texture": 0.438
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 8,
+        "title": "Edges (instrumental dub version)",
+        "artist": "Kirlian Camera",
+        "album": "Edges",
+        "year": 1984,
+        "genres": [
+          "Darkwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9214,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5332
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.406,
+          "tempo": 0.364,
+          "darkness": 0.65,
+          "texture": 0.367
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 9,
+        "title": "Awake",
+        "artist": "Tropic of Cancer",
+        "album": "The End of All Things",
+        "year": 2011,
+        "genres": [
+          "Darkwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9325,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5349
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.405,
+          "tempo": 0.375,
+          "darkness": 0.607,
+          "texture": 0.357
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 10,
+        "title": "Tor Zwei (Full Length version)",
+        "artist": "Kirlian Camera",
+        "album": "Austria / Tor Zwei",
+        "year": 1988,
+        "genres": [
+          "Darkwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9214,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5332
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.406,
+          "tempo": 0.364,
+          "darkness": 0.65,
+          "texture": 0.367
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 11,
+        "title": "Entanglement",
+        "artist": "Linea Aspera",
+        "album": "LP II",
+        "year": 2020,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.936,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5354
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.441,
+          "tempo": 0.391,
+          "darkness": 0.638,
+          "texture": 0.35
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 12,
+        "title": "I Am a Boy (remastered)",
+        "artist": "Minuit Machine",
+        "album": "Infrarouge",
+        "year": 2019,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9456,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5368
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.486,
+          "tempo": 0.427,
+          "darkness": 0.643,
+          "texture": 0.367
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 13,
+        "title": "Tear and Cinnamon",
+        "artist": "Eleven Pond",
+        "album": "No Songs Tomorrow: Darkwave, Ethereal Rock and Coldwave 1981-1990",
+        "year": 2024,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9479,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5372
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.454,
+          "tempo": 0.421,
+          "darkness": 0.603,
+          "texture": 0.362
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 14,
+        "title": "Austria (Full Metal version)",
+        "artist": "Kirlian Camera",
+        "album": "Austria / Tor Zwei",
+        "year": 1988,
+        "genres": [
+          "Darkwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9214,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5332
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.406,
+          "tempo": 0.364,
+          "darkness": 0.65,
+          "texture": 0.367
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 15,
+        "title": "City Lights (long Way)",
+        "artist": "Little Nemo",
+        "album": "No Songs Tomorrow: Darkwave, Ethereal Rock and Coldwave 1981-1990",
+        "year": 2024,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9444,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5367
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.479,
+          "tempo": 0.432,
+          "darkness": 0.665,
+          "texture": 0.396
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 16,
+        "title": "Sweetness... of Pain",
+        "artist": "Asylum Party",
+        "album": "Borderline",
+        "year": 1989,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9492,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5374
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.477,
+          "tempo": 0.42,
+          "darkness": 0.67,
+          "texture": 0.41
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 17,
+        "title": "Poussi\u00e8re d'empire",
+        "artist": "L'Enfance \u00e9ternelle",
+        "album": "La Terre des innocents",
+        "year": 1989,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.945,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5367
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.497,
+          "tempo": 0.437,
+          "darkness": 0.7,
+          "texture": 0.42
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 18,
+        "title": "Deuxi\u00e8me Ombre",
+        "artist": "Gestalt",
+        "album": "Transmission: 81-89 The French Cold Wave",
+        "year": 2005,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9344,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5352
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.504,
+          "tempo": 0.458,
+          "darkness": 0.725,
+          "texture": 0.425
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 19,
+        "title": "Le Secret De L'ombre",
+        "artist": "Luxembourg",
+        "album": "La Cible 7''",
+        "year": 1985,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.931,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5346
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.532,
+          "tempo": 0.478,
+          "darkness": 0.476,
+          "texture": 0.457
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 20,
+        "title": "Last Lights Near the Highway 1979",
+        "artist": "Kirlian Camera",
+        "album": "Dawn",
+        "year": 1980,
+        "genres": [
+          "Darkwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9214,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5332
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.406,
+          "tempo": 0.364,
+          "darkness": 0.65,
+          "texture": 0.367
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 21,
+        "title": "Another Day",
+        "artist": "This Mortal Coil",
+        "album": "It\u2019ll End in Tears",
+        "year": 1984,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9146,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5322
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.388,
+          "tempo": 0.369,
+          "darkness": 0.667,
+          "texture": 0.369
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 22,
+        "title": "A Prodigal Son",
+        "artist": "Requiem in White",
+        "album": "No Songs Tomorrow: Darkwave, Ethereal Rock and Coldwave 1981-1990",
+        "year": 2024,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9376,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5356
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.436,
+          "tempo": 0.408,
+          "darkness": 0.686,
+          "texture": 0.408
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 23,
+        "title": "Flood II",
+        "artist": "The Sisters of Mercy",
+        "album": "Floodland",
+        "year": 1987,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9648,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5397
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.5,
+          "tempo": 0.447,
+          "darkness": 0.637,
+          "texture": 0.444
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 24,
+        "title": "The Spy in the Cab",
+        "artist": "Bauhaus",
+        "album": "In the Flat Field",
+        "year": 1998,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9664,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.54
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.506,
+          "tempo": 0.453,
+          "darkness": 0.619,
+          "texture": 0.444
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 25,
+        "title": "The Hollow Men",
+        "artist": "Cocteau Twins",
+        "album": "Garlands",
+        "year": 1987,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9464,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.537
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.45,
+          "tempo": 0.421,
+          "darkness": 0.514,
+          "texture": 0.443
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 26,
+        "title": "I Met the Beast",
+        "artist": "Martin Dupont",
+        "album": "Transmission: 81-89 The French Cold Wave",
+        "year": 2005,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9342,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5351
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.454,
+          "tempo": 0.404,
+          "darkness": 0.651,
+          "texture": 0.338
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 27,
+        "title": "Can an Actor Bleed?",
+        "artist": "Tanit",
+        "album": "Transmission: 81-89 The French Cold Wave",
+        "year": 2005,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9364,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5355
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.477,
+          "tempo": 0.423,
+          "darkness": 0.714,
+          "texture": 0.407
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 28,
+        "title": "One of a Kind",
+        "artist": "KaS Product",
+        "album": "Transmission: 81-89 The French Cold Wave",
+        "year": 2005,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9584,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5388
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.481,
+          "tempo": 0.425,
+          "darkness": 0.59,
+          "texture": 0.388
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 29,
+        "title": "Dear Familiar Phantoms",
+        "artist": "Mephisto Walz",
+        "album": "Crocosmia",
+        "year": 1992,
+        "genres": [
+          "Deathrock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9454,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5368
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.478,
+          "tempo": 0.439,
+          "darkness": 0.685,
+          "texture": 0.428
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 30,
+        "title": "Promised Land (12\" version)",
+        "artist": "Skeletal Family",
+        "album": "Futile Combat",
+        "year": 2007,
+        "genres": [
+          "Deathrock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9352,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5353
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.514,
+          "tempo": 0.456,
+          "darkness": 0.739,
+          "texture": 0.45
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 31,
+        "title": "Tower of Strength",
+        "artist": "The Mission",
+        "album": "Children",
+        "year": 1988,
+        "genres": [
+          "Goth"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9633,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5395
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.527,
+          "tempo": 0.467,
+          "darkness": 0.573,
+          "texture": 0.473
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 32,
+        "title": "Going Round",
+        "artist": "Xymox",
+        "album": "Subsequent Pleasures",
+        "year": 1983,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9583,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5387
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.48,
+          "tempo": 0.433,
+          "darkness": 0.643,
+          "texture": 0.43
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 33,
+        "title": "Snake Dance",
+        "artist": "The March Violets",
+        "album": "Electric Shades",
+        "year": 1985,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9582,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5387
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.543,
+          "tempo": 0.48,
+          "darkness": 0.607,
+          "texture": 0.463
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 34,
+        "title": "Cervix Couch",
+        "artist": "Christian Death",
+        "album": "Catastrophe Ballet",
+        "year": 1999,
+        "genres": [
+          "deathrock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9542,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5381
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.525,
+          "tempo": 0.469,
+          "darkness": 0.646,
+          "texture": 0.456
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 35,
+        "title": "Detritus",
+        "artist": "Keluar",
+        "album": "Ennoea",
+        "year": 2013,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9512,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5377
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.517,
+          "tempo": 0.45,
+          "darkness": 0.619,
+          "texture": 0.391
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 36,
+        "title": "Wasted Time (live)",
+        "artist": "Remain in Silence",
+        "album": "Monument",
+        "year": 2001,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9492,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5374
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.472,
+          "tempo": 0.425,
+          "darkness": 0.681,
+          "texture": 0.431
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 37,
+        "title": "Painted Bird (Workhouse demo)",
+        "artist": "Siouxsie and the Banshees",
+        "album": "A Kiss in the Dreamhouse",
+        "year": 2009,
+        "genres": [
+          "Gothic Rock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9471,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5371
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.56,
+          "tempo": 0.497,
+          "darkness": 0.621,
+          "texture": 0.467
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 38,
+        "title": "As Universes Form",
+        "artist": "Zanias",
+        "album": "23.10.14",
+        "year": 2015,
+        "genres": [
+          "Minimal Wave",
+          "Coldwave",
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9449,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5367
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.539,
+          "tempo": 0.454,
+          "darkness": 0.642,
+          "texture": 0.415
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 39,
+        "title": "What's There Left",
+        "artist": "Nine Circles",
+        "album": "Shockwaves, Volume 1",
+        "year": null,
+        "genres": [
+          "Minimal Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9417,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5363
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.481,
+          "tempo": 0.419,
+          "darkness": 0.565,
+          "texture": 0.34
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 40,
+        "title": "In and Out of My Mind",
+        "artist": "Alien Sex Fiend",
+        "album": "No Songs Tomorrow: Darkwave, Ethereal Rock and Coldwave 1981-1990",
+        "year": 2024,
+        "genres": [
+          "Deathrock"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9326,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5349
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.553,
+          "tempo": 0.473,
+          "darkness": 0.72,
+          "texture": 0.476
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 41,
+        "title": "The Only One",
+        "artist": "Rehearsed Dreams",
+        "album": "Repulsion",
+        "year": 1985,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9312,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5347
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.585,
+          "tempo": 0.527,
+          "darkness": 0.625,
+          "texture": 0.462
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 42,
+        "title": "Pain (edit)",
+        "artist": "Boy Harsher",
+        "album": "Pain II",
+        "year": 2018,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9308,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5346
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.432,
+          "tempo": 0.382,
+          "darkness": 0.624,
+          "texture": 0.333
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 43,
+        "title": "Subterranean Wait",
+        "artist": "European Stage",
+        "album": "Danza Meccanica - Italian Synth Wave Vol. 2 1981 - 1987",
+        "year": 2012,
+        "genres": [
+          "Dark Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9254,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5338
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.53,
+          "tempo": 0.45,
+          "darkness": 0.523,
+          "texture": 0.358
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 44,
+        "title": "The Shroud",
+        "artist": "Minimal Man",
+        "album": "The Shroud Of",
+        "year": 2004,
+        "genres": [
+          "Minimal Wave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9242,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5336
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.586,
+          "tempo": 0.487,
+          "darkness": 0.581,
+          "texture": 0.388
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 45,
+        "title": "Eyes",
+        "artist": "Coldreams",
+        "album": "Morning Rain / Eyes",
+        "year": 1986,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9235,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5335
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.446,
+          "tempo": 0.396,
+          "darkness": 0.682,
+          "texture": 0.333
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 46,
+        "title": "59 to 1",
+        "artist": "Tuxedomoon",
+        "album": "Half-Mute",
+        "year": 1980,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9216,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5332
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.55,
+          "tempo": 0.495,
+          "darkness": 0.471,
+          "texture": 0.46
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 47,
+        "title": "Nick the Stripper",
+        "artist": "The Birthday Party",
+        "album": "Prayers on Fire",
+        "year": 1981,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.921,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5331
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.594,
+          "tempo": 0.526,
+          "darkness": 0.684,
+          "texture": 0.512
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 48,
+        "title": "I Worship the Sun",
+        "artist": "Felt",
+        "album": "Crumbling the Antiseptic Beauty",
+        "year": 1982,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9097,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5315
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.55,
+          "tempo": 0.48,
+          "darkness": 0.431,
+          "texture": 0.438
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 49,
+        "title": "Chosen Time",
+        "artist": "New Order",
+        "album": "Movement",
+        "year": 2019,
+        "genres": [
+          "Post-Punk"
+        ],
+        "scores": {
+          "semantic": 0.15,
+          "keyword": 0.0,
+          "trajectory": 0.9082,
+          "genre_match": 1.0,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.5312
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.562,
+          "tempo": 0.5,
+          "darkness": 0.427,
+          "texture": 0.469
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.4,
+          "darkness": 0.6,
+          "texture": 0.5
+        }
+      }
+    ],
+    "metrics": {
+      "trajectory_deviation": 0.028149818875869582,
+      "avg_transition_cost": 0.16535438311237272,
+      "pool_entropy": 0.06652161425379031,
+      "playlist_length": 50,
+      "beam_dead_ends": 875,
+      "constraint_rejections": 302881,
+      "generation_time_ms": 21916
+    },
+    "genre_coverage": {
+      "Coldwave": 12,
+      "Gothic Rock": 12,
+      "Darkwave": 5,
+      "Dark Wave": 9,
+      "Post-Punk": 6,
+      "Deathrock": 3,
+      "Goth": 1,
+      "deathrock": 1,
+      "Minimal Wave": 3
+    },
+    "generation_time_s": 22.00742197036743
+  }
+]

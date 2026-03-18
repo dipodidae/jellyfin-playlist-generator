@@ -3,7 +3,7 @@ import type { GeneratedPlaylist } from '~/types/playlist'
 import type { PathMapping } from '~/types/library'
 
 export function usePlaylistExport() {
-  const exportMode = ref<'absolute' | 'relative' | 'mapped'>('absolute')
+  const exportMode = ref<'absolute' | 'mapped'>('absolute')
   const selectedMapping = ref<string | null>(null)
   const isExporting = ref(false)
   const exportError = ref<string | null>(null)
@@ -31,7 +31,10 @@ export function usePlaylistExport() {
         }),
       })
 
-      if (!response.ok) throw new Error('Export failed')
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.detail || `Export failed (${response.status})`)
+      }
 
       const data = await response.json()
 

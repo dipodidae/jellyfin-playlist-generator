@@ -25,7 +25,7 @@ from app.export.m3u import (
     export_tracks_to_file, export_playlist_to_file, generate_m3u, get_track_files
 )
 from app.trajectory.composer_v4 import compose_playlist_v4, compose_playlist_v4_streaming
-from app.trajectory.title_generator import generate_playlist_title, generate_track_explanations
+from app.trajectory.title_generator import generate_playlist_title
 from app.observability import log_generation, update_track_usage, check_cold_start
 from app.clustering.scenes import generate_clusters
 from app.audio.analyzer import analyze_library
@@ -909,12 +909,11 @@ _STEP_TO_STAGE: dict[int, str] = {
     4: "matching",
     5: "composing",
     6: "metrics",
-    7: "explaining",
-    8: "titling",
+    7: "titling",
 }
 
 
-def _candidate_tracks_to_dicts(tracks, explanations: dict[str, str] | None = None) -> list[dict]:
+def _candidate_tracks_to_dicts(tracks) -> list[dict]:
     """Convert CandidateTrack objects to API-serialisable dicts."""
     return [
         {
@@ -924,7 +923,20 @@ def _candidate_tracks_to_dicts(tracks, explanations: dict[str, str] | None = Non
             "album_name": t.album_name,
             "year": t.year,
             "duration_ms": t.duration_ms,
-            **({"explanation": explanations[str(t.id)]} if explanations and str(t.id) in explanations else {}),
+            "genres": t.genres or [],
+            "scores": {
+                "semantic": round(t.semantic_score, 3),
+                "trajectory": round(t.trajectory_score, 3),
+                "genre_match": round(t.genre_match_score, 3),
+                "gravity_penalty": round(t.gravity_penalty, 3),
+                "total": round(t.total_score, 3),
+            },
+            "profile": {
+                "energy": round(t.energy, 2),
+                "tempo": round(t.tempo, 2),
+                "darkness": round(t.darkness, 2),
+                "texture": round(t.texture, 2),
+            },
         }
         for t in tracks
     ]
@@ -961,18 +973,29 @@ async def generate_playlist(request: GeneratePlaylistRequest):
         if not result.tracks:
             raise HTTPException(status_code=404, detail="No matching tracks found")
 
-        artist_names = [t.artist_name for t in result.tracks if t.artist_name and t.artist_name != "Unknown"]
+        # Build rich track dicts for the title generator
+        title_tracks = [
+            {
+                "artist": t.artist_name,
+                "title": t.title,
+                "album": t.album_name,
+                "year": t.year,
+                "genres": list(t.genres),
+                "energy": t.energy,
+                "darkness": t.darkness,
+                "tempo": t.tempo,
+                "texture": t.texture,
+            }
+            for t in result.tracks
+        ]
         genre_hints = result.intent.genre_hints if result.intent else []
         arc_type_str = result.intent.arc_type.value if result.intent else "journey"
 
-        explanations = await asyncio.to_thread(
-            generate_track_explanations, request.prompt, result.tracks, arc_type_str, genre_hints,
-        )
         title = await asyncio.to_thread(
-            generate_playlist_title, request.prompt, artist_names, arc_type_str, genre_hints,
+            generate_playlist_title, request.prompt, title_tracks, arc_type_str, genre_hints,
         )
 
-        tracks = _candidate_tracks_to_dicts(result.tracks, explanations)
+        tracks = _candidate_tracks_to_dicts(result.tracks)
 
         playlist_id = None
         if request.save:
@@ -1047,34 +1070,35 @@ async def generate_playlist_stream(request: GeneratePlaylistRequest):
             yield "\n\n"
             return
 
-        # Post-composition LLM stages: explanations then title
-        artist_names = [t.artist_name for t in result.tracks if t.artist_name and t.artist_name != "Unknown"]
+        title_tracks = [
+            {
+                "artist": t.artist_name,
+                "title": t.title,
+                "album": t.album_name,
+                "year": t.year,
+                "genres": list(t.genres),
+                "energy": t.energy,
+                "darkness": t.darkness,
+                "tempo": t.tempo,
+                "texture": t.texture,
+            }
+            for t in result.tracks
+        ]
         genre_hints = result.intent.genre_hints if result.intent else []
         arc_type_str = result.intent.arc_type.value if result.intent else "journey"
 
-        # Stage 7: Generate track explanations
-        yield f"data: {json.dumps({'stage': 'explaining', 'progress': 80, 'message': 'Generating track explanations...'})}"
-        yield "\n\n"
-        explanations = await asyncio.to_thread(
-            generate_track_explanations,
-            request.prompt,
-            result.tracks,
-            arc_type_str,
-            genre_hints,
-        )
-
-        # Stage 8: Generate title
+        # Generate title
         yield f"data: {json.dumps({'stage': 'titling', 'progress': 90, 'message': 'Naming your playlist...'})}"
         yield "\n\n"
         title = await asyncio.to_thread(
             generate_playlist_title,
             request.prompt,
-            artist_names,
+            title_tracks,
             arc_type_str,
             genre_hints,
         )
 
-        tracks = _candidate_tracks_to_dicts(result.tracks, explanations)
+        tracks = _candidate_tracks_to_dicts(result.tracks)
 
         playlist_id = None
         if request.save:

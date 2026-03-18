@@ -120,6 +120,7 @@ class PlaylistIntent:
     # Mood/style
     mood_keywords: list[str] = field(default_factory=list)
     genre_hints: list[str] = field(default_factory=list)
+    genre_hints_primary: set[str] = field(default_factory=set)  # pre-expansion hints (lowercased)
     artist_seeds: list[str] = field(default_factory=list)
 
     # Trajectory (4D curve)
@@ -196,10 +197,28 @@ GENRE_ALIASES: dict[str, list[str]] = {
         "sludge metal", "sludge", "drone metal", "blackened doom metal",
     ],
     "heavy metal": [
-        "heavy metal", "nwobhm", "speed metal", "classic heavy metal",
-        "epic heavy metal", "traditional heavy metal", "power metal",
-        "symphonic metal", "operatic metal", "operatic symphonic metal",
-        "progressive metal", "glam metal", "hair metal", "aor",
+        "heavy metal", "classic heavy metal",
+        "epic heavy metal", "traditional heavy metal",
+    ],
+    "nwobhm": [
+        "nwobhm", "new wave of british heavy metal",
+    ],
+    "speed metal": [
+        "speed metal",
+    ],
+    "power metal": [
+        "power metal", "symphonic metal", "operatic metal",
+        "operatic symphonic metal", "symphonic power metal",
+    ],
+    "progressive metal": [
+        "progressive metal", "prog metal",
+    ],
+    "glam metal": [
+        "glam metal", "hair metal",
+    ],
+    "aor": [
+        "aor", "arena rock", "melodic rock", "melodic hard rock",
+        "adult oriented rock",
     ],
     "grindcore": [
         "grindcore", "deathgrind", "goregrind", "powerviolence",
@@ -366,6 +385,95 @@ _ALIAS_TO_FAMILY: dict[str, str] = {}
 for _fam, _aliases in GENRE_ALIASES.items():
     for _a in _aliases:
         _ALIAS_TO_FAMILY[_a.lower()] = _fam
+
+
+# Related genre families — bidirectional sibling relationships.
+# When a genre hint maps to one of these families, the related families'
+# primary aliases are added to the hint set (for Jaccard scoring and pool queries).
+_RELATED_FAMILIES: dict[str, list[str]] = {
+    "coldwave": ["darkwave", "post-punk", "synth-pop", "new wave"],
+    "darkwave": ["coldwave", "post-punk", "synth-pop"],
+    "post-punk": ["darkwave", "new wave", "gothic rock"],
+    "synth-pop": ["darkwave", "new wave", "coldwave"],
+    "new wave": ["post-punk", "synth-pop"],
+    "gothic rock": ["post-punk", "darkwave"],
+    "thrash metal": ["speed metal", "heavy metal"],
+    "speed metal": ["thrash metal", "heavy metal", "power metal"],
+    "heavy metal": ["nwobhm", "speed metal"],
+    "nwobhm": ["heavy metal", "speed metal"],
+    "power metal": ["heavy metal", "speed metal", "progressive metal"],
+    "progressive metal": ["power metal", "heavy metal"],
+    "glam metal": ["aor", "hard rock"],
+    "aor": ["glam metal"],
+    "black metal": ["death metal"],
+    "death metal": ["black metal", "thrash metal"],
+    "doom metal": ["heavy metal"],
+    "shoegaze": ["dream pop", "post-rock"],
+    "industrial": ["ebm", "industrial metal"],
+    "industrial metal": ["industrial"],
+    "grunge": ["alternative rock"],
+    "progressive rock": ["art rock", "krautrock"],
+    "punk": ["hardcore"],
+    "hardcore": ["punk"],
+}
+
+
+# Broad umbrella genres that should never be added via expansion and should
+# be discounted when scoring.  These match huge portions of the library and
+# dilute the specificity of a subgenre prompt.
+_BROAD_GENRES: set[str] = {
+    "rock", "pop", "metal", "electronic", "punk",
+    "classic rock", "hard rock", "alternative rock",
+}
+
+
+def expand_genre_hints(genre_hints: list[str]) -> list[str]:
+    """Expand genre hints with closely related sibling genres.
+
+    Uses the _ALIAS_TO_FAMILY lookup and _RELATED_FAMILIES mapping to add
+    related genre families' primary names.  This ensures the Jaccard scoring
+    and genre pool queries cast a wider net for niche genres that have small
+    pools (e.g. coldwave → also pulls in darkwave, post-punk tracks).
+
+    The original hints are always preserved first, followed by expansions,
+    deduplicated in order.  Broad umbrella genres (rock, pop, metal, etc.)
+    are **never** added via expansion — they must come from the user's prompt
+    directly.
+    """
+    if not genre_hints:
+        return genre_hints
+
+    expanded: list[str] = list(genre_hints)  # preserve originals first
+    seen = {h.lower() for h in genre_hints}
+
+    for hint in genre_hints:
+        # Resolve to canonical family
+        family = _ALIAS_TO_FAMILY.get(hint.lower(), hint.lower())
+        related = _RELATED_FAMILIES.get(family, [])
+        for rel_family in related:
+            if rel_family not in seen and rel_family not in _BROAD_GENRES:
+                seen.add(rel_family)
+                expanded.append(rel_family)
+
+    return expanded
+
+
+def get_primary_genre_hints(genre_hints: list[str]) -> set[str]:
+    """Return the set of primary (non-expanded) genre hints, lowercased.
+
+    These are the hints that came directly from the prompt / LLM, before
+    expansion.  Used for tiered genre scoring: primary matches get full
+    weight, expanded matches get partial weight.
+    """
+    if not genre_hints:
+        return set()
+
+    primary: set[str] = set()
+    for h in genre_hints:
+        family = _ALIAS_TO_FAMILY.get(h.lower(), h.lower())
+        primary.add(h.lower())
+        primary.add(family)
+    return primary
 
 
 def detect_arc_type(
@@ -716,7 +824,21 @@ If no arc intent, use 0.3.
   - 0.9-1.0: wall of sound, maximalist
 
 - "genre_hints": Array of strings. Specific genres/subgenres detected. Use standard genre \
-names. Include parent genres and subgenres where relevant. Can be empty.
+names. IMPORTANT: For genre-focused prompts, ALWAYS include the primary genre AND its \
+closest sibling/related genres. For example:
+  - "coldwave" → ["coldwave", "darkwave", "minimal wave", "post-punk"]
+  - "thrash metal" → ["thrash metal", "speed metal", "heavy metal"]
+  - "doom metal" → ["doom metal", "stoner metal", "sludge metal"]
+  - "post-punk" → ["post-punk", "gothic rock", "darkwave", "new wave"]
+  - "black metal" → ["black metal", "atmospheric black metal"]
+  - "aor" → ["aor", "melodic rock", "arena rock", "glam metal"]
+  This ensures the playlist engine can find enough tracks in the right musical neighbourhood. \
+Include 2-4 related genres for the primary genre. Can be empty for non-genre prompts. \
+IMPORTANT: Do NOT include broad umbrella genres like "rock", "pop", "metal", "electronic" as \
+genre_hints unless the user is specifically asking for those broad categories. For example, \
+an AOR prompt should NOT include "rock" or "pop" — only specific subgenres like "melodic rock", \
+"arena rock", "soft rock". A thrash metal prompt should NOT include "metal" — only "thrash metal", \
+"speed metal", "heavy metal".
 
 - "artist_seeds": Array of strings. Any artist names mentioned or implied. Preserve exact \
 spelling and capitalisation as the user likely intends.
@@ -931,7 +1053,11 @@ def _build_intent_from_llm(
     base_texture = data.get("base_texture", 0.5)
 
     prompt_type = PromptType(data.get("prompt_type", "mixed"))
-    genre_hints = data.get("genre_hints", [])
+    genre_hints_raw = data.get("genre_hints", [])
+    # Record primary hints (pre-expansion) for tiered genre scoring
+    genre_hints_primary = get_primary_genre_hints(genre_hints_raw)
+    # Expand with related sibling genres for better pool coverage
+    genre_hints = expand_genre_hints(genre_hints_raw) if genre_hints_raw else []
     artist_seeds = data.get("artist_seeds", [])
     mood_keywords = data.get("mood_keywords", [])
     avoid_keywords = data.get("avoid_keywords", [])
@@ -991,6 +1117,7 @@ def _build_intent_from_llm(
         prompt_type=prompt_type,
         mood_keywords=mood_keywords,
         genre_hints=genre_hints,
+        genre_hints_primary=genre_hints_primary,
         artist_seeds=artist_seeds,
         trajectory_curve=trajectory_curve,
         waypoints=waypoints,
@@ -1019,7 +1146,11 @@ def _build_intent_from_keywords(
 ) -> PlaylistIntent:
     """Build a PlaylistIntent from keyword-based parsing (original logic)."""
     # Extract genre hints first so they can inform arc detection
-    genre_hints = extract_genre_hints(prompt)
+    genre_hints_raw = extract_genre_hints(prompt)
+    # Record primary hints (pre-expansion) for tiered genre scoring
+    genre_hints_primary = get_primary_genre_hints(genre_hints_raw)
+    # Expand with related sibling genres for better pool coverage
+    genre_hints = expand_genre_hints(genre_hints_raw) if genre_hints_raw else []
 
     # Extract remaining components
     arc_type, arc_confidence = detect_arc_type(prompt, genre_hints=genre_hints)
@@ -1069,6 +1200,7 @@ def _build_intent_from_keywords(
         prompt_type=prompt_type,
         mood_keywords=mood_keywords,
         genre_hints=genre_hints,
+        genre_hints_primary=genre_hints_primary,
         artist_seeds=artist_seeds,
         trajectory_curve=trajectory_curve,
         waypoints=waypoints,

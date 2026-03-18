@@ -57,8 +57,8 @@ const emit = defineEmits<{
 
     <UAlert
       v-if="result.warning"
-      color="yellow"
-      icon="i-heroicons-exclamation-triangle"
+      color="warning"
+      icon="i-lucide-alert-triangle"
       :description="result.warning"
     />
 

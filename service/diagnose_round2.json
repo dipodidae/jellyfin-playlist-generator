@@ -1,0 +1,1686 @@
+[
+  {
+    "prompt": "pure evil 80s thrash",
+    "intent": {
+      "arc_type": "steady",
+      "prompt_type": "genre",
+      "genre_hints": [
+        "thrash metal",
+        "heavy metal"
+      ],
+      "mood_keywords": [
+        "evil"
+      ],
+      "year_range": [
+        1980,
+        1989
+      ],
+      "dimension_weights": {
+        "energy": 0.35,
+        "tempo": 0.25,
+        "darkness": 0.25,
+        "texture": 0.15
+      }
+    },
+    "raw_semantic_top30": [
+      {
+        "id": "4da69a87-39f3-4505-b341-7a3bccb75984",
+        "title": "Evil",
+        "artist_name": "Vo\u00efvod",
+        "album_name": "To the Death!\u2026",
+        "year": 1984,
+        "duration_ms": 231500,
+        "similarity": 0.7338786781321778,
+        "genres": [
+          "Thrash",
+          "Speed Metal"
+        ]
+      },
+      {
+        "id": "1ed7986c-fb9c-40ed-97ea-21bcd876fe70",
+        "title": "Thrashdance",
+        "artist_name": "Razor",
+        "album_name": "Evil Invaders",
+        "year": 1989,
+        "duration_ms": 200666,
+        "similarity": 0.7268177108059962,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "f304d144-eaee-417d-a8f7-c494e0b5ab19",
+        "title": "Evil's Rising",
+        "artist_name": "Holy Terror",
+        "album_name": "Terror And Submission",
+        "year": 1988,
+        "duration_ms": 254670,
+        "similarity": 0.7192611955715651,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "1b16c08f-e3bc-4e73-a0e9-fd1e2ff2e6ca",
+        "title": "Pounding Evil (new version)",
+        "artist_name": "Destructor",
+        "album_name": "Speed Kills II",
+        "year": 1986,
+        "duration_ms": 240593,
+        "similarity": 0.7130176253925351,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "03eb0a3a-d579-4d46-b8a9-8422cdc3a584",
+        "title": "Cut Throat",
+        "artist_name": "Razor",
+        "album_name": "Evil Invaders",
+        "year": 1989,
+        "duration_ms": 251933,
+        "similarity": 0.6971186273380872,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "744c6ef3-c096-471b-a5f8-8b5d857c3a9b",
+        "title": "Evil Invaders",
+        "artist_name": "Razor",
+        "album_name": "Evil Invaders",
+        "year": 1986,
+        "duration_ms": 230403,
+        "similarity": 0.6919326002557648,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "744c6ef3-c096-471b-a5f8-8b5d857c3a9b",
+        "title": "Evil Invaders",
+        "artist_name": "Razor",
+        "album_name": "Speed Kills II",
+        "year": 1986,
+        "duration_ms": 230403,
+        "similarity": 0.6919326002557648,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "6e545621-3bed-47cb-a6a3-62677ccf8ff2",
+        "title": "Something Evil",
+        "artist_name": "Toranaga",
+        "album_name": "Righteous Retribution",
+        "year": 2013,
+        "duration_ms": 299266,
+        "similarity": 0.6917040760340748,
+        "genres": []
+      },
+      {
+        "id": "5e78624d-d53f-45a8-8af3-9ed160ea42e2",
+        "title": "Wretched Face of Evil",
+        "artist_name": "Aura Noir",
+        "album_name": "Black Thrash Attack",
+        "year": 1996,
+        "duration_ms": 251666,
+        "similarity": 0.6913165266106455,
+        "genres": [
+          "Thrash Metal",
+          "Black"
+        ]
+      },
+      {
+        "id": "1ae04130-444c-4848-94cf-95300e1b232d",
+        "title": "Tortured Skull",
+        "artist_name": "Razor",
+        "album_name": "Evil Invaders",
+        "year": 1989,
+        "duration_ms": 334333,
+        "similarity": 0.6908935492698334,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "e400ac8f-d4bc-4d2d-882b-c4ccede1b072",
+        "title": "Evil for Evil",
+        "artist_name": "Heretic",
+        "album_name": "Breaking Point",
+        "year": 1988,
+        "duration_ms": 232756,
+        "similarity": 0.6885894556572549,
+        "genres": [
+          "Thrash Metal",
+          "Power Metal"
+        ]
+      },
+      {
+        "id": "40f528fb-f82b-4643-a6a5-f5215ab798e8",
+        "title": "Instant Death",
+        "artist_name": "Razor",
+        "album_name": "Evil Invaders",
+        "year": 1989,
+        "duration_ms": 176840,
+        "similarity": 0.6873122267313151,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "0e629a1e-1fbd-497c-975a-35ccbe17f2f5",
+        "title": "Satan\u2019s Vengeance",
+        "artist_name": "Destruction",
+        "album_name": "Sentence of Death",
+        "year": 1984,
+        "duration_ms": 197493,
+        "similarity": 0.6865993364571734,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "2fa47148-2c48-428e-b819-5f2a42f7565a",
+        "title": "Onslaught",
+        "artist_name": "Slaughter Lord",
+        "album_name": "Thrash 'til Death 86-87",
+        "year": 1998,
+        "duration_ms": 253000,
+        "similarity": 0.6855389288389057,
+        "genres": [
+          "Thrash",
+          "Rock"
+        ]
+      },
+      {
+        "id": "15af1e0e-f91d-4df9-9a69-33e86bb7fb91",
+        "title": "Legacy of Doom",
+        "artist_name": "Razor",
+        "album_name": "Evil Invaders",
+        "year": 1989,
+        "duration_ms": 202266,
+        "similarity": 0.6843974402187741,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "53a743c9-2166-469f-b644-fef04a07f5eb",
+        "title": "The Evil",
+        "artist_name": "Blood Feast",
+        "album_name": "Kill for Pleasure",
+        "year": 1990,
+        "duration_ms": 211779,
+        "similarity": 0.6831100597778019,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "e2a4533a-4479-4749-82cc-d4dc1b57c0fc",
+        "title": "The \u2019hood",
+        "artist_name": "Evildead",
+        "album_name": "The Underworld",
+        "year": 1991,
+        "duration_ms": 230295,
+        "similarity": 0.6820686487082223,
+        "genres": [
+          "Rock"
+        ]
+      },
+      {
+        "id": "2f1dc8dd-380a-469b-ab5f-5cb6546c6b67",
+        "title": "Iron Hammer",
+        "artist_name": "Razor",
+        "album_name": "Evil Invaders",
+        "year": 1989,
+        "duration_ms": 217960,
+        "similarity": 0.6799652385690963,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "68ed5789-0677-43bd-9017-3702176cdbc6",
+        "title": "Downwind Death",
+        "artist_name": "Demolition Hammer",
+        "album_name": "Skull Fracturing Nightmare",
+        "year": 1988,
+        "duration_ms": 271441,
+        "similarity": 0.6786294590201494,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "255e5b60-27a5-4365-a4cb-90b279556c0d",
+        "title": "Lord of Evil",
+        "artist_name": "Onslaught",
+        "album_name": "Power From Hell",
+        "year": 2008,
+        "duration_ms": 424728,
+        "similarity": 0.6736382051490679,
+        "genres": [
+          "Thrash Metal",
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "16f6890a-2bf5-4cc6-9ee3-7b95c292f67d",
+        "title": "Nowhere Fast",
+        "artist_name": "Razor",
+        "album_name": "Evil Invaders",
+        "year": 1989,
+        "duration_ms": 251466,
+        "similarity": 0.6729210810112416,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "0a7844e2-b8fe-4b9a-8b98-68e4d2c190fe",
+        "title": "Roar of the North",
+        "artist_name": "Heavy Load",
+        "album_name": "Stronger Than Evil",
+        "year": 1983,
+        "duration_ms": 325746,
+        "similarity": 0.6727272277528552,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "3f2760e9-3437-4ef1-b13e-5c2447d2981a",
+        "title": "Evil Priest",
+        "artist_name": "Death Angel",
+        "album_name": "The Ultra-Violence",
+        "year": 1987,
+        "duration_ms": 294106,
+        "similarity": 0.6720719738049503,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "e25e9766-295e-4fc4-9d05-f9f9b7492140",
+        "title": "Assault of the Hammer",
+        "artist_name": "Demolition Hammer",
+        "album_name": "Skull Fracturing Nightmare",
+        "year": 1988,
+        "duration_ms": 171706,
+        "similarity": 0.6715333461761522,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "7c21af6f-cff9-4bfd-baa4-f1ae7170cc70",
+        "title": "Evil Blood",
+        "artist_name": "Evil blood",
+        "album_name": "Midnight in Sodom",
+        "year": 1989,
+        "duration_ms": 334008,
+        "similarity": 0.6713391942584046,
+        "genres": [
+          "Eastern Bloc"
+        ]
+      },
+      {
+        "id": "ac52b521-4af9-451e-bd05-c6cecd33a7b0",
+        "title": "Evil Has No Boundaries (Live)",
+        "artist_name": "Slayer",
+        "album_name": "Speed Kills (The Very Best in Speed Metal)",
+        "year": 1985,
+        "duration_ms": 177087,
+        "similarity": 0.6708168987170072,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal",
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "41b9b240-24e5-4f45-abc7-52fc8f7d564b",
+        "title": "Evil Has No Boundaries",
+        "artist_name": "Slayer",
+        "album_name": "Show No Mercy",
+        "year": 1995,
+        "duration_ms": 190626,
+        "similarity": 0.6685006022453356,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "c981ac97-f94c-469f-b8ff-295ccda1c1b7",
+        "title": "Sign of Evil",
+        "artist_name": "Violent Force",
+        "album_name": "Malevolent Assault of Tomorrow",
+        "year": 1987,
+        "duration_ms": 244440,
+        "similarity": 0.6674391825533507,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ]
+      },
+      {
+        "id": "938abb48-e9b2-4da1-93ed-7bbeff7fb026",
+        "title": "Devil\u2019s Attack",
+        "artist_name": "Sodom",
+        "album_name": "Victims of Death",
+        "year": 1983,
+        "duration_ms": 191274,
+        "similarity": 0.6672590176617526,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "2abff113-38ed-4f35-b71d-a8fe1071a7f0",
+        "title": "Run With the Devil",
+        "artist_name": "Heavy Load",
+        "album_name": "Stronger Than Evil",
+        "year": 1983,
+        "duration_ms": 223266,
+        "similarity": 0.6671707829440573,
+        "genres": [
+          "Heavy Metal"
+        ]
+      }
+    ],
+    "composer_tracks": [
+      {
+        "position": 0,
+        "title": "Jump in the Fire",
+        "artist": "Metallica",
+        "album": "Kill \u2019Em All",
+        "year": 1983,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6813,
+          "keyword": 0.0,
+          "trajectory": 0.8678,
+          "genre_match": 0.6667,
+          "gravity_penalty": 0.2564,
+          "duration_penalty": 0.0,
+          "year_score": 0.065,
+          "usage_penalty": 0.0,
+          "total": 0.6073
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.797,
+          "tempo": 0.719,
+          "darkness": 0.585,
+          "texture": 0.649
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.7,
+          "darkness": 0.7,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 1,
+        "title": "Sign of Evil",
+        "artist": "Violent Force",
+        "album": "Malevolent Assault of Tomorrow",
+        "year": 1987,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.7116,
+          "keyword": 0.0,
+          "trajectory": 0.7935,
+          "genre_match": 0.6667,
+          "gravity_penalty": 0.1942,
+          "duration_penalty": 0.0,
+          "year_score": 0.055,
+          "usage_penalty": 0.0,
+          "total": 0.6014
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.936,
+          "tempo": 0.864,
+          "darkness": 0.714,
+          "texture": 0.756
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.7,
+          "darkness": 0.7,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 2,
+        "title": "Satan\u2019s Vengeance",
+        "artist": "Destruction",
+        "album": "Sentence of Death",
+        "year": 1984,
+        "genres": [
+          "Thrash Metal"
+        ],
+        "scores": {
+          "semantic": 0.7319,
+          "keyword": 0.0,
+          "trajectory": 0.8242,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.1836,
+          "duration_penalty": 0.0,
+          "year_score": 0.075,
+          "usage_penalty": 0.0,
+          "total": 0.5748
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.904,
+          "tempo": 0.812,
+          "darkness": 0.698,
+          "texture": 0.731
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.7,
+          "darkness": 0.7,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 3,
+        "title": "Evil",
+        "artist": "Vo\u00efvod",
+        "album": "To the Death!\u2026",
+        "year": 1984,
+        "genres": [
+          "Speed Metal",
+          "Thrash"
+        ],
+        "scores": {
+          "semantic": 0.7653,
+          "keyword": 0.0,
+          "trajectory": 0.8405,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.1486,
+          "duration_penalty": 0.0,
+          "year_score": 0.075,
+          "usage_penalty": 0.0,
+          "total": 0.5908
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.843,
+          "tempo": 0.753,
+          "darkness": 0.645,
+          "texture": 0.747
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.7,
+          "darkness": 0.7,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 4,
+        "title": "Seek & Destroy",
+        "artist": "Metallica",
+        "album": "Kill \u2019Em All",
+        "year": 1983,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6929,
+          "keyword": 0.0,
+          "trajectory": 0.8678,
+          "genre_match": 0.6667,
+          "gravity_penalty": 0.2471,
+          "duration_penalty": 0.0658,
+          "year_score": 0.065,
+          "usage_penalty": 0.0,
+          "total": 0.6051
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.797,
+          "tempo": 0.719,
+          "darkness": 0.585,
+          "texture": 0.649
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.7,
+          "darkness": 0.7,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 5,
+        "title": "Destructed Life",
+        "artist": "Violent Force",
+        "album": "Malevolent Assault of Tomorrow",
+        "year": 1987,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6678,
+          "keyword": 0.0,
+          "trajectory": 0.7935,
+          "genre_match": 0.6667,
+          "gravity_penalty": 0.2302,
+          "duration_penalty": 0.0,
+          "year_score": 0.055,
+          "usage_penalty": 0.0,
+          "total": 0.5847
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.936,
+          "tempo": 0.864,
+          "darkness": 0.714,
+          "texture": 0.756
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.7,
+          "darkness": 0.7,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 6,
+        "title": "Pounding Evil (new version)",
+        "artist": "Destructor",
+        "album": "Speed Kills II",
+        "year": 1986,
+        "genres": [
+          "Thrash Metal"
+        ],
+        "scores": {
+          "semantic": 0.7472,
+          "keyword": 0.0,
+          "trajectory": 0.814,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.1572,
+          "duration_penalty": 0.0,
+          "year_score": 0.065,
+          "usage_penalty": 0.0,
+          "total": 0.5705
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.89,
+          "tempo": 0.787,
+          "darkness": 0.606,
+          "texture": 0.719
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.7,
+          "darkness": 0.7,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 7,
+        "title": "Enemy Within",
+        "artist": "Heretic",
+        "album": "Breaking Point",
+        "year": 1988,
+        "genres": [
+          "Thrash Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6526,
+          "keyword": 0.0,
+          "trajectory": 0.8445,
+          "genre_match": 0.6667,
+          "gravity_penalty": 0.226,
+          "duration_penalty": 0.0,
+          "year_score": 0.045,
+          "usage_penalty": 0.0,
+          "total": 0.5782
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.844,
+          "tempo": 0.762,
+          "darkness": 0.649,
+          "texture": 0.72
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.7,
+          "darkness": 0.7,
+          "texture": 0.6
+        }
+      }
+    ],
+    "metrics": {
+      "trajectory_deviation": 0.07632164404223228,
+      "avg_transition_cost": 0.18076282744096003,
+      "pool_entropy": 0.0,
+      "playlist_length": 8,
+      "beam_dead_ends": 12,
+      "constraint_rejections": 1872,
+      "generation_time_ms": 24935
+    },
+    "genre_coverage": {
+      "Thrash Metal": 7,
+      "Speed Metal": 5,
+      "Thrash": 1,
+      "Power Metal": 1
+    },
+    "generation_time_s": 24.972179412841797
+  },
+  {
+    "prompt": "coldwave",
+    "intent": {
+      "arc_type": "steady",
+      "prompt_type": "genre",
+      "genre_hints": [
+        "coldwave",
+        "post-punk",
+        "darkwave"
+      ],
+      "mood_keywords": [],
+      "year_range": [
+        null,
+        null
+      ],
+      "dimension_weights": {
+        "energy": 0.25,
+        "tempo": 0.25,
+        "darkness": 0.25,
+        "texture": 0.25
+      }
+    },
+    "raw_semantic_top30": [
+      {
+        "id": "01ea13fa-a3e9-4dff-8ed4-6c9c4ecb7533",
+        "title": "Frosty Nights",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 165426,
+        "similarity": 0.5293759668617438,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "2bc2676b-b39d-4faf-ae41-90d8a09330b8",
+        "title": "Airscape",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 74040,
+        "similarity": 0.5117412070996651,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "4c9e76b8-52ba-43ed-bd51-0122b355e2e0",
+        "title": "Whispering Sons",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 334986,
+        "similarity": 0.4997285008592387,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "bef9ce7f-181f-4acb-a5c4-b22a8a65de91",
+        "title": "Still Remaining",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 127080,
+        "similarity": 0.48912116820342444,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "b132b699-4bd1-4182-b74a-d69b039d84eb",
+        "title": "Cold Whisper Carried by the Wind",
+        "artist_name": "Narbeleth",
+        "album_name": "Svmma Cvm Nox Arcana",
+        "year": 2021,
+        "duration_ms": 251324,
+        "similarity": 0.47539406721521227,
+        "genres": [
+          "Black Metal"
+        ]
+      },
+      {
+        "id": "f43181aa-9327-46f3-b16b-0e74d4eb8734",
+        "title": "Cold Sweat",
+        "artist_name": "Thin Lizzy",
+        "album_name": "Thunder and Lightning",
+        "year": 2001,
+        "duration_ms": 187893,
+        "similarity": 0.46771559311655353,
+        "genres": [
+          "Hard Rock",
+          "Classic Rock",
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "f43181aa-9327-46f3-b16b-0e74d4eb8734",
+        "title": "Cold Sweat",
+        "artist_name": "Thin Lizzy",
+        "album_name": "Life Live",
+        "year": 2001,
+        "duration_ms": 187893,
+        "similarity": 0.46771559311655353,
+        "genres": [
+          "Hard Rock",
+          "Classic Rock",
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "e62ac976-9fa0-45a9-8831-83ecabd6df70",
+        "title": "Wintermass",
+        "artist_name": "Mysticum",
+        "album_name": "Lost Masters of the Universe",
+        "year": 2013,
+        "duration_ms": 306874,
+        "similarity": 0.4640100097671167,
+        "genres": [
+          "Industrial",
+          "Black Metal",
+          "Electronic",
+          "Rock"
+        ]
+      },
+      {
+        "id": "52e7603c-57e2-4226-bbd0-11b406382192",
+        "title": "Cold as Ice",
+        "artist_name": "King Diamond",
+        "album_name": "Give Me Your Soul\u2026 Please",
+        "year": 2007,
+        "duration_ms": 269546,
+        "similarity": 0.4598524844558536,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "f2f03602-6bbe-4b3d-9436-1dde024ef1f3",
+        "title": "Winter",
+        "artist_name": "Atomic Rooster",
+        "album_name": "Atomic Roooster",
+        "year": 1999,
+        "duration_ms": 419085,
+        "similarity": 0.45902770513461344,
+        "genres": [
+          "Hard Rock",
+          "Progressive Rock",
+          "Rock"
+        ]
+      },
+      {
+        "id": "6d4e6a04-0b6c-45ed-9246-9cf2fea616cc",
+        "title": "The Cold Twilight",
+        "artist_name": "Hemlock",
+        "album_name": "Crush the Race of God",
+        "year": 1998,
+        "duration_ms": 173000,
+        "similarity": 0.4511382281780275,
+        "genres": [
+          "Black Metal",
+          "Rock",
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "03b41194-7407-4671-9162-26971ceb0643",
+        "title": "The Average Life",
+        "artist_name": "Moral",
+        "album_name": "And Life Is ...",
+        "year": 2015,
+        "duration_ms": 160946,
+        "similarity": 0.4500569939681285,
+        "genres": [
+          "Coldwave"
+        ]
+      },
+      {
+        "id": "229473d4-e57e-4028-916c-4f985a06470c",
+        "title": "Welcome (To Deathrow)",
+        "artist_name": "Bernard Szajner",
+        "album_name": "So Young But So Cold: Underground French Music 1977-1983",
+        "year": 2004,
+        "duration_ms": 373763,
+        "similarity": 0.45002481639238023,
+        "genres": [
+          "Electro"
+        ]
+      },
+      {
+        "id": "3cfbcef8-7d51-4c57-9256-7b9af18e07fb",
+        "title": "Chatter",
+        "artist_name": "Forbidden",
+        "album_name": "Omega Wave",
+        "year": 2010,
+        "duration_ms": 136257,
+        "similarity": 0.4374828897406401,
+        "genres": [
+          "Thrash Metal",
+          "Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "fc4e0fbd-35a3-44ad-b66f-73b817d1e85e",
+        "title": "Cold Hate, Warm Blood (live)",
+        "artist_name": "Cryptopsy",
+        "album_name": "The Best of Us Bleed",
+        "year": 2012,
+        "duration_ms": 254295,
+        "similarity": 0.43360283970833136,
+        "genres": [
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "4ef72e43-e8c8-4f5e-a5aa-6395ef0544a1",
+        "title": "Winter",
+        "artist_name": "Judas Priest",
+        "album_name": "Rocka Rolla",
+        "year": 2003,
+        "duration_ms": 101750,
+        "similarity": 0.43200543117555634,
+        "genres": [
+          "Hard Rock",
+          "Metal",
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "cf5303ab-e012-4fec-b9a4-be780cb61208",
+        "title": "Warmaster Returns",
+        "artist_name": "Satanic Warmaster",
+        "album_name": "Nachzehrer",
+        "year": 2013,
+        "duration_ms": 396698,
+        "similarity": 0.42822131086715,
+        "genres": [
+          "Black Metal"
+        ]
+      },
+      {
+        "id": "f5b9c5a5-9655-4a1c-9d18-ec9f49ae10ec",
+        "title": "Cold Hate, Warm Blood",
+        "artist_name": "Cryptopsy",
+        "album_name": "Whisper Supremacy",
+        "year": 1998,
+        "duration_ms": 233848,
+        "similarity": 0.4257447675314414,
+        "genres": [
+          "Technical Death Metal",
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "ac759649-a3cf-4afe-b728-48e879fb51b1",
+        "title": "Cold Hate, Warm Blood (rehearsal)",
+        "artist_name": "Cryptopsy",
+        "album_name": "The Best of Us Bleed",
+        "year": 2012,
+        "duration_ms": 247274,
+        "similarity": 0.42450112554424924,
+        "genres": [
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "3076b1a2-6fa1-4f45-aa43-c4e6ab476e2c",
+        "title": "Teenage Lightning 1",
+        "artist_name": "Coil",
+        "album_name": "Love\u2019s Secret Domain",
+        "year": 2021,
+        "duration_ms": 110226,
+        "similarity": 0.4230837569782946,
+        "genres": [
+          "Techno",
+          "Leftfield",
+          "Experimental"
+        ]
+      },
+      {
+        "id": "28d7c3e3-34cf-4d96-8e62-b88929bb0090",
+        "title": "Nachtgang",
+        "artist_name": "NNHMN",
+        "album_name": "Deception Island Part 1",
+        "year": 2020,
+        "duration_ms": 279353,
+        "similarity": 0.42188718449397067,
+        "genres": [
+          "Synth-Pop",
+          "Synthwave",
+          "Electronic",
+          "Dark Wave",
+          "Coldwave",
+          "Ebm",
+          "Electropop"
+        ]
+      },
+      {
+        "id": "3dbae774-ab43-491e-a39a-d166a56107f1",
+        "title": "Live Wire",
+        "artist_name": "AC/DC",
+        "album_name": "T.N.T.",
+        "year": 2006,
+        "duration_ms": 350000,
+        "similarity": 0.4181585561131578,
+        "genres": [
+          "Blues",
+          "Hard Rock",
+          "Classic Rock",
+          "Rock And Roll",
+          "Boogie Rock",
+          "Rock",
+          "Blues Rock",
+          "Arena Rock"
+        ]
+      },
+      {
+        "id": "aabf6945-870e-4f3e-ac8d-ba4e539a1ea5",
+        "title": "Cosmic Winter",
+        "artist_name": "Helheim",
+        "album_name": "Terrorveldet",
+        "year": 1999,
+        "duration_ms": 345520,
+        "similarity": 0.41729432344436934,
+        "genres": [
+          "Black Metal",
+          "Rock",
+          "Viking Metal"
+        ]
+      },
+      {
+        "id": "f1c0ba70-49ef-4c39-9abb-af9de2aa3af5",
+        "title": "Cold Hate, Warm Blood",
+        "artist_name": "Cryptopsy",
+        "album_name": "None So Live",
+        "year": 2003,
+        "duration_ms": 259946,
+        "similarity": 0.4160758032866543,
+        "genres": [
+          "Rock",
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "5643a9d5-3fca-48af-82d6-c1ce0aef9ec0",
+        "title": "Sleep Don't Talk",
+        "artist_name": "UV P\u00d8P",
+        "album_name": "No Songs Tomorrow",
+        "year": 2011,
+        "duration_ms": 195713,
+        "similarity": 0.41456620866849525,
+        "genres": [
+          "New Wave"
+        ]
+      },
+      {
+        "id": "560584a3-275f-492a-af0b-4b6ccc8c274e",
+        "title": "Cold Hate, Warm Blood",
+        "artist_name": "Cryptopsy",
+        "album_name": "The Best of Us Bleed",
+        "year": 2012,
+        "duration_ms": 234798,
+        "similarity": 0.4116768486307181,
+        "genres": [
+          "Death Metal"
+        ]
+      },
+      {
+        "id": "b8317acc-6853-4ea2-acc9-5e7d7cff5280",
+        "title": "Wintertale",
+        "artist_name": "Cacumen",
+        "album_name": "Cacumen",
+        "year": 2004,
+        "duration_ms": 226985,
+        "similarity": 0.40941041168036607,
+        "genres": [
+          "Hard Rock",
+          "Rock"
+        ]
+      },
+      {
+        "id": "32fef6e9-3914-4231-99b6-5fe484e28fa0",
+        "title": "Break The Ice",
+        "artist_name": "Atomic Rooster",
+        "album_name": "In Hearing Of",
+        "year": 2016,
+        "duration_ms": 299840,
+        "similarity": 0.4082910065824401,
+        "genres": [
+          "Hard Rock",
+          "Progressive Rock",
+          "Rock"
+        ]
+      },
+      {
+        "id": "d3c03571-47f1-41d7-87c2-1fc37d082f7f",
+        "title": "Trapped Under Ice",
+        "artist_name": "Metallica",
+        "album_name": "Ride the Lightning",
+        "year": 2000,
+        "duration_ms": 248533,
+        "similarity": 0.40607045961266275,
+        "genres": [
+          "Thrash Metal",
+          "Metal",
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "717bb157-f8d1-4865-80d2-4ffc8820c46e",
+        "title": "When Thunders Hail",
+        "artist_name": "Satanic Warmaster",
+        "album_name": "Fimbulwinter",
+        "year": 2014,
+        "duration_ms": 300786,
+        "similarity": 0.4029274226979873,
+        "genres": [
+          "Black Metal"
+        ]
+      }
+    ],
+    "composer_tracks": [
+      {
+        "position": 0,
+        "title": "Clock",
+        "artist": "The Danse Society",
+        "album": "Seduction",
+        "year": 2001,
+        "genres": [
+          "Rock",
+          "Electronic",
+          "Post-Punk",
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.6593,
+          "keyword": 0.7666,
+          "trajectory": 0.9006,
+          "genre_match": 0.4,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4379
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.53,
+          "tempo": 0.482,
+          "darkness": 0.557,
+          "texture": 0.457
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 1,
+        "title": "Transverberation",
+        "artist": "Ulver",
+        "album": "Grieghallen 20180528",
+        "year": 2024,
+        "genres": [
+          "Synth-Pop",
+          "Art Pop",
+          "Post-Industrial",
+          "Synthwave"
+        ],
+        "scores": {
+          "semantic": 0.5642,
+          "keyword": 0.5809,
+          "trajectory": 0.9076,
+          "genre_match": 0.1429,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.3204
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.478,
+          "tempo": 0.432,
+          "darkness": 0.557,
+          "texture": 0.428
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 2,
+        "title": "Run",
+        "artist": "New Order",
+        "album": "Technique",
+        "year": 2008,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.6425,
+          "keyword": 0.0,
+          "trajectory": 0.8467,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4014
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.562,
+          "tempo": 0.506,
+          "darkness": 0.387,
+          "texture": 0.469
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 3,
+        "title": "Power of Spirit",
+        "artist": "Norma Loy",
+        "album": "Transmission: 81-89 The French Cold Wave",
+        "year": 2005,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.5902,
+          "keyword": 0.0,
+          "trajectory": 0.9391,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2628,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4083
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.497,
+          "tempo": 0.444,
+          "darkness": 0.709,
+          "texture": 0.412
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 4,
+        "title": "Belief",
+        "artist": "The Danse Society",
+        "album": "Seduction",
+        "year": 2001,
+        "genres": [
+          "Rock",
+          "Electronic",
+          "Post-Punk",
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.6403,
+          "keyword": 0.7666,
+          "trajectory": 0.9006,
+          "genre_match": 0.4,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4322
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.53,
+          "tempo": 0.482,
+          "darkness": 0.557,
+          "texture": 0.457
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 5,
+        "title": "Bring Out Your Dead",
+        "artist": "Ulver",
+        "album": "Grieghallen 20180528",
+        "year": 2024,
+        "genres": [
+          "Synth-Pop",
+          "Art Pop",
+          "Post-Industrial",
+          "Synthwave"
+        ],
+        "scores": {
+          "semantic": 0.5547,
+          "keyword": 0.5809,
+          "trajectory": 0.9076,
+          "genre_match": 0.1429,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.3176
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.478,
+          "tempo": 0.432,
+          "darkness": 0.557,
+          "texture": 0.428
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 6,
+        "title": "Vanishing Point",
+        "artist": "New Order",
+        "album": "Technique",
+        "year": 2008,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.6484,
+          "keyword": 0.0,
+          "trajectory": 0.8467,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4032
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.562,
+          "tempo": 0.506,
+          "darkness": 0.387,
+          "texture": 0.469
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 7,
+        "title": "Winter",
+        "artist": "Asylum Party",
+        "album": "Borderline",
+        "year": 1989,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.6182,
+          "keyword": 0.0,
+          "trajectory": 0.9342,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2459,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4177
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.477,
+          "tempo": 0.42,
+          "darkness": 0.67,
+          "texture": 0.41
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 8,
+        "title": "Hide",
+        "artist": "The Danse Society",
+        "album": "Seduction",
+        "year": 2001,
+        "genres": [
+          "Rock",
+          "Electronic",
+          "Post-Punk",
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.6437,
+          "keyword": 0.7666,
+          "trajectory": 0.9006,
+          "genre_match": 0.4,
+          "gravity_penalty": 0.35,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4332
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.53,
+          "tempo": 0.482,
+          "darkness": 0.557,
+          "texture": 0.457
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 9,
+        "title": "Vision",
+        "artist": "M\u00e9lop\u00e9e",
+        "album": "Lyellle",
+        "year": 1990,
+        "genres": [
+          "Coldwave"
+        ],
+        "scores": {
+          "semantic": 0.585,
+          "keyword": 0.0,
+          "trajectory": 0.9321,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.295,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4025
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.492,
+          "tempo": 0.431,
+          "darkness": 0.64,
+          "texture": 0.427
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 10,
+        "title": "Rolling Stone",
+        "artist": "Ulver",
+        "album": "Grieghallen 20180528",
+        "year": 2024,
+        "genres": [
+          "Synth-Pop",
+          "Art Pop",
+          "Post-Industrial",
+          "Synthwave"
+        ],
+        "scores": {
+          "semantic": 0.5626,
+          "keyword": 0.5809,
+          "trajectory": 0.9076,
+          "genre_match": 0.1429,
+          "gravity_penalty": 0.3237,
+          "duration_penalty": 0.2107,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.3015
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.478,
+          "tempo": 0.432,
+          "darkness": 0.557,
+          "texture": 0.428
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      },
+      {
+        "position": 11,
+        "title": "Run 2",
+        "artist": "New Order",
+        "album": "Technique",
+        "year": 2008,
+        "genres": [
+          "Synth-Pop"
+        ],
+        "scores": {
+          "semantic": 0.6297,
+          "keyword": 0.0,
+          "trajectory": 0.8467,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.3204,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4005
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.562,
+          "tempo": 0.506,
+          "darkness": 0.387,
+          "texture": 0.469
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.3,
+          "darkness": 0.7,
+          "texture": 0.5
+        }
+      }
+    ],
+    "metrics": {
+      "trajectory_deviation": 0.047949920647700185,
+      "avg_transition_cost": 0.21210316460974823,
+      "pool_entropy": 0.09430061242062925,
+      "playlist_length": 12,
+      "beam_dead_ends": 25,
+      "constraint_rejections": 7667,
+      "generation_time_ms": 19627
+    },
+    "genre_coverage": {
+      "Rock": 3,
+      "Electronic": 3,
+      "Post-Punk": 3,
+      "Synth-Pop": 9,
+      "Art Pop": 3,
+      "Post-Industrial": 3,
+      "Synthwave": 3,
+      "Coldwave": 3
+    },
+    "generation_time_s": 19.654395818710327
+  }
+]

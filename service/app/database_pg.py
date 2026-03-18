@@ -1484,20 +1484,26 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
                         WHERE tg.track_id = t.id
                     ), '')), 'A') ||
                     setweight(to_tsvector('simple', coalesce((
-                        SELECT string_agg(lt.name, ' ')
-                        FROM lastfm_tags lt
-                        JOIN track_lastfm_tags tlt ON lt.id = tlt.tag_id
-                        WHERE tlt.track_id = t.id
-                        ORDER BY tlt.weight DESC
-                        LIMIT 20
+                        SELECT string_agg(sub.name, ' ')
+                        FROM (
+                            SELECT lt.name
+                            FROM lastfm_tags lt
+                            JOIN track_lastfm_tags tlt ON lt.id = tlt.tag_id
+                            WHERE tlt.track_id = t.id
+                            ORDER BY tlt.weight DESC
+                            LIMIT 20
+                        ) sub
                     ), (
-                        SELECT string_agg(lt2.name, ' ')
-                        FROM lastfm_tags lt2
-                        JOIN artist_lastfm_tags alt ON lt2.id = alt.tag_id
-                        JOIN track_artists ta2 ON ta2.artist_id = alt.artist_id
-                        WHERE ta2.track_id = t.id
-                        ORDER BY alt.weight DESC
-                        LIMIT 20
+                        SELECT string_agg(sub2.name, ' ')
+                        FROM (
+                            SELECT lt2.name
+                            FROM lastfm_tags lt2
+                            JOIN artist_lastfm_tags alt ON lt2.id = alt.tag_id
+                            JOIN track_artists ta2 ON ta2.artist_id = alt.artist_id
+                            WHERE ta2.track_id = t.id
+                            ORDER BY alt.weight DESC
+                            LIMIT 20
+                        ) sub2
                     ), '')), 'B')
             """)
             stats["updated"] = cur.rowcount

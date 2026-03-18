@@ -18,7 +18,7 @@ from app.database_pg import get_connection
 from app.embeddings.generator import generate_embedding
 from app.trajectory.curves import TrajectoryPoint
 from app.trajectory.gravity import GravityAnchors, compute_gravity_penalty
-from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType, PromptType
+from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType, PromptType, _ALIAS_TO_FAMILY, _BROAD_GENRES
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +108,23 @@ class CandidateTrack:
         return np.array([self.energy, self.tempo, self.darkness, self.texture])
 
 
-def get_adaptive_pool_size(library_size: int) -> int:
-    """Calculate adaptive pool size based on library size."""
-    size = int(math.sqrt(library_size) * 1.5)
-    return max(50, min(180, size))
+def get_adaptive_pool_size(library_size: int, target_size: int = 25) -> int:
+    """Calculate adaptive pool size based on library and playlist size.
+
+    The pool must be large enough that beam search can find valid
+    extensions at every position.  For large playlists the pool needs
+    more headroom so artist-distance constraints don't exhaust options.
+
+    The upper cap scales with target_size: small playlists cap at 500,
+    but very large playlists (200+ tracks) scale up to 800 to reduce
+    the chance of pool exhaustion during beam search.
+    """
+    base = int(math.sqrt(library_size) * 1.5)
+    # Scale up for larger playlists: at least 2x the target size
+    scaled = max(base, target_size * 2)
+    # Dynamic cap: 500 for small playlists, up to 800 for very large ones
+    cap = max(500, min(800, 500 + target_size))
+    return max(50, min(cap, scaled))
 
 
 def get_library_size() -> int:
@@ -285,9 +298,38 @@ def expand_query(prompt: str) -> str:
 def keyword_search(
     prompt: str,
     limit: int = 200,
+    genre_hints: list[str] | None = None,
 ) -> list["CandidateTrack"]:
-    """BM25 full-text search using Postgres tsvector / ts_rank."""
-    expanded = expand_query(prompt)
+    """BM25 full-text search using Postgres tsvector / ts_rank.
+
+    Uses OR semantics so any matching term contributes to the rank,
+    rather than requiring ALL terms to be present.
+
+    When genre_hints are provided, builds the query from those instead
+    of the raw prompt expansion for more focused results.
+    """
+    import re
+
+    if genre_hints:
+        # Use genre hints directly — these are the parsed, authoritative genre terms
+        raw_text = " ".join(genre_hints)
+    else:
+        raw_text = expand_query(prompt)
+
+    # Build an OR-based tsquery from cleaned terms
+    raw_words = raw_text.lower().split()
+    clean_words: list[str] = []
+    for w in raw_words:
+        w = re.sub(r"[^a-z0-9\-]", "", w)
+        if not w:
+            continue
+        parts = [p for p in w.split("-") if p]
+        clean_words.extend(parts)
+    # Deduplicate preserving order
+    clean_words = list(dict.fromkeys(clean_words))
+    if not clean_words:
+        return []
+    or_query = " | ".join(clean_words)
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -301,7 +343,7 @@ def keyword_search(
                     tf.path,
                     tp.energy, tp.darkness, tp.tempo, tp.texture,
                     ts_rank(t.search_vector,
-                            plainto_tsquery('simple', %s)) AS keyword_score,
+                            to_tsquery('simple', %s)) AS keyword_score,
                     ARRAY(
                         SELECT g.name FROM track_genres tg2
                         JOIN genres g ON tg2.genre_id = g.id
@@ -318,10 +360,10 @@ def keyword_search(
                 LEFT JOIN track_albums tal ON tal.track_id = t.id
                 LEFT JOIN albums al ON tal.album_id = al.id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
-                WHERE t.search_vector @@ plainto_tsquery('simple', %s)
+                WHERE t.search_vector @@ to_tsquery('simple', %s)
                 ORDER BY keyword_score DESC
                 LIMIT %s
-            """, (expanded, expanded, limit))
+            """, (or_query, or_query, limit))
             rows = cur.fetchall()
 
     candidates = []
@@ -388,7 +430,7 @@ def _fetch_candidates_by_ids(
                 LEFT JOIN track_albums tal ON tal.track_id = t.id
                 LEFT JOIN albums al ON tal.album_id = al.id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
-                WHERE t.id = ANY(%s)
+                WHERE t.id = ANY(%s::uuid[])
             """, (track_ids,))
             rows = cur.fetchall()
 
@@ -593,10 +635,10 @@ def generate_position_pools(
     # Determine pool size
     if pool_size is None:
         library_size = get_library_size()
-        pool_size = get_adaptive_pool_size(library_size)
+        pool_size = get_adaptive_pool_size(library_size, target_size=intent.target_size)
 
     # Scale global search limit based on playlist size
-    global_limit = min(400, pool_size * intent.target_size // 2)
+    global_limit = max(400, min(1000, pool_size * 3))
 
     # Get adaptive scoring weights based on prompt type
     weights = get_adaptive_weights(intent.prompt_type)
@@ -636,8 +678,10 @@ def generate_position_pools(
     pool_map: dict[str, CandidateTrack] = {c.id: c for c in semantic_candidates}
 
     # --- 2. BM25 keyword search + merge ---
+    bm25_limit = max(200, min(500, pool_size * 2))
     try:
-        kw_candidates = keyword_search(intent.raw_prompt, limit=200)
+        kw_candidates = keyword_search(intent.raw_prompt, limit=bm25_limit,
+                                           genre_hints=intent.genre_hints)
         if kw_candidates:
             # Normalize keyword scores
             max_kw = max(c.keyword_score for c in kw_candidates) or 1.0
@@ -668,8 +712,13 @@ def generate_position_pools(
         logger.warning(f"BM25 keyword search failed (search_vector may not exist yet): {e}")
 
     # --- 3. Genre-based secondary pool (Fix 1) ---
-    if intent.genre_hints:
-        patterns = [f"%{g}%" for g in intent.genre_hints]
+    # Filter out broad umbrella genres from pool queries to avoid pulling
+    # thousands of irrelevant tracks (e.g. "rock" would match half the library).
+    specific_genre_hints = [g for g in intent.genre_hints
+                           if g.lower() not in _BROAD_GENRES]
+    genre_pool_limit = max(500, min(2000, pool_size * 5))
+    if specific_genre_hints:
+        patterns = [f"%{g}%" for g in specific_genre_hints]
         try:
             with get_connection() as conn:
                 with conn.cursor() as cur:
@@ -678,8 +727,8 @@ def generate_position_pools(
                         FROM track_genres tg
                         JOIN genres g ON tg.genre_id = g.id
                         WHERE g.name ILIKE ANY(%s)
-                        LIMIT 500
-                    """, (patterns,))
+                        LIMIT %s
+                    """, (patterns, genre_pool_limit))
                     genre_ids = [row[0] for row in cur.fetchall()
                                  if row[0] not in pool_map]
 
@@ -695,8 +744,8 @@ def generate_position_pools(
             logger.warning(f"Genre pool query failed: {e}")
 
     # --- 3b. Last.fm artist tag pool (covers artist-level tags) ---
-    if intent.genre_hints:
-        tag_patterns = [f"%{g}%" for g in intent.genre_hints]
+    if specific_genre_hints:
+        tag_patterns = [f"%{g}%" for g in specific_genre_hints]
         try:
             with get_connection() as conn:
                 with conn.cursor() as cur:
@@ -707,8 +756,8 @@ def generate_position_pools(
                         JOIN lastfm_tags lt ON lt.id = alt.tag_id
                         WHERE lt.name ILIKE ANY(%s)
                           AND alt.weight >= 50
-                        LIMIT 500
-                    """, (tag_patterns,))
+                        LIMIT %s
+                    """, (tag_patterns, genre_pool_limit))
                     tag_ids = [row[0] for row in cur.fetchall()
                                if row[0] not in pool_map]
 
@@ -722,8 +771,8 @@ def generate_position_pools(
 
     # --- 4. Year+genre third pool (Fix 2) ---
     yr0, yr1 = intent.year_range
-    if yr0 and yr1 and intent.genre_hints:
-        patterns = [f"%{g}%" for g in intent.genre_hints]
+    if yr0 and yr1 and specific_genre_hints:
+        patterns = [f"%{g}%" for g in specific_genre_hints]
         try:
             with get_connection() as conn:
                 with conn.cursor() as cur:
@@ -734,8 +783,8 @@ def generate_position_pools(
                         JOIN genres g ON tg.genre_id = g.id
                         WHERE t.year BETWEEN %s AND %s
                           AND g.name ILIKE ANY(%s)
-                        LIMIT 300
-                    """, (yr0, yr1, patterns))
+                        LIMIT %s
+                    """, (yr0, yr1, patterns, genre_pool_limit))
                     year_ids = [row[0] for row in cur.fetchall()
                                 if row[0] not in pool_map]
 
@@ -759,14 +808,21 @@ def generate_position_pools(
     all_ids = [c.id for c in global_candidates]
     usage_penalties = get_track_usage_penalties(all_ids)
 
-    # Precompute genre hint set for Jaccard scoring
+    # Precompute genre hint set for scoring.
+    # We build two sets: primary_hint_set (from LLM / keyword extraction) and
+    # expanded_hint_set (added by expand_genre_hints).  Primary matches get
+    # full weight; expanded matches get partial weight.  Broad umbrella genres
+    # (rock, pop, metal, etc.) get heavily discounted to prevent them from
+    # making every track score 1.0.
     hint_set = {h.lower() for h in intent.genre_hints} if intent.genre_hints else set()
-    # Also add canonical families for the hints so Jaccard is more generous
-    from app.trajectory.intent import _ALIAS_TO_FAMILY
+    # Also add canonical families for the hints
     for h in list(hint_set):
         fam = _ALIAS_TO_FAMILY.get(h)
         if fam:
             hint_set.add(fam)
+
+    # Primary hints: what the user/LLM explicitly requested (pre-expansion)
+    primary_hint_set = intent.genre_hints_primary if intent.genre_hints_primary else hint_set.copy()
 
     # Precompute year midpoint for soft year scoring
     year_midpoint: float | None = None
@@ -775,11 +831,24 @@ def generate_position_pools(
 
     position_pools: list[list[CandidateTrack]] = []
     prev_duration: int | None = None
+    # Pool caching: reuse same pool when trajectory target hasn't changed
+    # significantly. For steady arcs all positions produce identical pools;
+    # for other arcs nearby positions produce near-identical pools.
+    last_pool: list[CandidateTrack] | None = None
+    last_target_vec: tuple[float, ...] | None = None
+    POOL_REUSE_THRESHOLD = 0.01  # reuse if all dimensions within 1%
 
     for position in range(intent.target_size):
         # Get trajectory target at this position
         t_norm = position / (intent.target_size - 1) if intent.target_size > 1 else 0.5
         target = intent.trajectory_curve.evaluate(t_norm)
+
+        # Check if we can reuse the last pool
+        target_vec = (target.energy, target.tempo, target.darkness, target.texture)
+        if (last_target_vec is not None and last_pool is not None and
+                all(abs(a - b) < POOL_REUSE_THRESHOLD for a, b in zip(target_vec, last_target_vec))):
+            position_pools.append(last_pool)
+            continue
 
         # Score all candidates for this position
         scored_candidates: list[tuple[CandidateTrack, float]] = []
@@ -804,18 +873,42 @@ def generate_position_pools(
                 distance = abs(track.year - year_midpoint)
                 year_score = max(-0.12, 0.08 - distance * 0.01)
 
-            # Genre Jaccard match score (Fix 6)
+            # Genre match score — tiered weighted scoring.
+            #
+            # For each of the track's genre tags, we check if it (or its
+            # canonical family) is in the hint set.  Matches against *primary*
+            # hints (the user's actual request) get full weight (1.0).
+            # Matches against expanded-only hints get partial weight (0.5).
+            # Broad umbrella genres (rock, pop, etc.) only get weight 0.25
+            # even if they're in the hint set, to prevent them from inflating
+            # the score of every generic rock/pop track.
+            #
+            # Final score = sum_of_weights / num_track_genres.
             genre_match = 0.0
             if hint_set and track.genres:
-                genre_set = {g.lower() for g in track.genres}
-                # Also add families for track genres
-                for g in list(genre_set):
+                genre_set_raw = {g.lower() for g in track.genres}
+                # Also map track genres to canonical families
+                genre_set_with_families: set[str] = set(genre_set_raw)
+                for g in genre_set_raw:
                     fam = _ALIAS_TO_FAMILY.get(g)
                     if fam:
-                        genre_set.add(fam)
-                intersection = hint_set & genre_set
-                union = hint_set | genre_set
-                genre_match = len(intersection) / len(union) if union else 0.0
+                        genre_set_with_families.add(fam)
+
+                # Score each track genre
+                weight_sum = 0.0
+                n_tags = len(genre_set_raw)  # count original tags, not families
+                for g in genre_set_with_families:
+                    if g not in hint_set:
+                        continue
+                    # Determine weight for this match
+                    if g in _BROAD_GENRES:
+                        weight_sum += 0.25
+                    elif g in primary_hint_set:
+                        weight_sum += 1.0
+                    else:
+                        weight_sum += 0.5  # expanded hint
+                # Normalise by number of original track genres
+                genre_match = min(1.0, weight_sum / n_tags) if n_tags > 0 else 0.0
 
             # Track usage penalty (playlist memory)
             u_penalty = usage_penalties.get(track.id, 0.0)
@@ -843,13 +936,20 @@ def generate_position_pools(
         pool = [track for track, _ in scored_candidates[:pool_size]]
         position_pools.append(pool)
 
+        # Cache for reuse by adjacent positions with similar targets
+        last_pool = pool
+        last_target_vec = target_vec
+
         # Update prev_duration for next position (use median of pool)
         if pool:
             durations = sorted([tk.duration_ms for tk in pool if tk.duration_ms > 0])
             if durations:
                 prev_duration = durations[len(durations) // 2]
 
-    logger.info(f"Generated {len(position_pools)} position pools, size={pool_size}")
+    pools_reused = sum(1 for i in range(1, len(position_pools))
+                       if position_pools[i] is position_pools[i-1])
+    logger.info(f"Generated {len(position_pools)} position pools, size={pool_size}"
+                f" ({pools_reused} reused from adjacent)")
     return position_pools
 
 

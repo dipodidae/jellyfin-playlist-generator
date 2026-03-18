@@ -47,6 +47,26 @@ def cache_clear() -> None:
     _cache.clear()
 
 
+def _to_native(value: Any) -> int | float | None:
+    """Coerce numpy/other numeric types to native Python int or float."""
+    if value is None:
+        return None
+    # Handle numpy types without importing numpy at module level
+    val_type = type(value).__name__
+    if "float" in val_type or "Float" in val_type:
+        return float(value)
+    if "int" in val_type or "Int" in val_type:
+        return int(value)
+    if isinstance(value, float):
+        return value
+    if isinstance(value, int):
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def log_generation(
     prompt: str,
     arc_type: str,
@@ -67,14 +87,14 @@ def log_generation(
                 """, (
                     prompt[:1000],  # Truncate long prompts
                     arc_type,
-                    playlist_length,
-                    generation_time_ms,
-                    metrics.get("trajectory_deviation", 0),
-                    metrics.get("pool_entropy", 0),
-                    metrics.get("avg_transition_cost", 0),
-                    metrics.get("beam_dead_ends", 0),
-                    metrics.get("constraint_rejections", 0),
-                    metrics.get("bridge_tracks_used", 0),
+                    int(playlist_length),
+                    int(generation_time_ms),
+                    _to_native(metrics.get("trajectory_deviation", 0)),
+                    _to_native(metrics.get("pool_entropy", 0)),
+                    _to_native(metrics.get("avg_transition_cost", 0)),
+                    _to_native(metrics.get("beam_dead_ends", 0)),
+                    _to_native(metrics.get("constraint_rejections", 0)),
+                    _to_native(metrics.get("bridge_tracks_used", 0)),
                 ))
                 conn.commit()
     except Exception as e:
@@ -119,13 +139,13 @@ def get_track_usage_penalties(track_ids: list[str], decay_days: float = 30.0) ->
                            usage_count,
                            EXTRACT(EPOCH FROM (now() - last_used_at)) / 86400 AS days_since
                     FROM track_usage
-                    WHERE track_id = ANY(%s)
+                    WHERE track_id = ANY(%s::uuid[])
                 """, (track_ids,))
                 rows = cur.fetchall()
 
         result: dict[str, float] = {}
         for row in rows:
-            tid, usage_count, days_since = str(row[0]), row[1], row[2] or 0
+            tid, usage_count, days_since = str(row[0]), row[1], float(row[2] or 0)
             penalty = usage_count * math.exp(-days_since / decay_days) * 0.1
             result[tid] = min(penalty, 0.5)
         return result
@@ -155,8 +175,7 @@ def get_track_usage_penalty(track_id: str, decay_days: float = 30.0) -> float:
                     return 0.0
 
                 usage_count, days_since = row
-                if days_since is None:
-                    days_since = 0
+                days_since = float(days_since) if days_since is not None else 0.0
 
                 # Exponential decay
                 penalty = usage_count * math.exp(-days_since / decay_days) * 0.1

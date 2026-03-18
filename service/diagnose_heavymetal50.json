@@ -1,0 +1,2495 @@
+[
+  {
+    "prompt": "the best heavy metal songs in the world",
+    "intent": {
+      "arc_type": "steady",
+      "prompt_type": "genre",
+      "genre_hints": [
+        "heavy metal",
+        "thrash metal",
+        "power metal",
+        "doom metal",
+        "speed metal",
+        "nwobhm",
+        "stoner metal",
+        "sludge"
+      ],
+      "mood_keywords": [],
+      "year_range": [
+        null,
+        null
+      ],
+      "dimension_weights": {
+        "energy": 0.3,
+        "tempo": 0.25,
+        "darkness": 0.2,
+        "texture": 0.25
+      }
+    },
+    "raw_semantic_top30": [
+      {
+        "id": "6ea79cde-8422-4255-8939-1bae6dd25bc7",
+        "title": "Tell the World",
+        "artist_name": "Ratt",
+        "album_name": "Metal Massacre",
+        "year": 2022,
+        "duration_ms": 186331,
+        "similarity": 0.7147172689437917,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "444fac11-c95e-4478-9bd3-d2dab0c55f43",
+        "title": "Hit the Lights",
+        "artist_name": "Metallica",
+        "album_name": "Metal Massacre",
+        "year": 2022,
+        "duration_ms": 252873,
+        "similarity": 0.7054420358469529,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "ab5efc8f-3b36-4277-a1c5-34c6727d0dd4",
+        "title": "Monster Of The Earth",
+        "artist_name": "Metalucifer",
+        "album_name": "Heavy Metal Hunter",
+        "year": 2003,
+        "duration_ms": 271053,
+        "similarity": 0.693376644458867,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "7e7f48c4-79f8-42cc-a50e-e46ac1fcaec5",
+        "title": "Shout It Out",
+        "artist_name": "Warlock",
+        "album_name": "Hellbound",
+        "year": 2011,
+        "duration_ms": 261760,
+        "similarity": 0.6915612839068134,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "8241afa2-49fb-4ce8-8e26-1326f249941b",
+        "title": "Don\u00b4t Look Back",
+        "artist_name": "Anvil",
+        "album_name": "Impact Is Imminent",
+        "year": 2022,
+        "duration_ms": 197482,
+        "similarity": 0.6841809937846177,
+        "genres": [
+          "Metal"
+        ]
+      },
+      {
+        "id": "6593ebfb-7f34-4355-ae79-bb6d2e48831d",
+        "title": "Heavy Metal Revolution",
+        "artist_name": "Metalucifer",
+        "album_name": "Heavy Metal Chainsaw",
+        "year": 2001,
+        "duration_ms": 280800,
+        "similarity": 0.6802167511244716,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "49dc7a49-ae54-4224-9bea-94336bca4dc6",
+        "title": "Take Command",
+        "artist_name": "Destructor",
+        "album_name": "Maximum Destruction",
+        "year": 2005,
+        "duration_ms": 250200,
+        "similarity": 0.6777357266983836,
+        "genres": [
+          "Power Thrash Metal"
+        ]
+      },
+      {
+        "id": "4d7528a2-0b1a-44a4-bbc8-04b88519a49a",
+        "title": "Fight to the Finish",
+        "artist_name": "Overdrive",
+        "album_name": "Let the Metal Do the Talking",
+        "year": 2008,
+        "duration_ms": 288000,
+        "similarity": 0.6774216899950826,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "0367a4ee-85ac-4cc6-8aa6-553d660a25d5",
+        "title": "Ripping Through Time",
+        "artist_name": "Unleash the Archers",
+        "album_name": "Demons of the AstroWaste",
+        "year": 2011,
+        "duration_ms": 378984,
+        "similarity": 0.677201449871068,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "65ae6041-3189-464a-b21d-5b32e58f7e6a",
+        "title": "Storm of Steel",
+        "artist_name": "Destructor",
+        "album_name": "Maximum Destruction",
+        "year": 2005,
+        "duration_ms": 247733,
+        "similarity": 0.6746365636153893,
+        "genres": [
+          "Power Thrash Metal"
+        ]
+      },
+      {
+        "id": "d924db45-d43c-44aa-8035-da28fe6c54ec",
+        "title": "Watchin' You",
+        "artist_name": "Anthrax",
+        "album_name": "Stomp 442",
+        "year": 2001,
+        "duration_ms": 219066,
+        "similarity": 0.6740147873172049,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "88a55c06-d1fd-4aeb-8eba-14600ef5f4d0",
+        "title": "Gettin' Heavy",
+        "artist_name": "Witchfynde",
+        "album_name": "Give 'em Hell",
+        "year": 2004,
+        "duration_ms": 232385,
+        "similarity": 0.673936586668579,
+        "genres": [
+          "Rock"
+        ]
+      },
+      {
+        "id": "0c07742e-82af-4454-9a58-874c05303133",
+        "title": "The Thing That Should Not Be",
+        "artist_name": "Metallica",
+        "album_name": "Master of Puppets",
+        "year": 2010,
+        "duration_ms": 395379,
+        "similarity": 0.6727525992842089,
+        "genres": [
+          "Metal"
+        ]
+      },
+      {
+        "id": "02a62153-5f0b-4c33-a88c-84fe4979825a",
+        "title": "Slave No More",
+        "artist_name": "Heavy Load",
+        "album_name": "Riders of the Ancient Storm",
+        "year": 2023,
+        "duration_ms": 502804,
+        "similarity": 0.671548028496036,
+        "genres": [
+          "Heavy Power Metal"
+        ]
+      },
+      {
+        "id": "dfcfac2b-2be8-46cd-afc5-56495acc0a46",
+        "title": "Destroy the Hush",
+        "artist_name": "Agent Steel",
+        "album_name": "Omega Conspiracy",
+        "year": 1999,
+        "duration_ms": 255266,
+        "similarity": 0.67038534107121,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "bcc77de7-2d9c-41fd-b962-cc1afc3ddadc",
+        "title": "Heavy Metal",
+        "artist_name": "Holy Moses",
+        "album_name": "Queen of Siam",
+        "year": 2005,
+        "duration_ms": 339699,
+        "similarity": 0.6702231568231092,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ]
+      },
+      {
+        "id": "41eeb3f2-7759-4f0e-a2fd-7db9906f8672",
+        "title": "Death From Above",
+        "artist_name": "Bathory",
+        "album_name": "Destroyer of Worlds",
+        "year": 2001,
+        "duration_ms": 275826,
+        "similarity": 0.670017957987007,
+        "genres": [
+          "Thrash Metal"
+        ]
+      },
+      {
+        "id": "a9c4f7b3-091b-4d5a-ae43-c411c045b5e1",
+        "title": "By the Light of the Moon",
+        "artist_name": "Weregoat",
+        "album_name": "Unholy Exaltation of Fullmoon Perversity",
+        "year": 2011,
+        "duration_ms": 71996,
+        "similarity": 0.6687158148715397,
+        "genres": [
+          "Bestial Black Metal"
+        ]
+      },
+      {
+        "id": "2891df33-2297-4be3-84be-73008b4e8c7f",
+        "title": "Get Back in Line",
+        "artist_name": "Mot\u00f6rhead",
+        "album_name": "The W\u00f6rld Is Yours",
+        "year": 2010,
+        "duration_ms": 215928,
+        "similarity": 0.6672008435249843,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "4c6755cb-d0dd-4903-8661-451bfe44c921",
+        "title": "Army of Darkness",
+        "artist_name": "Overdrive",
+        "album_name": "Let the Metal Do the Talking",
+        "year": 2008,
+        "duration_ms": 234000,
+        "similarity": 0.6666073203033797,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "5669fbb7-ba08-4aa3-92a2-5715cdafe349",
+        "title": "On Broken Wings of Sorrow",
+        "artist_name": "Cauldron Born",
+        "album_name": "God of Metal",
+        "year": 1998,
+        "duration_ms": 521636,
+        "similarity": 0.6664910514783099,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "582bf7c3-57bc-4a6d-9998-744542fe379c",
+        "title": "Speed of Sound",
+        "artist_name": "Warlock",
+        "album_name": "True as Steel",
+        "year": 2012,
+        "duration_ms": 220033,
+        "similarity": 0.666473746265248,
+        "genres": [
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "8bd602b8-b437-46ae-826c-28cd9308e183",
+        "title": "Bring Down the Hammer",
+        "artist_name": "Destructor",
+        "album_name": "Maximum Destruction",
+        "year": 2005,
+        "duration_ms": 222933,
+        "similarity": 0.6651275156552362,
+        "genres": [
+          "Power Thrash Metal"
+        ]
+      },
+      {
+        "id": "2d40d732-364f-4e41-9361-50290d8274b3",
+        "title": "Slaves to Metal",
+        "artist_name": "Accept",
+        "album_name": "Objection Overruled",
+        "year": 2015,
+        "duration_ms": 277707,
+        "similarity": 0.6650181809078575,
+        "genres": [
+          "Metal",
+          "Heavy Metal",
+          "Rock"
+        ]
+      },
+      {
+        "id": "8403a3c1-e3b8-4a4a-9616-421562b327df",
+        "title": "Slaughterror Superiority",
+        "artist_name": "Impiety",
+        "album_name": "Dominator",
+        "year": 2008,
+        "duration_ms": 258409,
+        "similarity": 0.664803544569228,
+        "genres": [
+          "Black Metal"
+        ]
+      },
+      {
+        "id": "728054e3-ce5a-407e-8768-7f6df9f5b46c",
+        "title": "Blitz The World",
+        "artist_name": "Vicious Rumors",
+        "album_name": "Soldiers Of The Night",
+        "year": 2009,
+        "duration_ms": 218044,
+        "similarity": 0.6647418537582084,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "c101d51d-caca-4a59-8738-fb4e1ebd23df",
+        "title": "Turn It Up Loud",
+        "artist_name": "Bullet",
+        "album_name": "Heading for the Top",
+        "year": 2006,
+        "duration_ms": 222130,
+        "similarity": 0.6645687618594636,
+        "genres": [
+          "Hard Rock",
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "a08239d9-261f-41ec-a032-c97e9f1bfc10",
+        "title": "Iron Curtain",
+        "artist_name": "Destructor",
+        "album_name": "Maximum Destruction",
+        "year": 2005,
+        "duration_ms": 350800,
+        "similarity": 0.6643615959013938,
+        "genres": [
+          "Power Thrash Metal"
+        ]
+      },
+      {
+        "id": "f2791e90-0b52-4281-b4c0-8ce6c7ece81b",
+        "title": "Know Your Master",
+        "artist_name": "Agent Steel",
+        "album_name": "Omega Conspiracy",
+        "year": 1999,
+        "duration_ms": 287373,
+        "similarity": 0.6640060739524453,
+        "genres": [
+          "Heavy Metal"
+        ]
+      },
+      {
+        "id": "9c0f5982-9a7b-4b86-894b-33219ff653ea",
+        "title": "This Will Never End",
+        "artist_name": "Blind Guardian",
+        "album_name": "A Twist in the Myth",
+        "year": 2006,
+        "duration_ms": 308053,
+        "similarity": 0.6634299554485068,
+        "genres": [
+          "Metal"
+        ]
+      }
+    ],
+    "composer_tracks": [
+      {
+        "position": 0,
+        "title": "Dynamo",
+        "artist": "Satan",
+        "album": "Court in the Act",
+        "year": 2008,
+        "genres": [
+          "NWOBHM",
+          "Heavy Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.7329,
+          "keyword": 0.7932,
+          "trajectory": 0.8135,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.2456,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4924
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.796,
+          "tempo": 0.725,
+          "darkness": 0.646,
+          "texture": 0.669
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 1,
+        "title": "By the Gates of Moria",
+        "artist": "Blind Guardian",
+        "album": "Battalions of Fear",
+        "year": 2009,
+        "genres": [
+          "Thrash Metal",
+          "Metal",
+          "Heavy Metal",
+          "Speed Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.8002,
+          "keyword": 0.9801,
+          "trajectory": 0.8137,
+          "genre_match": 0.5714,
+          "gravity_penalty": 0.2213,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.54
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.828,
+          "tempo": 0.722,
+          "darkness": 0.532,
+          "texture": 0.724
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 2,
+        "title": "The Incident",
+        "artist": "Agent Steel",
+        "album": "No Other Godz Before Me",
+        "year": 2021,
+        "genres": [
+          "Rock",
+          "Speed Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6888,
+          "keyword": 0.7688,
+          "trajectory": 0.8357,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.2378,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4582
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.814,
+          "tempo": 0.725,
+          "darkness": 0.509,
+          "texture": 0.668
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 3,
+        "title": "River of Souls",
+        "artist": "Attacker",
+        "album": "The God Particle",
+        "year": 2024,
+        "genres": [
+          "Heavy Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6814,
+          "keyword": 0.7436,
+          "trajectory": 0.8481,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2032,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.428
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.807,
+          "tempo": 0.7,
+          "darkness": 0.496,
+          "texture": 0.663
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 4,
+        "title": "Blades of Steel",
+        "artist": "Satan",
+        "album": "Court in the Act",
+        "year": 2008,
+        "genres": [
+          "NWOBHM",
+          "Heavy Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.7192,
+          "keyword": 0.7932,
+          "trajectory": 0.8135,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.2559,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4872
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.796,
+          "tempo": 0.725,
+          "darkness": 0.646,
+          "texture": 0.669
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 5,
+        "title": "Finit Hic Deo",
+        "artist": "Hellcrash",
+        "album": "Demonic Assassinati\u00f6n",
+        "year": 2023,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6495,
+          "keyword": 0.6844,
+          "trajectory": 0.7504,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.2417,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4582
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.868,
+          "tempo": 0.811,
+          "darkness": 0.69,
+          "texture": 0.714
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 6,
+        "title": "Ancient Power",
+        "artist": "Evilcult",
+        "album": "The Devil Is Always Looking for Souls",
+        "year": 2023,
+        "genres": [
+          "Thrash Metal",
+          "Black Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.7017,
+          "keyword": 0.8066,
+          "trajectory": 0.7195,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.248,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4436
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.881,
+          "tempo": 0.844,
+          "darkness": 0.749,
+          "texture": 0.742
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 7,
+        "title": "Order Out of Chaos",
+        "artist": "Holy Moses",
+        "album": "Invisible Queen",
+        "year": 2023,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6301,
+          "keyword": 0.0,
+          "trajectory": 0.6975,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.2275,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4459
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.936,
+          "tempo": 0.857,
+          "darkness": 0.718,
+          "texture": 0.776
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 8,
+        "title": "Trial by Fire",
+        "artist": "Satan",
+        "album": "Court in the Act",
+        "year": 2008,
+        "genres": [
+          "NWOBHM",
+          "Heavy Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.7122,
+          "keyword": 0.7932,
+          "trajectory": 0.8135,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.2464,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4861
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.796,
+          "tempo": 0.725,
+          "darkness": 0.646,
+          "texture": 0.669
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 9,
+        "title": "At War With Satan",
+        "artist": "Venom",
+        "album": "At War With Satan",
+        "year": 1992,
+        "genres": [
+          "Rock",
+          "Thrash Metal",
+          "Heavy Metal",
+          "Black Metal",
+          "Nwobhm",
+          "Speed Metal",
+          "Progressive"
+        ],
+        "scores": {
+          "semantic": 0.8053,
+          "keyword": 1.0,
+          "trajectory": 0.7895,
+          "genre_match": 0.4444,
+          "gravity_penalty": 0.2521,
+          "duration_penalty": 0.3,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4604
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.802,
+          "tempo": 0.735,
+          "darkness": 0.707,
+          "texture": 0.699
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 10,
+        "title": "Screams From the Grave",
+        "artist": "Abattoir",
+        "album": "Vicious Attack",
+        "year": 1998,
+        "genres": [
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6764,
+          "keyword": 0.0,
+          "trajectory": 0.8052,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.1903,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4213
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.839,
+          "tempo": 0.761,
+          "darkness": 0.554,
+          "texture": 0.688
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 11,
+        "title": "Dungeon of Pleasure",
+        "artist": "Nasty Savage",
+        "album": "Nasty Savage",
+        "year": 2015,
+        "genres": [
+          "Power Metal",
+          "Thrash"
+        ],
+        "scores": {
+          "semantic": 0.681,
+          "keyword": 0.7504,
+          "trajectory": 0.7965,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.2179,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.452
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.853,
+          "tempo": 0.756,
+          "darkness": 0.57,
+          "texture": 0.698
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 12,
+        "title": "Veterans of Disaster",
+        "artist": "Agent Steel",
+        "album": "No Other Godz Before Me",
+        "year": 2021,
+        "genres": [
+          "Rock",
+          "Speed Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.678,
+          "keyword": 0.7688,
+          "trajectory": 0.8357,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.2304,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4557
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.814,
+          "tempo": 0.725,
+          "darkness": 0.509,
+          "texture": 0.668
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 13,
+        "title": "Soldiers of Metal",
+        "artist": "Anthrax",
+        "album": "Fistful of Metal",
+        "year": 1995,
+        "genres": [
+          "Rock",
+          "Thrash Metal",
+          "Metal",
+          "Heavy Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.7041,
+          "keyword": 0.8221,
+          "trajectory": 0.8053,
+          "genre_match": 0.375,
+          "gravity_penalty": 0.2097,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4423
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.821,
+          "tempo": 0.739,
+          "darkness": 0.625,
+          "texture": 0.674
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 14,
+        "title": "Heavy Life",
+        "artist": "Bitches Sin",
+        "album": "Invaders",
+        "year": 2005,
+        "genres": [
+          "NWoBHM"
+        ],
+        "scores": {
+          "semantic": 0.7076,
+          "keyword": 0.0,
+          "trajectory": 0.8914,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2206,
+          "duration_penalty": 0.0261,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.438
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.742,
+          "tempo": 0.6,
+          "darkness": 0.57,
+          "texture": 0.608
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 15,
+        "title": "Quest for Fire",
+        "artist": "Iron Maiden",
+        "album": "Piece of Mind",
+        "year": 1986,
+        "genres": [
+          "Metal",
+          "Heavy Metal",
+          "Nwobhm"
+        ],
+        "scores": {
+          "semantic": 0.6292,
+          "keyword": 0.0,
+          "trajectory": 0.8951,
+          "genre_match": 0.2857,
+          "gravity_penalty": 0.2389,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.3991
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.746,
+          "tempo": 0.612,
+          "darkness": 0.517,
+          "texture": 0.619
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 16,
+        "title": "Prisoner",
+        "artist": "Legend",
+        "album": "Death in the Nursery",
+        "year": 1982,
+        "genres": [
+          "NWOBHM",
+          "Heavy Metal"
+        ],
+        "scores": {
+          "semantic": 0.6671,
+          "keyword": 0.0,
+          "trajectory": 0.8822,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2366,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4255
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.758,
+          "tempo": 0.633,
+          "darkness": 0.527,
+          "texture": 0.627
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 17,
+        "title": "Bullet Made of Stone",
+        "artist": "Tokyo Blade",
+        "album": "Unbroken",
+        "year": 2018,
+        "genres": [
+          "NWOBHM"
+        ],
+        "scores": {
+          "semantic": 0.6673,
+          "keyword": 0.0,
+          "trajectory": 0.8559,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2288,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4224
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.795,
+          "tempo": 0.68,
+          "darkness": 0.517,
+          "texture": 0.649
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 18,
+        "title": "Tyrant of the Airways",
+        "artist": "Raven",
+        "album": "Rock Until You Drop",
+        "year": 1981,
+        "genres": [
+          "NWOBHM",
+          "Heavy Metal",
+          "Hard Rock",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.7001,
+          "keyword": 0.7942,
+          "trajectory": 0.8597,
+          "genre_match": 0.375,
+          "gravity_penalty": 0.2595,
+          "duration_penalty": 0.0578,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4385
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.747,
+          "tempo": 0.656,
+          "darkness": 0.633,
+          "texture": 0.622
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 19,
+        "title": "Wheels of Steel",
+        "artist": "Saxon",
+        "album": "Wheels of Steel",
+        "year": 1994,
+        "genres": [
+          "NWOBHM"
+        ],
+        "scores": {
+          "semantic": 0.6601,
+          "keyword": 0.0,
+          "trajectory": 0.9168,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2246,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4298
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.723,
+          "tempo": 0.591,
+          "darkness": 0.465,
+          "texture": 0.595
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 20,
+        "title": "Thor-Thunder Angel",
+        "artist": "Battleaxe",
+        "album": "Burn This Town",
+        "year": 1983,
+        "genres": [
+          "NWOBHM"
+        ],
+        "scores": {
+          "semantic": 0.6092,
+          "keyword": 0.0,
+          "trajectory": 0.8958,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2624,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4076
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.736,
+          "tempo": 0.593,
+          "darkness": 0.558,
+          "texture": 0.6
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 21,
+        "title": "Siren of the Air",
+        "artist": "Steel Inferno",
+        "album": "Evil Reign",
+        "year": 2022,
+        "genres": [
+          "Metal",
+          "Heavy Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6701,
+          "keyword": 0.7005,
+          "trajectory": 0.8177,
+          "genre_match": 0.2857,
+          "gravity_penalty": 0.1975,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4039
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.819,
+          "tempo": 0.727,
+          "darkness": 0.599,
+          "texture": 0.66
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 22,
+        "title": "Heavy Metal Soldier",
+        "artist": "Iron Angel",
+        "album": "Hellish Crossfire",
+        "year": 2013,
+        "genres": [
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6643,
+          "keyword": 0.7089,
+          "trajectory": 0.7411,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.1735,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4098
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.896,
+          "tempo": 0.819,
+          "darkness": 0.672,
+          "texture": 0.724
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 23,
+        "title": "Okkvlthammer",
+        "artist": "Hellcrash",
+        "album": "Demonic Assassinati\u00f6n",
+        "year": 2023,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.647,
+          "keyword": 0.6844,
+          "trajectory": 0.7504,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.224,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4593
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.868,
+          "tempo": 0.811,
+          "darkness": 0.69,
+          "texture": 0.714
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 24,
+        "title": "Evil Metal",
+        "artist": "Evilcult",
+        "album": "Evil Forces Command",
+        "year": 2018,
+        "genres": [
+          "Thrash Metal",
+          "Black Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6195,
+          "keyword": 0.0,
+          "trajectory": 0.7195,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.1981,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.424
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.881,
+          "tempo": 0.844,
+          "darkness": 0.749,
+          "texture": 0.742
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 25,
+        "title": "Satan's Sword",
+        "artist": "Deathhammer",
+        "album": "Crimson Dawn",
+        "year": 2025,
+        "genres": [
+          "Speed Metal",
+          "Blackened Thrash"
+        ],
+        "scores": {
+          "semantic": 0.5861,
+          "keyword": 0.0,
+          "trajectory": 0.696,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.2054,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4097
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.898,
+          "tempo": 0.843,
+          "darkness": 0.806,
+          "texture": 0.77
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 26,
+        "title": "Crypts of Galactic Damnation",
+        "artist": "Agent Steel",
+        "album": "No Other Godz Before Me",
+        "year": 2021,
+        "genres": [
+          "Rock",
+          "Speed Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6914,
+          "keyword": 0.7688,
+          "trajectory": 0.8357,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.1958,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4632
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.814,
+          "tempo": 0.725,
+          "darkness": 0.509,
+          "texture": 0.668
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 27,
+        "title": "Kingdom of Iron",
+        "artist": "Attacker",
+        "album": "The God Particle",
+        "year": 2024,
+        "genres": [
+          "Heavy Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6865,
+          "keyword": 0.7436,
+          "trajectory": 0.8481,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.1721,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4326
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.807,
+          "tempo": 0.7,
+          "darkness": 0.496,
+          "texture": 0.663
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 28,
+        "title": "Metal Knights",
+        "artist": "Nasty Savage",
+        "album": "Nasty Savage",
+        "year": 2015,
+        "genres": [
+          "Power Metal",
+          "Thrash"
+        ],
+        "scores": {
+          "semantic": 0.6819,
+          "keyword": 0.7764,
+          "trajectory": 0.7965,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.2075,
+          "duration_penalty": 0.0209,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4512
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.853,
+          "tempo": 0.756,
+          "darkness": 0.57,
+          "texture": 0.698
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 29,
+        "title": "Angels of Death",
+        "artist": "Onslaught",
+        "album": "Power From Hell",
+        "year": 2008,
+        "genres": [
+          "Rock",
+          "Thrash Metal",
+          "Heavy Metal"
+        ],
+        "scores": {
+          "semantic": 0.6392,
+          "keyword": 0.683,
+          "trajectory": 0.8013,
+          "genre_match": 0.2857,
+          "gravity_penalty": 0.1919,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.3928
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.841,
+          "tempo": 0.738,
+          "darkness": 0.623,
+          "texture": 0.669
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 30,
+        "title": "The Cage",
+        "artist": "Atomkraft",
+        "album": "Conductors of Noize",
+        "year": 1987,
+        "genres": [
+          "Rock",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6333,
+          "keyword": 0.0,
+          "trajectory": 0.8195,
+          "genre_match": 0.2857,
+          "gravity_penalty": 0.2167,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.3912
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.812,
+          "tempo": 0.733,
+          "darkness": 0.591,
+          "texture": 0.661
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 31,
+        "title": "Iron Gang",
+        "artist": "Voivod",
+        "album": "Morg\u00f6th Invasion",
+        "year": 1984,
+        "genres": [
+          "Rock",
+          "Heavy Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.644,
+          "keyword": 0.6938,
+          "trajectory": 0.8249,
+          "genre_match": 0.2857,
+          "gravity_penalty": 0.2204,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.3949
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.794,
+          "tempo": 0.697,
+          "darkness": 0.592,
+          "texture": 0.696
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 32,
+        "title": "Brian (demo)",
+        "artist": "Blind Guardian",
+        "album": "Battalions of Fear",
+        "year": 2009,
+        "genres": [
+          "Thrash Metal",
+          "Metal",
+          "Heavy Metal",
+          "Speed Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.49,
+          "keyword": 0.9801,
+          "trajectory": 0.8137,
+          "genre_match": 0.5714,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4691
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.828,
+          "tempo": 0.722,
+          "darkness": 0.532,
+          "texture": 0.724
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 33,
+        "title": "The New Norm",
+        "artist": "Holy Moses",
+        "album": "Invisible Queen",
+        "year": 2023,
+        "genres": [
+          "Thrash Metal",
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.599,
+          "keyword": 0.0,
+          "trajectory": 0.6975,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.2223,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4371
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.936,
+          "tempo": 0.857,
+          "darkness": 0.718,
+          "texture": 0.776
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 34,
+        "title": "Die in Your Sleep",
+        "artist": "Master Fury",
+        "album": "Circles of Hate",
+        "year": 1989,
+        "genres": [
+          "Speed Metal",
+          "Thrash"
+        ],
+        "scores": {
+          "semantic": 0.5985,
+          "keyword": 0.0,
+          "trajectory": 0.7131,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.225,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.414
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.928,
+          "tempo": 0.872,
+          "darkness": 0.678,
+          "texture": 0.74
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 35,
+        "title": "Axehead",
+        "artist": "Verdalack",
+        "album": "Force From the Grave",
+        "year": 2025,
+        "genres": [
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6413,
+          "keyword": 0.0,
+          "trajectory": 0.7741,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2135,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4038
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.867,
+          "tempo": 0.811,
+          "darkness": 0.604,
+          "texture": 0.689
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 36,
+        "title": "Game of Death",
+        "artist": "Abattoir",
+        "album": "Vicious Attack",
+        "year": 1998,
+        "genres": [
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6803,
+          "keyword": 0.0,
+          "trajectory": 0.8052,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2008,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4215
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.839,
+          "tempo": 0.761,
+          "darkness": 0.554,
+          "texture": 0.688
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 37,
+        "title": "W.T.Y.D.",
+        "artist": "Annihilator",
+        "album": "Alice in Hell",
+        "year": 1998,
+        "genres": [
+          "Speed Metal"
+        ],
+        "scores": {
+          "semantic": 0.6228,
+          "keyword": 0.0,
+          "trajectory": 0.77,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2521,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.3938
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.85,
+          "tempo": 0.765,
+          "darkness": 0.639,
+          "texture": 0.743
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 38,
+        "title": "Killing the World",
+        "artist": "Tali\u00f6n",
+        "album": "Killing The World",
+        "year": 1989,
+        "genres": [
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6157,
+          "keyword": 0.0,
+          "trajectory": 0.8112,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2071,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4023
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.859,
+          "tempo": 0.75,
+          "darkness": 0.505,
+          "texture": 0.69
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 39,
+        "title": "Tower of the Elephant",
+        "artist": "Battleroar",
+        "album": "Age of Chaos",
+        "year": 2005,
+        "genres": [
+          "Heavy Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6062,
+          "keyword": 0.0,
+          "trajectory": 0.8637,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2153,
+          "duration_penalty": 0.0554,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.401
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.773,
+          "tempo": 0.65,
+          "darkness": 0.542,
+          "texture": 0.654
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 40,
+        "title": "Armageddon",
+        "artist": "Blitzkrieg",
+        "album": "A Time of Changes",
+        "year": 2017,
+        "genres": [
+          "NWOBHM"
+        ],
+        "scores": {
+          "semantic": 0.6369,
+          "keyword": 0.0,
+          "trajectory": 0.8734,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2853,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4102
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.769,
+          "tempo": 0.638,
+          "darkness": 0.575,
+          "texture": 0.594
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 41,
+        "title": "Devil's Daughter",
+        "artist": "Cobra",
+        "album": "Back From the Dead",
+        "year": 1986,
+        "genres": [
+          "NWOBHM"
+        ],
+        "scores": {
+          "semantic": 0.6148,
+          "keyword": 0.0,
+          "trajectory": 0.8648,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2948,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4013
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.786,
+          "tempo": 0.679,
+          "darkness": 0.515,
+          "texture": 0.573
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 42,
+        "title": "Trial by Fire",
+        "artist": "Elixir",
+        "album": "The Son of Odin",
+        "year": 1986,
+        "genres": [
+          "NWOBHM"
+        ],
+        "scores": {
+          "semantic": 0.6225,
+          "keyword": 0.0,
+          "trajectory": 0.8936,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.3014,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4073
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.656,
+          "tempo": 0.556,
+          "darkness": 0.567,
+          "texture": 0.539
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 43,
+        "title": "Freeway Mad",
+        "artist": "Saxon",
+        "album": "Wheels of Steel",
+        "year": 1994,
+        "genres": [
+          "NWOBHM"
+        ],
+        "scores": {
+          "semantic": 0.6571,
+          "keyword": 0.0,
+          "trajectory": 0.9168,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2533,
+          "duration_penalty": 0.0252,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4235
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.723,
+          "tempo": 0.591,
+          "darkness": 0.465,
+          "texture": 0.595
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 44,
+        "title": "Brave New World",
+        "artist": "Persian Risk",
+        "album": "Rise Up",
+        "year": 2002,
+        "genres": [
+          "NWOBHM",
+          "Heavy Metal"
+        ],
+        "scores": {
+          "semantic": 0.5966,
+          "keyword": 0.0,
+          "trajectory": 0.8987,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.3038,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4001
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.715,
+          "tempo": 0.575,
+          "darkness": 0.528,
+          "texture": 0.58
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 45,
+        "title": "Iron Maiden",
+        "artist": "Iron Maiden",
+        "album": "Iron Maiden",
+        "year": 2018,
+        "genres": [
+          "Metal",
+          "Heavy Metal",
+          "Nwobhm"
+        ],
+        "scores": {
+          "semantic": 0.6522,
+          "keyword": 0.0,
+          "trajectory": 0.8951,
+          "genre_match": 0.2857,
+          "gravity_penalty": 0.2408,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4059
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.746,
+          "tempo": 0.612,
+          "darkness": 0.517,
+          "texture": 0.619
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 46,
+        "title": "Stigmatized",
+        "artist": "Attacker",
+        "album": "The God Particle",
+        "year": 2024,
+        "genres": [
+          "Heavy Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6708,
+          "keyword": 0.7436,
+          "trajectory": 0.8481,
+          "genre_match": 0.3333,
+          "gravity_penalty": 0.2076,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4244
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.807,
+          "tempo": 0.7,
+          "darkness": 0.496,
+          "texture": 0.663
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 47,
+        "title": "Scream Out",
+        "artist": "Ostrogoth",
+        "album": "Ecstasy and Danger",
+        "year": 1994,
+        "genres": [
+          "Heavy Metal",
+          "Speed Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.4394,
+          "keyword": 0.8787,
+          "trajectory": 0.8458,
+          "genre_match": 0.5,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4337
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.81,
+          "tempo": 0.703,
+          "darkness": 0.503,
+          "texture": 0.659
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 48,
+        "title": "Sonata Cosmica",
+        "artist": "Agent Steel",
+        "album": "No Other Godz Before Me",
+        "year": 2021,
+        "genres": [
+          "Rock",
+          "Speed Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.6837,
+          "keyword": 0.7688,
+          "trajectory": 0.8357,
+          "genre_match": 0.4286,
+          "gravity_penalty": 0.2589,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4546
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.814,
+          "tempo": 0.725,
+          "darkness": 0.509,
+          "texture": 0.668
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      },
+      {
+        "position": 49,
+        "title": "Guardian of the Blind",
+        "artist": "Blind Guardian",
+        "album": "Battalions of Fear",
+        "year": 2009,
+        "genres": [
+          "Thrash Metal",
+          "Metal",
+          "Heavy Metal",
+          "Speed Metal",
+          "Power Metal"
+        ],
+        "scores": {
+          "semantic": 0.49,
+          "keyword": 0.9801,
+          "trajectory": 0.8137,
+          "genre_match": 0.5714,
+          "gravity_penalty": 0.0,
+          "duration_penalty": 0.0,
+          "year_score": 0.0,
+          "usage_penalty": 0.0,
+          "total": 0.4691
+        },
+        "weights": {
+          "semantic": 0.3,
+          "trajectory": 0.15,
+          "genre": 0.35,
+          "gravity": 0.1,
+          "duration": 0.1
+        },
+        "profile": {
+          "energy": 0.828,
+          "tempo": 0.722,
+          "darkness": 0.532,
+          "texture": 0.724
+        },
+        "trajectory_target": {
+          "energy": 0.5,
+          "tempo": 0.6,
+          "darkness": 0.4,
+          "texture": 0.6
+        }
+      }
+    ],
+    "metrics": {
+      "trajectory_deviation": 0.10708862660806905,
+      "avg_transition_cost": 0.1609531732989042,
+      "pool_entropy": 0.0,
+      "playlist_length": 50,
+      "beam_dead_ends": 1458,
+      "constraint_rejections": 488976,
+      "generation_time_ms": 112255
+    },
+    "genre_coverage": {
+      "NWOBHM": 13,
+      "Heavy Metal": 21,
+      "Speed Metal": 30,
+      "Thrash Metal": 12,
+      "Metal": 7,
+      "Power Metal": 15,
+      "Rock": 9,
+      "Black Metal": 3,
+      "Nwobhm": 3,
+      "Progressive": 1,
+      "Thrash": 3,
+      "NWoBHM": 1,
+      "Hard Rock": 1,
+      "Blackened Thrash": 1
+    },
+    "generation_time_s": 112.34645438194275
+  }
+]

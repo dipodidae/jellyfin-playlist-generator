@@ -20,9 +20,21 @@ const { formatDuration } = useDurationFormatter()
       <p class="text-sm text-gray-500 truncate">
         {{ track.artist_name }} · {{ track.album_name }}
       </p>
-      <p v-if="track.explanation" class="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5">
-        {{ track.explanation }}
-      </p>
+      <div v-if="track.genres?.length" class="flex flex-wrap gap-1 mt-1">
+        <span
+          v-for="genre in track.genres"
+          :key="genre"
+          class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+        >
+          {{ genre }}
+        </span>
+      </div>
+      <div v-if="track.scores" class="flex gap-3 mt-1 text-[10px] text-gray-400 dark:text-gray-500 font-mono">
+        <span>sem:{{ track.scores.semantic.toFixed(2) }}</span>
+        <span>traj:{{ track.scores.trajectory.toFixed(2) }}</span>
+        <span>genre:{{ track.scores.genre_match.toFixed(2) }}</span>
+        <span class="text-green-500 dark:text-green-400">total:{{ track.scores.total.toFixed(2) }}</span>
+      </div>
     </div>
     <span class="text-sm text-gray-400">
       {{ formatDuration(track.duration_ms) }}
