@@ -19,6 +19,8 @@ import numpy as np
 
 from app.trajectory.candidates import CandidateTrack
 from app.trajectory.gravity import compute_bridge_bonus
+from app.trajectory.intent import _ALIAS_TO_FAMILY, _RELATED_FAMILIES
+from app.trajectory.intent import _ALIAS_TO_FAMILY, _RELATED_FAMILIES
 
 logger = logging.getLogger(__name__)
 
@@ -200,17 +202,43 @@ def score_transition(
         else:
             scores.append(1.0 - (ratio - 1.5) / 2)
 
-    # Genre continuity (prevents style cliff-jumps e.g. thrash → doom)
+    # Genre continuity (prevents style cliff-jumps e.g. ambient → heavy metal)
     if prev_track.genres and curr_track.genres:
-        shared = set(prev_track.genres) & set(curr_track.genres)
-        genre_score = 0.5
+        prev_genres = set(g.lower() for g in prev_track.genres)
+        curr_genres = set(g.lower() for g in curr_track.genres)
+        shared = prev_genres & curr_genres
+
         if shared:
-            genre_score += 0.15
-            if len(shared) > 1:
-                genre_score += 0.10
+            # Exact genre overlap — great transition
+            genre_score = 0.85 if len(shared) > 1 else 0.75
         else:
-            genre_score -= 0.10
-        scores.append(min(1.0, max(0.0, genre_score)))
+            # Check family-level similarity
+            prev_families = set(_ALIAS_TO_FAMILY.get(g, g) for g in prev_genres)
+            curr_families = set(_ALIAS_TO_FAMILY.get(g, g) for g in curr_genres)
+            shared_families = prev_families & curr_families
+
+            if shared_families:
+                # Same genre family (e.g. doom metal → heavy metal)
+                genre_score = 0.60
+            else:
+                # Check related families (e.g. doom metal → black metal)
+                related = False
+                for pf in prev_families:
+                    for cf in curr_families:
+                        if cf in _RELATED_FAMILIES.get(pf, []):
+                            related = True
+                            break
+                    if related:
+                        break
+                if related:
+                    genre_score = 0.45
+                else:
+                    # No genre connection — harsh penalty
+                    genre_score = 0.15
+
+        # Double-weight genre continuity (most perceptually important)
+        scores.append(genre_score)
+        scores.append(genre_score)
 
     # Acoustic continuity (only when both tracks have audio features)
     if (

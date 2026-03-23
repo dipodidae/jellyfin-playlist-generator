@@ -7,11 +7,15 @@ defineProps<{
   index: number
 }>()
 
+defineEmits<{
+  remove: [trackId: string]
+}>()
+
 const { formatDuration } = useDurationFormatter()
 </script>
 
 <template>
-  <div class="flex items-center gap-4 p-3 hover:bg-gray-50 dark:hover:bg-gray-900">
+  <div class="group flex items-center gap-4 p-3 hover:bg-gray-50 dark:hover:bg-gray-900">
     <span class="text-sm text-gray-400 w-6 text-right">{{ index + 1 }}</span>
     <div class="flex-1 min-w-0">
       <p class="font-medium text-gray-900 dark:text-white truncate">
@@ -39,5 +43,14 @@ const { formatDuration } = useDurationFormatter()
     <span class="text-sm text-gray-400">
       {{ formatDuration(track.duration_ms) }}
     </span>
+    <UButton
+      variant="ghost"
+      color="error"
+      size="xs"
+      icon="i-lucide-x"
+      class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+      title="Remove track"
+      @click="$emit('remove', track.id)"
+    />
   </div>
 </template>

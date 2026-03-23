@@ -9,6 +9,7 @@ Implements the v4 architecture:
 
 import logging
 import math
+import re
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -73,6 +74,8 @@ class CandidateTrack:
     bpm_norm: float | None = None
     loudness_norm: float | None = None
     brightness_norm: float | None = None
+    playcount: int = 0
+    listeners: int = 0
 
     # Scoring components (all normalized 0-1)
     semantic_score: float = 0.0   # combined retrieval: 0.65*cosine + 0.35*keyword
@@ -83,6 +86,10 @@ class CandidateTrack:
     year_score: float = 0.0       # soft year-range bonus/penalty
     genre_match_score: float = 0.0  # Jaccard(intent.genre_hints, track.genres)
     usage_penalty: float = 0.0     # time-decayed track usage penalty
+    impact_score: float = 0.0
+    admissibility_score: float = 0.0
+    negative_constraint_penalty: float = 0.0
+    tourist_match_penalty: float = 0.0
 
     # Adaptive scoring weights (set per-prompt by generate_position_pools)
     _w_semantic: float = 0.25
@@ -90,6 +97,7 @@ class CandidateTrack:
     _w_genre: float = 0.20
     _w_gravity: float = 0.15
     _w_duration: float = 0.10
+    _w_impact: float = 0.0
 
     @property
     def total_score(self) -> float:
@@ -97,15 +105,133 @@ class CandidateTrack:
             self.semantic_score * self._w_semantic +
             self.trajectory_score * self._w_trajectory +
             self.genre_match_score * self._w_genre +
+            self.impact_score * self._w_impact +
             self.year_score -
             self.gravity_penalty * self._w_gravity -
             self.duration_penalty * self._w_duration -
+            self.negative_constraint_penalty -
+            self.tourist_match_penalty -
             self.usage_penalty
         )
 
     def profile_array(self) -> np.ndarray:
         """Return profile as numpy array."""
         return np.array([self.energy, self.tempo, self.darkness, self.texture])
+
+
+def compute_genre_match_score(
+    track: CandidateTrack,
+    hint_set: set[str],
+    primary_hint_set: set[str],
+) -> float:
+    if not hint_set or not track.genres:
+        return 0.0
+
+    genre_set_raw = {g.lower() for g in track.genres}
+    genre_set_with_families: set[str] = set(genre_set_raw)
+    for genre_name in genre_set_raw:
+        family = _ALIAS_TO_FAMILY.get(genre_name)
+        if family:
+            genre_set_with_families.add(family)
+
+    weight_sum = 0.0
+    n_tags = len(genre_set_raw)
+    for genre_name in genre_set_with_families:
+        if genre_name not in hint_set:
+            continue
+        if genre_name in _BROAD_GENRES:
+            weight_sum += 0.25
+        elif genre_name in primary_hint_set:
+            weight_sum += 1.0
+        else:
+            weight_sum += 0.5
+
+    return min(1.0, weight_sum / n_tags) if n_tags > 0 else 0.0
+
+
+def compute_negative_constraint_penalty(
+    track: CandidateTrack,
+    avoid_keywords: list[str],
+) -> float:
+    if not avoid_keywords:
+        return 0.0
+
+    haystack_parts = [track.title or "", track.artist_name or "", track.album_name or ""]
+    haystack_parts.extend(track.genres or [])
+    haystack = " ".join(haystack_parts).lower()
+    haystack_tokens = {token for token in re.findall(r"[a-z0-9]+", haystack) if len(token) >= 2}
+
+    penalty = 0.0
+    for phrase in avoid_keywords:
+        normalized = phrase.lower().strip()
+        if not normalized:
+            continue
+        if normalized in haystack:
+            penalty += 0.25
+            continue
+        phrase_tokens = [
+            token for token in re.findall(r"[a-z0-9]+", normalized)
+            if len(token) >= 2 and token not in {"too", "very", "really", "sounds", "sound"}
+        ]
+        if not phrase_tokens:
+            continue
+        overlap = sum(1 for token in phrase_tokens if token in haystack_tokens)
+        if overlap == len(phrase_tokens):
+            penalty += 0.18
+        elif overlap >= 2:
+            penalty += 0.10
+
+    return min(0.45, penalty)
+
+
+def compute_tourist_match_penalty(
+    semantic_score: float,
+    genre_match_score: float,
+    semantic_floor: float,
+) -> float:
+    if genre_match_score <= 0.0 or semantic_score >= semantic_floor:
+        return 0.0
+    gap = max(0.0, semantic_floor - semantic_score)
+    return min(0.25, 0.08 + gap * 0.6 + genre_match_score * 0.15)
+
+
+def compute_impact_score(
+    track: CandidateTrack,
+    artist_maxima: dict[str, tuple[int, int]],
+    global_max_playcount: int,
+    global_max_listeners: int,
+    impact_preference: float,
+) -> float:
+    if impact_preference <= 0.0:
+        return 0.0
+
+    global_play = math.log1p(max(0, track.playcount)) / math.log1p(max(1, global_max_playcount))
+    global_listeners = math.log1p(max(0, track.listeners)) / math.log1p(max(1, global_max_listeners))
+    global_score = 0.5 * (global_play + global_listeners)
+
+    within_artist_score = global_score
+    if track.artist_id and track.artist_id in artist_maxima:
+        max_playcount, max_listeners = artist_maxima[track.artist_id]
+        artist_play = (track.playcount / max_playcount) if max_playcount > 0 else 0.0
+        artist_listeners = (track.listeners / max_listeners) if max_listeners > 0 else 0.0
+        within_artist_score = 0.5 * (artist_play + artist_listeners)
+
+    return min(1.0, (0.45 * global_score + 0.55 * within_artist_score) * impact_preference)
+
+
+def compute_admissibility_score(
+    track: CandidateTrack,
+    semantic_floor: float,
+) -> float:
+    semantic_strength = min(1.0, track.semantic_score / max(semantic_floor, 1e-6))
+    return (
+        semantic_strength * 0.60 +
+        track.genre_match_score * 0.20 +
+        max(0.0, track.year_score) * 0.05 +
+        track.impact_score * 0.15 -
+        track.negative_constraint_penalty * 0.50 -
+        track.tourist_match_penalty * 0.35
+    )
 
 
 def get_adaptive_pool_size(library_size: int, target_size: int = 25) -> int:
@@ -180,7 +306,8 @@ def semantic_search(
                         JOIN genres g ON tg2.genre_id = g.id
                         WHERE tg2.track_id = t.id
                     ) AS genres,
-                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm
+                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
+                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0)
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -190,6 +317,7 @@ def semantic_search(
                 LEFT JOIN track_albums tal ON tal.track_id = t.id
                 LEFT JOIN albums al ON tal.album_id = al.id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
+                LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
                 WHERE te.embedding IS NOT NULL
                 {year_filter}
                 ORDER BY te.embedding <=> %s::vector
@@ -219,6 +347,8 @@ def semantic_search(
             bpm_norm=row[15],
             loudness_norm=row[16],
             brightness_norm=row[17],
+            playcount=int(row[18] or 0),
+            listeners=int(row[19] or 0),
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -349,7 +479,8 @@ def keyword_search(
                         JOIN genres g ON tg2.genre_id = g.id
                         WHERE tg2.track_id = t.id
                     ) AS genres,
-                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm
+                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
+                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0)
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -360,6 +491,7 @@ def keyword_search(
                 LEFT JOIN track_albums tal ON tal.track_id = t.id
                 LEFT JOIN albums al ON tal.album_id = al.id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
+                LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
                 WHERE t.search_vector @@ to_tsquery('simple', %s)
                 ORDER BY keyword_score DESC
                 LIMIT %s
@@ -387,6 +519,8 @@ def keyword_search(
             bpm_norm=row[14],
             loudness_norm=row[15],
             brightness_norm=row[16],
+            playcount=int(row[17] or 0),
+            listeners=int(row[18] or 0),
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
@@ -419,7 +553,8 @@ def _fetch_candidates_by_ids(
                         JOIN genres g ON tg2.genre_id = g.id
                         WHERE tg2.track_id = t.id
                     ) AS genres,
-                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm
+                    taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
+                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0)
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -430,6 +565,7 @@ def _fetch_candidates_by_ids(
                 LEFT JOIN track_albums tal ON tal.track_id = t.id
                 LEFT JOIN albums al ON tal.album_id = al.id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
+                LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
                 WHERE t.id = ANY(%s::uuid[])
             """, (track_ids,))
             rows = cur.fetchall()
@@ -453,6 +589,8 @@ def _fetch_candidates_by_ids(
             bpm_norm=row[13],
             loudness_norm=row[14],
             brightness_norm=row[15],
+            playcount=int(row[16] or 0),
+            listeners=int(row[17] or 0),
             semantic_score=0.0,
         ))
 
@@ -587,25 +725,25 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
     """
     if prompt_type == PromptType.GENRE:
         return {
-            "semantic": 0.30,
-            "trajectory": 0.15,
-            "genre": 0.35,
-            "gravity": 0.10,
+            "semantic": 0.38,
+            "trajectory": 0.10,
+            "genre": 0.27,
+            "gravity": 0.15,
             "duration": 0.10,
         }
     elif prompt_type == PromptType.ARC:
         return {
-            "semantic": 0.25,
-            "trajectory": 0.40,
+            "semantic": 0.30,
+            "trajectory": 0.30,
             "genre": 0.10,
-            "gravity": 0.15,
+            "gravity": 0.20,
             "duration": 0.10,
         }
     else:  # MIXED
         return {
-            "semantic": 0.25,
-            "trajectory": 0.35,
-            "genre": 0.20,
+            "semantic": 0.40,
+            "trajectory": 0.20,
+            "genre": 0.15,
             "gravity": 0.15,
             "duration": 0.10,
         }
@@ -647,9 +785,10 @@ def generate_position_pools(
     w_genre = weights["genre"]
     w_gravity = weights["gravity"]
     w_duration = weights["duration"]
+    w_impact = min(0.12, 0.12 * intent.impact_preference)
 
     logger.info(f"Adaptive weights ({intent.prompt_type.value}): "
-                f"sem={w_semantic}, traj={w_trajectory}, genre={w_genre}")
+                f"sem={w_semantic}, traj={w_trajectory}, genre={w_genre}, impact={w_impact}")
 
     # --- 1. Semantic search (multi-query for non-STEADY arcs) ---
     # For genre-focused prompts, enhance the embedding query with genre names
@@ -812,8 +951,7 @@ def generate_position_pools(
     # We build two sets: primary_hint_set (from LLM / keyword extraction) and
     # expanded_hint_set (added by expand_genre_hints).  Primary matches get
     # full weight; expanded matches get partial weight.  Broad umbrella genres
-    # (rock, pop, metal, etc.) get heavily discounted to prevent them from
-    # making every track score 1.0.
+    # (rock, pop, etc.) get heavily discounted to prevent them from making every track score 1.0.
     hint_set = {h.lower() for h in intent.genre_hints} if intent.genre_hints else set()
     # Also add canonical families for the hints
     for h in list(hint_set):
@@ -828,6 +966,84 @@ def generate_position_pools(
     year_midpoint: float | None = None
     if yr0 and yr1:
         year_midpoint = (yr0 + yr1) / 2.0
+
+    semantic_values = [c.semantic_score for c in global_candidates]
+    base_semantic_floor = {
+        PromptType.GENRE: 0.22,
+        PromptType.MIXED: 0.20,
+        PromptType.ARC: 0.16,
+    }.get(intent.prompt_type, 0.20)
+    percentile_floor = float(np.percentile(semantic_values, 30)) if semantic_values else 0.0
+    semantic_floor = min(0.40, max(base_semantic_floor, percentile_floor))
+
+    global_max_playcount = max((c.playcount for c in global_candidates), default=1)
+    global_max_listeners = max((c.listeners for c in global_candidates), default=1)
+    artist_maxima: dict[str, tuple[int, int]] = {}
+    for candidate in global_candidates:
+        if not candidate.artist_id:
+            continue
+        existing_playcount, existing_listeners = artist_maxima.get(candidate.artist_id, (0, 0))
+        artist_maxima[candidate.artist_id] = (
+            max(existing_playcount, candidate.playcount),
+            max(existing_listeners, candidate.listeners),
+        )
+
+    staged_candidates: list[CandidateTrack] = []
+    for track in global_candidates:
+        year_score = 0.0
+        if year_midpoint is not None and track.year:
+            distance = abs(track.year - year_midpoint)
+            year_score = max(-0.12, 0.08 - distance * 0.01)
+
+        genre_match = compute_genre_match_score(track, hint_set, primary_hint_set)
+        negative_penalty = compute_negative_constraint_penalty(track, intent.avoid_keywords)
+        tourist_penalty = compute_tourist_match_penalty(track.semantic_score, genre_match, semantic_floor)
+        impact_score = compute_impact_score(
+            track,
+            artist_maxima,
+            global_max_playcount,
+            global_max_listeners,
+            intent.impact_preference,
+        )
+        usage_penalty = usage_penalties.get(track.id, 0.0)
+
+        staged_track = replace(
+            track,
+            year_score=year_score,
+            genre_match_score=genre_match,
+            impact_score=impact_score,
+            negative_constraint_penalty=negative_penalty,
+            tourist_match_penalty=tourist_penalty,
+            usage_penalty=usage_penalty,
+            _w_semantic=w_semantic,
+            _w_trajectory=w_trajectory,
+            _w_genre=w_genre,
+            _w_gravity=w_gravity,
+            _w_duration=w_duration,
+            _w_impact=w_impact,
+        )
+        staged_track = replace(
+            staged_track,
+            admissibility_score=compute_admissibility_score(staged_track, semantic_floor),
+        )
+        staged_candidates.append(staged_track)
+
+    admissible_candidates = [
+        track for track in staged_candidates
+        if track.semantic_score >= semantic_floor
+        and track.admissibility_score >= 0.35
+        and track.negative_constraint_penalty < 0.45
+    ]
+
+    if not admissible_candidates:
+        logger.warning("Admissibility gate removed all candidates; falling back to top semantic matches")
+        staged_candidates.sort(key=lambda track: track.semantic_score, reverse=True)
+        admissible_candidates = staged_candidates[:max(pool_size, intent.target_size * 3)]
+
+    logger.info(
+        f"Admissibility gate kept {len(admissible_candidates)}/{len(global_candidates)} candidates "
+        f"(semantic_floor={semantic_floor:.3f})"
+    )
 
     position_pools: list[list[CandidateTrack]] = []
     prev_duration: int | None = None
@@ -853,7 +1069,7 @@ def generate_position_pools(
         # Score all candidates for this position
         scored_candidates: list[tuple[CandidateTrack, float]] = []
 
-        for track in global_candidates:
+        for track in admissible_candidates:
             # Trajectory match
             traj_score = score_trajectory_match(track, target, intent.dimension_weights)
 
@@ -867,65 +1083,17 @@ def generate_position_pools(
                 track.duration_ms, prev_duration
             )
 
-            # Soft year scoring (Fix 2)
-            year_score = 0.0
-            if year_midpoint is not None and track.year:
-                distance = abs(track.year - year_midpoint)
-                year_score = max(-0.12, 0.08 - distance * 0.01)
-
-            # Genre match score — tiered weighted scoring.
-            #
-            # For each of the track's genre tags, we check if it (or its
-            # canonical family) is in the hint set.  Matches against *primary*
-            # hints (the user's actual request) get full weight (1.0).
-            # Matches against expanded-only hints get partial weight (0.5).
-            # Broad umbrella genres (rock, pop, etc.) only get weight 0.25
-            # even if they're in the hint set, to prevent them from inflating
-            # the score of every generic rock/pop track.
-            #
-            # Final score = sum_of_weights / num_track_genres.
-            genre_match = 0.0
-            if hint_set and track.genres:
-                genre_set_raw = {g.lower() for g in track.genres}
-                # Also map track genres to canonical families
-                genre_set_with_families: set[str] = set(genre_set_raw)
-                for g in genre_set_raw:
-                    fam = _ALIAS_TO_FAMILY.get(g)
-                    if fam:
-                        genre_set_with_families.add(fam)
-
-                # Score each track genre
-                weight_sum = 0.0
-                n_tags = len(genre_set_raw)  # count original tags, not families
-                for g in genre_set_with_families:
-                    if g not in hint_set:
-                        continue
-                    # Determine weight for this match
-                    if g in _BROAD_GENRES:
-                        weight_sum += 0.25
-                    elif g in primary_hint_set:
-                        weight_sum += 1.0
-                    else:
-                        weight_sum += 0.5  # expanded hint
-                # Normalise by number of original track genres
-                genre_match = min(1.0, weight_sum / n_tags) if n_tags > 0 else 0.0
-
-            # Track usage penalty (playlist memory)
-            u_penalty = usage_penalties.get(track.id, 0.0)
-
             scored_track = replace(
                 track,
                 trajectory_score=traj_score,
                 gravity_penalty=grav_penalty,
                 duration_penalty=dur_penalty,
-                year_score=year_score,
-                genre_match_score=genre_match,
-                usage_penalty=u_penalty,
                 _w_semantic=w_semantic,
                 _w_trajectory=w_trajectory,
                 _w_genre=w_genre,
                 _w_gravity=w_gravity,
                 _w_duration=w_duration,
+                _w_impact=w_impact,
             )
 
             total = scored_track.total_score

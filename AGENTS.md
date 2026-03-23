@@ -127,6 +127,9 @@ playlist-generator/
 | `/enrich/lastfm` | POST | Enrich artists from Last.fm |
 | `/enrich/embeddings` | POST | Generate track embeddings |
 | `/enrich/profiles` | POST | Generate semantic profiles |
+| `/enrich/clusters` | POST | Generate scene clusters |
+| `/enrich/audio` | POST | Analyze audio features |
+| `/sync/full-pipeline` | POST | Incremental scan + all enrichment (SSE) |
 | `/path-mappings` | GET/POST | Manage path mappings |
 | `/path-mappings/{name}` | DELETE | Delete path mapping |
 | `/generate-playlist` | POST | Generate playlist |
@@ -304,6 +307,20 @@ css: ['~/assets/css/main.css'],
 4. **Profile**: tags → heuristics → PostgreSQL (energy, darkness, tempo, texture)
 5. **Cluster**: artist embeddings → KMeans → scene_clusters, artist_clusters
 6. **Generate (v4)**: prompt → 4D trajectory → single semantic search → position pools → beam search → M3U export
+
+### Quick Sync: Add & Analyze New Tracks
+
+To incrementally scan for new music files and run all analysis in one command:
+
+```bash
+curl -N -X POST 'http://localhost:8000/sync/full-pipeline'
+```
+
+This streams SSE progress through: scan → Last.fm → embeddings → profiles → clusters → search vectors.
+Each step is incremental — only new/unprocessed tracks are touched. Options:
+
+- `?skip_lastfm=true` — skip Last.fm enrichment (faster, avoids API rate limits)
+- `?skip_audio=false` — include audio analysis (slow on Pi, off by default)
 
 ## Known Limitations
 

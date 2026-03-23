@@ -15,6 +15,8 @@ const emit = defineEmits<{
 
 <template>
   <div class="space-y-6">
+    <PlaylistPromptGuide />
+
     <div>
       <UTextarea
         :model-value="modelValue"

@@ -862,6 +862,319 @@ async def trigger_audio_analysis_stream(request: Request):
 
 
 # ============================================================================
+# Combined Sync (scan + all enrichment in one shot)
+# ============================================================================
+
+@router.post("/sync/full-pipeline")
+async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_audio: bool = True):
+    """Run incremental scan followed by all enrichment steps in sequence.
+
+    Chains: scan → Last.fm → embeddings → profiles → clusters → search vectors.
+    Each step is incremental — only new/unprocessed tracks are touched.
+    Streams SSE progress events throughout the entire pipeline.
+
+    Query params:
+        skip_lastfm: Skip Last.fm enrichment (default false). Useful to avoid
+                     slow API calls when you just want embeddings/profiles.
+        skip_audio:  Skip audio analysis (default true). Audio analysis is very
+                     slow on Pi hardware and usually not needed for new tracks.
+    """
+    active_job = _get_active_scan_job()
+    if active_job:
+        raise HTTPException(
+            status_code=409,
+            detail="A scan is already running",
+        )
+
+    async def generate_events() -> AsyncGenerator[str, None]:
+        def emit(stage: str, progress: int, message: str, **extra) -> str:
+            payload = {"stage": stage, "progress": progress, "message": message, **extra}
+            return f"data: {json.dumps(payload)}\n\n"
+
+        pipeline_stats: dict[str, dict] = {}
+
+        # --- Stage 1: Incremental scan ---
+        yield emit("scan", 0, "Starting incremental scan...")
+        scan_error = None
+        try:
+            scan_done = asyncio.Event()
+            scan_result: dict = {}
+
+            def scan_progress(payload: dict):
+                current = payload.get("current", 0)
+                total = payload.get("total", 0)
+                pct = int((current / total) * 100) if total > 0 else 0
+                msg = payload.get("message", "Scanning...")
+                # Scale scan to 0-15% of overall pipeline
+                scan_result["last_event"] = emit("scan", min(pct // 7, 14), msg)
+
+            async def do_scan():
+                try:
+                    stats = await scan_library(progress_callback=scan_progress, full_scan=False)
+                    scan_result["stats"] = stats
+                except Exception as exc:
+                    scan_result["error"] = str(exc)
+                finally:
+                    scan_done.set()
+
+            asyncio.create_task(do_scan())
+
+            while not scan_done.is_set():
+                if "last_event" in scan_result:
+                    yield scan_result.pop("last_event")
+                await asyncio.sleep(0.4)
+
+            if "error" in scan_result:
+                scan_error = scan_result["error"]
+                yield emit("error", 0, f"Scan failed: {scan_error}", error=scan_error, done=True)
+                return
+
+            stats = scan_result.get("stats", {})
+            pipeline_stats["scan"] = stats
+            new_tracks = stats.get("tracks_added", 0) + stats.get("tracks_updated", 0)
+            yield emit("scan", 15, f"Scan complete: {new_tracks} new/updated tracks, {stats.get('files_skipped', 0)} unchanged")
+
+            # Rebuild search vectors after scan
+            try:
+                rebuild_search_vectors()
+            except Exception:
+                pass
+
+        except Exception as exc:
+            yield emit("error", 0, f"Scan failed: {exc}", error=str(exc), done=True)
+            return
+
+        # --- Stage 2: Last.fm enrichment (optional) ---
+        if not skip_lastfm:
+            yield emit("lastfm", 16, "Starting Last.fm enrichment...")
+            try:
+                lastfm_done = asyncio.Event()
+                lastfm_result: dict = {}
+
+                def lastfm_progress(current: int, total: int, message: str):
+                    pct = int((current / total) * 100) if total > 0 else 0
+                    # Scale to 16-35%
+                    scaled = 16 + (pct * 19 // 100)
+                    lastfm_result["last_event"] = emit("lastfm", scaled, message)
+
+                async def do_lastfm():
+                    try:
+                        result = await enrich_artists_from_lastfm(progress_callback=lastfm_progress)
+                        lastfm_result["stats"] = result
+                    except Exception as exc:
+                        lastfm_result["error"] = str(exc)
+                    finally:
+                        lastfm_done.set()
+
+                asyncio.create_task(do_lastfm())
+
+                while not lastfm_done.is_set():
+                    if "last_event" in lastfm_result:
+                        yield lastfm_result.pop("last_event")
+                    await asyncio.sleep(0.4)
+
+                if "error" in lastfm_result:
+                    yield emit("lastfm", 35, f"Last.fm enrichment failed (continuing): {lastfm_result['error']}")
+                else:
+                    pipeline_stats["lastfm"] = lastfm_result.get("stats", {})
+                    yield emit("lastfm", 35, "Last.fm enrichment complete")
+
+                # Rebuild search vectors after Last.fm
+                try:
+                    rebuild_search_vectors()
+                except Exception:
+                    pass
+
+            except Exception as exc:
+                yield emit("lastfm", 35, f"Last.fm enrichment failed (continuing): {exc}")
+        else:
+            yield emit("lastfm", 35, "Last.fm enrichment skipped")
+
+        # --- Stage 3: Embeddings ---
+        embed_start = 36
+        yield emit("embeddings", embed_start, "Starting embedding generation...")
+        try:
+            embed_done = asyncio.Event()
+            embed_result: dict = {}
+
+            def embed_progress(current: int, total: int, message: str):
+                pct = int((current / total) * 100) if total > 0 else 0
+                # Scale to 36-60%
+                scaled = embed_start + (pct * 24 // 100)
+                embed_result["last_event"] = emit("embeddings", scaled, message)
+
+            async def do_embeddings():
+                try:
+                    result = await generate_track_embeddings(progress_callback=embed_progress)
+                    embed_result["stats"] = result
+                except Exception as exc:
+                    embed_result["error"] = str(exc)
+                finally:
+                    embed_done.set()
+
+            asyncio.create_task(do_embeddings())
+
+            while not embed_done.is_set():
+                if "last_event" in embed_result:
+                    yield embed_result.pop("last_event")
+                await asyncio.sleep(0.4)
+
+            if "error" in embed_result:
+                yield emit("error", 0, f"Embedding generation failed: {embed_result['error']}", error=embed_result["error"], done=True)
+                return
+
+            pipeline_stats["embeddings"] = embed_result.get("stats", {})
+            yield emit("embeddings", 60, "Embedding generation complete")
+
+        except Exception as exc:
+            yield emit("error", 0, f"Embedding generation failed: {exc}", error=str(exc), done=True)
+            return
+
+        # --- Stage 4: Profiles ---
+        yield emit("profiles", 61, "Starting profile generation...")
+        try:
+            profile_done = asyncio.Event()
+            profile_result: dict = {}
+
+            def profile_progress(current: int, total: int, message: str):
+                pct = int((current / total) * 100) if total > 0 else 0
+                # Scale to 61-80%
+                scaled = 61 + (pct * 19 // 100)
+                profile_result["last_event"] = emit("profiles", scaled, message)
+
+            async def do_profiles():
+                try:
+                    result = await generate_profiles(progress_callback=profile_progress)
+                    profile_result["stats"] = result
+                except Exception as exc:
+                    profile_result["error"] = str(exc)
+                finally:
+                    profile_done.set()
+
+            asyncio.create_task(do_profiles())
+
+            while not profile_done.is_set():
+                if "last_event" in profile_result:
+                    yield profile_result.pop("last_event")
+                await asyncio.sleep(0.4)
+
+            if "error" in profile_result:
+                yield emit("profiles", 80, f"Profile generation failed (continuing): {profile_result['error']}")
+            else:
+                pipeline_stats["profiles"] = profile_result.get("stats", {})
+                yield emit("profiles", 80, "Profile generation complete")
+
+        except Exception as exc:
+            yield emit("profiles", 80, f"Profile generation failed (continuing): {exc}")
+
+        # --- Stage 5: Clustering ---
+        yield emit("clusters", 81, "Starting scene clustering...")
+        try:
+            loop = asyncio.get_running_loop()
+            cluster_done = asyncio.Event()
+            cluster_result: dict = {}
+
+            def cluster_progress_raw(current: int, total: int, message: str):
+                pct = int((current / total) * 100) if total > 0 else 0
+                # Scale to 81-93%
+                scaled = 81 + (pct * 12 // 100)
+                cluster_result["last_event"] = emit("clusters", scaled, message)
+
+            def threadsafe_cluster_cb(current: int, total: int, message: str):
+                loop.call_soon_threadsafe(cluster_progress_raw, current, total, message)
+
+            async def do_clusters():
+                try:
+                    result = await asyncio.to_thread(generate_clusters, progress_callback=threadsafe_cluster_cb)
+                    cluster_result["stats"] = result
+                except Exception as exc:
+                    cluster_result["error"] = str(exc)
+                finally:
+                    cluster_done.set()
+
+            asyncio.create_task(do_clusters())
+
+            while not cluster_done.is_set():
+                if "last_event" in cluster_result:
+                    yield cluster_result.pop("last_event")
+                await asyncio.sleep(0.4)
+
+            if "error" in cluster_result:
+                yield emit("clusters", 93, f"Clustering failed (continuing): {cluster_result['error']}")
+            else:
+                pipeline_stats["clusters"] = cluster_result.get("stats", {})
+                yield emit("clusters", 93, "Scene clustering complete")
+
+        except Exception as exc:
+            yield emit("clusters", 93, f"Clustering failed (continuing): {exc}")
+
+        # --- Stage 6: Audio analysis (optional) ---
+        if not skip_audio:
+            yield emit("audio", 94, "Starting audio analysis...")
+            try:
+                audio_stop = threading.Event()
+                audio_done_evt = asyncio.Event()
+                audio_result: dict = {}
+
+                def audio_progress_raw(current: int, total: int, message: str):
+                    pct = int((current / total) * 100) if total > 0 else 0
+                    scaled = 94 + (pct * 4 // 100)
+                    audio_result["last_event"] = emit("audio", scaled, message)
+
+                def threadsafe_audio_cb(current: int, total: int, message: str):
+                    loop.call_soon_threadsafe(audio_progress_raw, current, total, message)
+
+                async def do_audio():
+                    try:
+                        result = await asyncio.to_thread(
+                            analyze_library,
+                            progress_callback=threadsafe_audio_cb,
+                            stop_event=audio_stop,
+                        )
+                        audio_result["stats"] = result
+                    except Exception as exc:
+                        audio_result["error"] = str(exc)
+                    finally:
+                        audio_done_evt.set()
+
+                asyncio.create_task(do_audio())
+
+                while not audio_done_evt.is_set():
+                    if await request.is_disconnected():
+                        audio_stop.set()
+                        break
+                    if "last_event" in audio_result:
+                        yield audio_result.pop("last_event")
+                    await asyncio.sleep(0.4)
+
+                if "error" in audio_result:
+                    yield emit("audio", 98, f"Audio analysis failed (continuing): {audio_result['error']}")
+                else:
+                    pipeline_stats["audio"] = audio_result.get("stats", {})
+                    yield emit("audio", 98, "Audio analysis complete")
+
+            except Exception as exc:
+                yield emit("audio", 98, f"Audio analysis failed (continuing): {exc}")
+
+        # --- Final: rebuild search vectors ---
+        yield emit("search_vectors", 99, "Rebuilding search vectors...")
+        try:
+            rebuild_search_vectors()
+            yield emit("search_vectors", 100, "Search vectors rebuilt")
+        except Exception as exc:
+            yield emit("search_vectors", 100, f"Search vector rebuild failed: {exc}")
+
+        # --- Done ---
+        yield emit("complete", 100, "Full pipeline complete", stats=pipeline_stats, done=True)
+
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
+
+
+# ============================================================================
 # Path Mappings
 # ============================================================================
 
@@ -926,8 +1239,12 @@ def _candidate_tracks_to_dicts(tracks) -> list[dict]:
             "genres": t.genres or [],
             "scores": {
                 "semantic": round(t.semantic_score, 3),
+                "admissibility": round(t.admissibility_score, 3),
                 "trajectory": round(t.trajectory_score, 3),
                 "genre_match": round(t.genre_match_score, 3),
+                "impact": round(t.impact_score, 3),
+                "negative_constraint_penalty": round(t.negative_constraint_penalty, 3),
+                "tourist_match_penalty": round(t.tourist_match_penalty, 3),
                 "gravity_penalty": round(t.gravity_penalty, 3),
                 "total": round(t.total_score, 3),
             },

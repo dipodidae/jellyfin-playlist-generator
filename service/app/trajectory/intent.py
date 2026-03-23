@@ -113,6 +113,7 @@ class PlaylistIntent:
     arc_confidence: float = 0.5  # Confidence in arc detection [0, 1]
     target_size: int = 20
     target_duration_minutes: int | None = None
+    impact_preference: float = 0.0
 
     # Prompt type classification (for adaptive scoring)
     prompt_type: PromptType = PromptType.MIXED
@@ -656,6 +657,65 @@ def extract_abstract_concepts(prompt: str) -> list[str]:
     return list(set(concepts))
 
 
+def extract_impact_preference(prompt: str) -> float:
+    """Extract impact preference from the prompt."""
+    prompt_lower = prompt.lower()
+    positive_terms = [
+        "banger", "bangers", "hit", "hits", "anthem", "anthems",
+        "classic", "classics", "best known", "best-known",
+        "crowd pleaser", "crowd-pleaser", "crowd pleasers", "crowd-pleasers",
+        "peak time", "peak-time", "standout", "killer tracks", "killers",
+    ]
+    negative_terms = [
+        "deep cut", "deep cuts", "obscure", "leftfield", "non-obvious",
+        "non obvious", "b-side", "b sides", "album cut", "album cuts",
+    ]
+
+    score = 0.0
+    for term in positive_terms:
+        if term in prompt_lower:
+            score += 0.35
+    for term in negative_terms:
+        if term in prompt_lower:
+            score -= 0.40
+
+    if "mainstream" in prompt_lower and not any(
+        phrase in prompt_lower
+        for phrase in ("no mainstream", "avoid mainstream", "without mainstream", "not mainstream")
+    ):
+        score += 0.20
+
+    return max(0.0, min(1.0, score))
+
+
+def extract_avoid_keywords(prompt: str) -> list[str]:
+    """Extract avoid keywords from the prompt."""
+    prompt_lower = prompt.lower()
+    patterns = [
+        r"(?:^|[\s,])no\s+([^,.;]+)",
+        r"avoid\s+([^,.;]+)",
+        r"without\s+([^,.;]+)",
+        r"not too\s+([^,.;]+)",
+    ]
+
+    phrases: list[str] = []
+    for pattern in patterns:
+        phrases.extend(re.findall(pattern, prompt_lower))
+
+    expanded: list[str] = []
+    for phrase in phrases:
+        phrase = phrase.strip(" \"'()")
+        if not phrase:
+            continue
+        parts = re.split(r"\s+(?:and|or)\s+|,", phrase)
+        for part in parts:
+            cleaned = part.strip(" \"'()")
+            if len(cleaned) >= 2:
+                expanded.append(cleaned)
+
+    return list(dict.fromkeys(expanded))
+
+
 def classify_prompt_type(
     genre_hints: list[str],
     arc_type: ArcType,
@@ -1060,9 +1120,10 @@ def _build_intent_from_llm(
     genre_hints = expand_genre_hints(genre_hints_raw) if genre_hints_raw else []
     artist_seeds = data.get("artist_seeds", [])
     mood_keywords = data.get("mood_keywords", [])
-    avoid_keywords = data.get("avoid_keywords", [])
+    avoid_keywords = list(dict.fromkeys(data.get("avoid_keywords", []) + extract_avoid_keywords(prompt)))
     year_range = data.get("year_range", (None, None))
     target_duration = data.get("target_duration_minutes")
+    impact_preference = extract_impact_preference(prompt)
 
     # Generate trajectory curve from LLM's base dimensions and arc type
     trajectory_curve = generate_trajectory_curve(
@@ -1114,6 +1175,7 @@ def _build_intent_from_llm(
         arc_confidence=arc_confidence,
         target_size=target_size,
         target_duration_minutes=target_duration,
+        impact_preference=impact_preference,
         prompt_type=prompt_type,
         mood_keywords=mood_keywords,
         genre_hints=genre_hints,
@@ -1156,8 +1218,10 @@ def _build_intent_from_keywords(
     arc_type, arc_confidence = detect_arc_type(prompt, genre_hints=genre_hints)
     mood_keywords = extract_mood_keywords(prompt)
     artist_seeds = extract_artist_seeds(prompt)
+    avoid_keywords = extract_avoid_keywords(prompt)
     year_range = extract_year_range(prompt)
     abstract_concepts = extract_abstract_concepts(prompt)
+    impact_preference = extract_impact_preference(prompt)
 
     # Extract dimension weights and base values
     dimension_weights = extract_dimension_weights(prompt, mood_keywords)
@@ -1197,6 +1261,7 @@ def _build_intent_from_keywords(
         arc_type=arc_type,
         arc_confidence=arc_confidence,
         target_size=target_size,
+        impact_preference=impact_preference,
         prompt_type=prompt_type,
         mood_keywords=mood_keywords,
         genre_hints=genre_hints,
@@ -1209,6 +1274,7 @@ def _build_intent_from_keywords(
         base_darkness=base_dims["darkness"],
         base_tempo=base_dims["tempo"],
         base_texture=base_dims["texture"],
+        avoid_keywords=avoid_keywords,
         year_range=year_range,
         abstract_concepts=abstract_concepts,
     )

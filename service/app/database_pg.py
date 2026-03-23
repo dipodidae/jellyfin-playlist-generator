@@ -200,6 +200,15 @@ def init_database() -> None:
                 )
             """)
 
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS lastfm_stats (
+                    track_id UUID PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+                    playcount INTEGER DEFAULT 0,
+                    listeners INTEGER DEFAULT 0,
+                    fetched_at TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+
             # Embeddings with pgvector
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS track_embeddings (

@@ -41,3 +41,6 @@ htmlcov/
 
 # Docker
 .docker/
+
+# Eval loop output
+eval_runs/

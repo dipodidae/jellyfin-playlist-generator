@@ -168,6 +168,8 @@ async function handleJellyfinExport() {
       @export="showExportModal = true"
       @jellyfin="handleJellyfinExport"
       @reset="playlist.reset()"
+      @update:title="(title: string) => { if (playlist.result.value) playlist.result.value.title = title }"
+      @remove-track="(trackId: string) => { if (playlist.result.value) playlist.result.value.tracks = playlist.result.value.tracks.filter(t => t.id !== trackId) }"
     />
 
     <!-- Export modal -->
