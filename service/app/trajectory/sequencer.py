@@ -20,7 +20,6 @@ import numpy as np
 from app.trajectory.candidates import CandidateTrack
 from app.trajectory.gravity import compute_bridge_bonus
 from app.trajectory.intent import _ALIAS_TO_FAMILY, _RELATED_FAMILIES
-from app.trajectory.intent import _ALIAS_TO_FAMILY, _RELATED_FAMILIES
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +45,7 @@ class SequencerConfig:
     """Configuration for beam search sequencer."""
     beam_width: int = 12
     min_artist_distance: int = 4
+    max_artist_count: int = 4
     max_cluster_per_window: int = 8
     cluster_window_size: int = 10
     max_duration_ratio: float = 3.0
@@ -123,6 +123,10 @@ def is_valid_extension(
         if position - last_pos < config.min_artist_distance:
             return False
 
+    # Artist total count cap — prevents one artist dominating the playlist
+    if norm_artist and path.artist_counts.get(norm_artist, 0) >= config.max_artist_count:
+        return False
+
     # Cluster repetition constraint (adaptive)
     if candidate.cluster_id is not None:
         # Count cluster occurrences in recent window
@@ -173,22 +177,28 @@ def score_transition(
 
     scores = []
 
-    # Energy continuity
+    # Energy continuity (moderate penalty — allow gradual changes)
     energy_diff = abs(prev_track.energy - curr_track.energy)
-    scores.append(1.0 - min(energy_diff, 0.5) * 2)  # Normalize to [0, 1]
+    energy_score = max(0.0, 1.0 - min(energy_diff * 2.5, 1.0))
+    scores.append(energy_score)
 
     # Tempo continuity
     tempo_diff = abs(prev_track.tempo - curr_track.tempo)
-    scores.append(1.0 - min(tempo_diff, 0.5) * 2)
+    scores.append(max(0.0, 1.0 - min(tempo_diff * 2.2, 1.0)))
+
+    # Darkness continuity (mood shifts should be gradual)
+    darkness_diff = abs(prev_track.darkness - curr_track.darkness)
+    scores.append(max(0.0, 1.0 - min(darkness_diff * 1.8, 1.0)))
 
     # Embedding similarity (if available)
     if prev_track.embedding and curr_track.embedding:
         sim = cosine_similarity(prev_track.embedding, curr_track.embedding)
-        # Prefer moderate similarity (0.5-0.8), penalize too similar or too different
         if sim > 0.9:
             scores.append(0.7)  # Too similar
-        elif sim < 0.3:
-            scores.append(0.5)  # Too different
+        elif sim < 0.2:
+            scores.append(0.15)  # Very different — harsh penalty
+        elif sim < 0.35:
+            scores.append(0.30)  # Quite different
         else:
             scores.append(sim)
 
@@ -236,7 +246,7 @@ def score_transition(
                     # No genre connection — harsh penalty
                     genre_score = 0.15
 
-        # Double-weight genre continuity (most perceptually important)
+        # Double-weight genre continuity (added twice to scores list)
         scores.append(genre_score)
         scores.append(genre_score)
 
@@ -347,6 +357,7 @@ def _relaxed_config(base: SequencerConfig, level: int) -> SequencerConfig:
         return SequencerConfig(
             beam_width=base.beam_width,
             min_artist_distance=max(2, base.min_artist_distance // 2),
+            max_artist_count=max(4, base.max_artist_count + 1),
             max_cluster_per_window=base.cluster_window_size - 1,
             cluster_window_size=base.cluster_window_size,
             max_duration_ratio=5.0,
@@ -358,6 +369,7 @@ def _relaxed_config(base: SequencerConfig, level: int) -> SequencerConfig:
         return SequencerConfig(
             beam_width=base.beam_width,
             min_artist_distance=1,
+            max_artist_count=max(5, base.max_artist_count + 2),
             max_cluster_per_window=base.cluster_window_size,
             cluster_window_size=base.cluster_window_size,
             max_duration_ratio=10.0,
@@ -369,6 +381,7 @@ def _relaxed_config(base: SequencerConfig, level: int) -> SequencerConfig:
     return SequencerConfig(
         beam_width=base.beam_width,
         min_artist_distance=0,
+        max_artist_count=999,
         max_cluster_per_window=999,
         cluster_window_size=base.cluster_window_size,
         max_duration_ratio=999.0,
@@ -400,6 +413,7 @@ def _extend_single_path(
     cluster_ids: list[int] | None,
     transition_bonuses: dict | None,
     skip_lookahead: bool = False,
+    trajectory_targets: list[tuple[float, float]] | None = None,
 ) -> tuple[list[tuple[BeamPath, float]], int]:
     """Extend one beam path at *position*.
 
@@ -439,12 +453,27 @@ def _extend_single_path(
                 (str(prev_track.id), str(candidate.id)), 0.0
             )
 
+        # Energy direction penalty: penalise candidates whose energy moves
+        # opposite to the trajectory curve direction at this position.
+        direction_penalty = 0.0
+        if trajectory_targets and prev_track is not None and position >= 1:
+            prev_target_e, curr_target_e = trajectory_targets[position - 1][0], trajectory_targets[position][0]
+            slope = curr_target_e - prev_target_e  # expected direction
+            actual_delta = candidate.energy - prev_track.energy
+            if slope < -0.02 and actual_delta > 0.06:
+                # Should be falling but energy is rising
+                direction_penalty = min(0.30, actual_delta * 1.2)
+            elif slope > 0.02 and actual_delta < -0.06:
+                # Should be rising but energy is falling
+                direction_penalty = min(0.25, abs(actual_delta) * 1.0)
+
         extension_score = (
             candidate.total_score +
-            trans_score * 0.2 +
+            trans_score * 0.35 +
             lookahead * config.lookahead_weight +
             bridge_bonus * config.bridge_bonus_weight +
-            trans_bonus
+            trans_bonus -
+            direction_penalty
         )
 
         # Soft artist-reuse penalty: discourages the same artist from
@@ -538,6 +567,7 @@ def sequence_playlist(
     cluster_centroids: list[np.ndarray] | None = None,
     cluster_ids: list[int] | None = None,
     transition_bonuses: dict | None = None,
+    trajectory_targets: list[tuple[float, float]] | None = None,
 ) -> tuple[list[CandidateTrack], dict[str, Any]]:
     """
     Sequence playlist using beam search through position pools.
@@ -621,6 +651,7 @@ def sequence_playlist(
                     next_pool if not skip_lookahead else None,
                     cluster_centroids, cluster_ids, transition_bonuses,
                     skip_lookahead=skip_lookahead,
+                    trajectory_targets=trajectory_targets,
                 )
                 total_constraint_rejections += rejections
 

@@ -79,7 +79,7 @@ const latestOutcome = computed(() => {
   <div class="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-3">
     <details class="rounded border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
       <summary class="cursor-pointer text-sm font-medium text-gray-900 dark:text-white">
-        How this works
+        How it works &amp; what each metric means
       </summary>
       <div class="mt-3 space-y-3 text-xs text-gray-600 dark:text-gray-300">
         <div>
@@ -105,6 +105,16 @@ const latestOutcome = computed(() => {
           <div><code>Rebuild Clusters</code> depends on embeddings.</div>
           <div><code>Refresh</code> only reloads counters; it does not start work.</div>
         </div>
+        <div>
+          <div class="font-medium text-gray-900 dark:text-white">What each metric means</div>
+          <div class="mt-1 space-y-1">
+            <div><span class="text-gray-900 dark:text-white font-medium">Embeddings</span> — Semantic vectors computed for each track. The generator queries these to find candidates matching your prompt. Without them, playlist generation won't work.</div>
+            <div><span class="text-gray-900 dark:text-white font-medium">Profiles</span> — Per-track scores across four dimensions: energy, darkness, tempo, and texture (0–1 each). These power the trajectory engine — they're what shapes how mood and intensity evolve across a playlist.</div>
+            <div><span class="text-gray-900 dark:text-white font-medium">Last.fm Artists</span> — Genre tags and artist similarity data fetched from Last.fm. Used to enrich scoring and improve stylistic coherence between tracks.</div>
+            <div><span class="text-gray-900 dark:text-white font-medium">Scene Clusters</span> — Artists grouped into stylistic scenes using embedding similarity. The engine uses these to ensure variety and smooth transitions between musical zones. The count shown is the number of distinct scenes.</div>
+            <div><span class="text-gray-900 dark:text-white font-medium">Audio Features</span> — Acoustic measurements (BPM, loudness, brightness) extracted directly from audio files. Optional — profiles already cover the same dimensions via semantic analysis, but audio features can sharpen accuracy.</div>
+          </div>
+        </div>
       </div>
     </details>
 
@@ -113,7 +123,7 @@ const latestOutcome = computed(() => {
       <!-- Embeddings -->
       <div class="space-y-1">
         <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs">Embeddings</span>
+          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Semantic vectors used to match tracks to your prompt. Required for generation.">Embeddings</span>
           <span :class="coverageColor(embeddingPct)" class="text-xs font-semibold">
             {{ embeddingPct }}%
           </span>
@@ -132,7 +142,7 @@ const latestOutcome = computed(() => {
       <!-- Profiles -->
       <div class="space-y-1">
         <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs">Profiles</span>
+          <span class="text-gray-500 dark:text-gray-400 text-xs" title="4D scores (energy, darkness, tempo, texture) that drive the trajectory engine.">Profiles</span>
           <span :class="coverageColor(profilePct)" class="text-xs font-semibold">
             {{ profilePct }}%
           </span>
@@ -151,7 +161,7 @@ const latestOutcome = computed(() => {
       <!-- Last.fm -->
       <div class="space-y-1">
         <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs">Last.fm Artists</span>
+          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Artists enriched with genre tags and similarity data from Last.fm.">Last.fm Artists</span>
           <span :class="coverageColor(lastfmPct)" class="text-xs font-semibold">
             {{ lastfmPct }}%
           </span>
@@ -170,7 +180,7 @@ const latestOutcome = computed(() => {
       <!-- Clusters -->
       <div class="space-y-1">
         <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs">Scene Clusters</span>
+          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Artists grouped into stylistic scenes. Used for variety and smooth transitions.">Scene Clusters</span>
           <span :class="coverageColor(clusterPct)" class="text-xs font-semibold">
             {{ (stats.scene_clusters ?? 0) }} clusters
           </span>
@@ -190,7 +200,7 @@ const latestOutcome = computed(() => {
       <!-- Audio Features -->
       <div class="space-y-1">
         <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs">Audio Features</span>
+          <span class="text-gray-500 dark:text-gray-400 text-xs" title="BPM, loudness, and brightness extracted from audio files. Optional — profiles cover similar ground semantically.">Audio Features</span>
           <span :class="coverageColor(audioPct)" class="text-xs font-semibold">
             {{ audioPct }}%
           </span>

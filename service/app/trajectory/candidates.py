@@ -188,11 +188,21 @@ def compute_tourist_match_penalty(
     semantic_score: float,
     genre_match_score: float,
     semantic_floor: float,
+    has_genre_hints: bool = False,
 ) -> float:
-    if genre_match_score <= 0.0 or semantic_score >= semantic_floor:
-        return 0.0
-    gap = max(0.0, semantic_floor - semantic_score)
-    return min(0.25, 0.08 + gap * 0.6 + genre_match_score * 0.15)
+    # Original tourist penalty: high semantic + low genre = tourist
+    if genre_match_score > 0.0 and semantic_score < semantic_floor:
+        gap = max(0.0, semantic_floor - semantic_score)
+        return min(0.25, 0.08 + gap * 0.6 + genre_match_score * 0.15)
+
+    # Genre-coherence penalty: when the prompt has genre hints but the track
+    # has ZERO genre overlap, penalise regardless of semantic score.
+    # This catches tracks like Saxon/Krokus leaking into ambient/doom arcs
+    # because they score well semantically but are completely wrong genres.
+    if has_genre_hints and genre_match_score <= 0.0:
+        return 0.40
+
+    return 0.0
 
 
 def compute_impact_score(
@@ -725,25 +735,25 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
     """
     if prompt_type == PromptType.GENRE:
         return {
-            "semantic": 0.38,
-            "trajectory": 0.10,
+            "semantic": 0.33,
+            "trajectory": 0.15,
             "genre": 0.27,
             "gravity": 0.15,
             "duration": 0.10,
         }
     elif prompt_type == PromptType.ARC:
         return {
-            "semantic": 0.30,
-            "trajectory": 0.30,
-            "genre": 0.10,
-            "gravity": 0.20,
+            "semantic": 0.15,
+            "trajectory": 0.42,
+            "genre": 0.18,
+            "gravity": 0.15,
             "duration": 0.10,
         }
     else:  # MIXED
         return {
-            "semantic": 0.40,
-            "trajectory": 0.20,
-            "genre": 0.15,
+            "semantic": 0.33,
+            "trajectory": 0.26,
+            "genre": 0.18,
             "gravity": 0.15,
             "duration": 0.10,
         }
@@ -997,7 +1007,10 @@ def generate_position_pools(
 
         genre_match = compute_genre_match_score(track, hint_set, primary_hint_set)
         negative_penalty = compute_negative_constraint_penalty(track, intent.avoid_keywords)
-        tourist_penalty = compute_tourist_match_penalty(track.semantic_score, genre_match, semantic_floor)
+        tourist_penalty = compute_tourist_match_penalty(
+            track.semantic_score, genre_match, semantic_floor,
+            has_genre_hints=bool(hint_set),
+        )
         impact_score = compute_impact_score(
             track,
             artist_maxima,
@@ -1028,11 +1041,15 @@ def generate_position_pools(
         )
         staged_candidates.append(staged_track)
 
+    # Tighter admissibility for ARC prompts (genre fidelity matters more)
+    admissibility_floor = 0.40 if intent.prompt_type == PromptType.ARC else 0.35
+    neg_constraint_ceiling = 0.35 if intent.prompt_type == PromptType.ARC else 0.45
+
     admissible_candidates = [
         track for track in staged_candidates
         if track.semantic_score >= semantic_floor
-        and track.admissibility_score >= 0.35
-        and track.negative_constraint_penalty < 0.45
+        and track.admissibility_score >= admissibility_floor
+        and track.negative_constraint_penalty < neg_constraint_ceiling
     ]
 
     if not admissible_candidates:

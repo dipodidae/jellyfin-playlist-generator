@@ -108,12 +108,21 @@ def compose_playlist_v4(
     if config is None:
         config = SequencerConfig()
 
+    # Pre-compute trajectory energy targets for direction penalty
+    n_pos = len(position_pools)
+    trajectory_targets = [
+        (intent.trajectory_curve.evaluate(i / (n_pos - 1) if n_pos > 1 else 0.5).energy,
+         intent.trajectory_curve.evaluate(i / (n_pos - 1) if n_pos > 1 else 0.5).darkness)
+        for i in range(n_pos)
+    ]
+
     playlist, seq_metrics = sequence_playlist(
         position_pools,
         config=config,
         cluster_centroids=cluster_centroids,
         cluster_ids=cluster_ids,
         transition_bonuses=transition_bonuses,
+        trajectory_targets=trajectory_targets,
     )
 
     # 8. Compute metrics
@@ -202,12 +211,21 @@ def compose_playlist_v4_streaming(
     if config is None:
         config = SequencerConfig()
 
+    # Pre-compute trajectory energy targets for direction penalty
+    n_pos = len(position_pools)
+    trajectory_targets = [
+        (intent.trajectory_curve.evaluate(i / (n_pos - 1) if n_pos > 1 else 0.5).energy,
+         intent.trajectory_curve.evaluate(i / (n_pos - 1) if n_pos > 1 else 0.5).darkness)
+        for i in range(n_pos)
+    ]
+
     playlist, seq_metrics = sequence_playlist(
         position_pools,
         config=config,
         cluster_centroids=cluster_centroids,
         cluster_ids=cluster_ids,
         transition_bonuses=transition_bonuses,
+        trajectory_targets=trajectory_targets,
     )
 
     report(6, 8, "Computing metrics...")
