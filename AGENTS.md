@@ -199,6 +199,25 @@ LASTFM_API_SECRET=your-api-secret
 OPENAI_API_KEY=your-api-key
 ```
 
+## Algorithm Change Policy
+
+**Any change to scoring, trajectory, genre, or sequencing logic MUST be validated with the evaluation skill before being considered complete.**
+
+This applies to modifications in:
+- `service/app/trajectory/` (candidates, sequencer, composer, intent, curves, gravity)
+- `service/app/genre/` (manifold, GMS)
+- Any scoring weights, penalties, or beam search constraints
+
+Use the `eval-changes` skill (`.windsurf/skills/eval-changes/SKILL.md`) which covers:
+1. Restarting the backend
+2. Running `./eval_loop.py --multi --max-iter 2` (full 9-prompt batch, ~25 min)
+3. Interpreting results against the historical baseline table
+4. Applying the keep / revert / iterate decision tree
+
+For a quick sanity check after a focused change: `./eval_loop.py --prompt "..." --max-iter 1` (~3 min).
+
+Do not commit algorithm changes without a passing eval run.
+
 ## Development
 
 ```bash
