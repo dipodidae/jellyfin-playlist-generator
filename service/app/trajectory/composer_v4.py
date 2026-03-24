@@ -11,12 +11,12 @@ Ties together all v4 components:
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dc_replace
 from typing import Any
 
 import numpy as np
 
-from app.trajectory.intent import PlaylistIntent, parse_prompt, _ALIAS_TO_FAMILY
+from app.trajectory.intent import ArcType, PlaylistIntent, PromptType, parse_prompt, _ALIAS_TO_FAMILY
 from app.trajectory.gravity import GravityAnchors
 from app.trajectory.candidates import (
     CandidateTrack,
@@ -107,6 +107,12 @@ def compose_playlist_v4(
     # 7. Sequence playlist using beam search
     if config is None:
         config = SequencerConfig()
+
+    # Playlists with a non-STEADY arc need to traverse cluster boundaries;
+    # GENRE prompts and STEADY arcs should stay cluster-tight for genre purity.
+    if (intent.prompt_type != PromptType.GENRE
+            and intent.arc_type != ArcType.STEADY):
+        config = dc_replace(config, bridge_bonus_weight=0.10)
 
     # Pre-compute trajectory energy targets for direction penalty
     n_pos = len(position_pools)
@@ -222,6 +228,12 @@ def compose_playlist_v4_streaming(
 
     if config is None:
         config = SequencerConfig()
+
+    # Playlists with a non-STEADY arc need to traverse cluster boundaries;
+    # GENRE prompts and STEADY arcs should stay cluster-tight for genre purity.
+    if (intent.prompt_type != PromptType.GENRE
+            and intent.arc_type != ArcType.STEADY):
+        config = dc_replace(config, bridge_bonus_weight=0.10)
 
     # Pre-compute trajectory energy targets for direction penalty
     n_pos = len(position_pools)

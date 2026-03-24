@@ -170,29 +170,46 @@ def is_valid_extension(
 def score_transition(
     prev_track: CandidateTrack | None,
     curr_track: CandidateTrack,
+    energy_slope: float = 0.0,
+    darkness_slope: float = 0.0,
 ) -> float:
     """
     Score the transition between two tracks.
 
     Returns normalized score in [0, 1] where 1 = smooth transition.
+
+    energy_slope / darkness_slope: expected arc direction at this position
+    (positive = rising, negative = falling, 0 = steady / unknown).
+    When a track moves in the intended direction, the continuity penalty
+    is softened — arc-following jumps are intentional, not harsh.
     """
     if prev_track is None:
         return 0.5  # Neutral for first track
 
     scores = []
 
-    # Energy continuity (moderate penalty — allow gradual changes)
+    # Energy continuity — arc-aware
     energy_diff = abs(prev_track.energy - curr_track.energy)
-    energy_score = max(0.0, 1.0 - min(energy_diff * 2.0, 1.0))
+    actual_e_delta = curr_track.energy - prev_track.energy
+    if (energy_slope > 0.02 and actual_e_delta >= 0) or (energy_slope < -0.02 and actual_e_delta <= 0):
+        # Intentional arc-following movement: use softer multiplier
+        energy_score = max(0.0, 1.0 - min(energy_diff * 1.0, 1.0))
+    else:
+        energy_score = max(0.0, 1.0 - min(energy_diff * 2.0, 1.0))
     scores.append(energy_score)
 
     # Tempo continuity
     tempo_diff = abs(prev_track.tempo - curr_track.tempo)
     scores.append(max(0.0, 1.0 - min(tempo_diff * 2.2, 1.0)))
 
-    # Darkness continuity (mood shifts should be gradual)
+    # Darkness continuity — arc-aware
     darkness_diff = abs(prev_track.darkness - curr_track.darkness)
-    scores.append(max(0.0, 1.0 - min(darkness_diff * 1.8, 1.0)))
+    actual_d_delta = curr_track.darkness - prev_track.darkness
+    if (darkness_slope > 0.02 and actual_d_delta >= 0) or (darkness_slope < -0.02 and actual_d_delta <= 0):
+        darkness_score = max(0.0, 1.0 - min(darkness_diff * 1.0, 1.0))
+    else:
+        darkness_score = max(0.0, 1.0 - min(darkness_diff * 1.8, 1.0))
+    scores.append(darkness_score)
 
     # Embedding similarity (if available)
     if prev_track.embedding and curr_track.embedding:
@@ -446,13 +463,22 @@ def _extend_single_path(
     constraint_rejections = 0
     prev_track = path.tracks[-1] if path.tracks else None
 
+    # Arc slopes are position-constant — compute once outside the candidate loop
+    arc_e_slope = 0.0
+    arc_d_slope = 0.0
+    if trajectory_targets and position >= 1:
+        arc_e_slope = trajectory_targets[position][0] - trajectory_targets[position - 1][0]
+        arc_d_slope = trajectory_targets[position][1] - trajectory_targets[position - 1][1]
+
     for idx, candidate in enumerate(candidates):
         if not is_valid_extension(path, candidate, position, config,
                                   pool_cluster_counts=pool_cluster_counts):
             constraint_rejections += 1
             continue
 
-        trans_score = score_transition(prev_track, candidate)
+        trans_score = score_transition(prev_track, candidate,
+                                       energy_slope=arc_e_slope,
+                                       darkness_slope=arc_d_slope)
 
         # Skip expensive lookahead at relaxed levels — diminishing returns
         if skip_lookahead:
@@ -476,19 +502,25 @@ def _extend_single_path(
                 (str(prev_track.id), str(candidate.id)), 0.0
             )
 
-        # Energy direction penalty: penalise candidates whose energy moves
+        # Direction penalty: penalise candidates whose energy OR darkness moves
         # opposite to the trajectory curve direction at this position.
         direction_penalty = 0.0
         if trajectory_targets and prev_track is not None and position >= 1:
-            prev_target_e, curr_target_e = trajectory_targets[position - 1][0], trajectory_targets[position][0]
-            slope = curr_target_e - prev_target_e  # expected direction
-            actual_delta = candidate.energy - prev_track.energy
-            if slope < -0.02 and actual_delta > 0.06:
-                # Should be falling but energy is rising
-                direction_penalty = min(0.30, actual_delta * 1.2)
-            elif slope > 0.02 and actual_delta < -0.06:
-                # Should be rising but energy is falling
-                direction_penalty = min(0.30, abs(actual_delta) * 1.2)
+            # Energy direction (primary)
+            e_slope = arc_e_slope
+            actual_e_delta = candidate.energy - prev_track.energy
+            if e_slope < -0.02 and actual_e_delta > 0.06:
+                direction_penalty += min(0.30, actual_e_delta * 1.2)
+            elif e_slope > 0.02 and actual_e_delta < -0.06:
+                direction_penalty += min(0.30, abs(actual_e_delta) * 1.2)
+
+            # Darkness direction (secondary — uses trajectory_targets[1] which was previously unused)
+            d_slope = arc_d_slope
+            actual_d_delta = candidate.darkness - prev_track.darkness
+            if d_slope < -0.02 and actual_d_delta > 0.06:
+                direction_penalty += min(0.20, actual_d_delta * 0.8)
+            elif d_slope > 0.02 and actual_d_delta < -0.06:
+                direction_penalty += min(0.20, abs(actual_d_delta) * 0.8)
 
         # Genre drift penalty: soft penalty when this candidate would push
         # the running genre distribution away from the target.
