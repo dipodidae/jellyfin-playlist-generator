@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from app.trajectory.intent import PlaylistIntent, parse_prompt
+from app.trajectory.intent import PlaylistIntent, parse_prompt, _ALIAS_TO_FAMILY
 from app.trajectory.gravity import GravityAnchors
 from app.trajectory.candidates import (
     CandidateTrack,
@@ -116,6 +116,17 @@ def compose_playlist_v4(
         for i in range(n_pos)
     ]
 
+    # Build target genre distribution for drift tracking
+    target_genre_dist: dict[str, float] = {}
+    if intent.genre_hints_primary:
+        primary = list(intent.genre_hints_primary)
+        for h in primary:
+            fam = _ALIAS_TO_FAMILY.get(h.lower(), h.lower())
+            target_genre_dist[fam] = target_genre_dist.get(fam, 0.0) + 1.0
+        total = sum(target_genre_dist.values())
+        if total > 0:
+            target_genre_dist = {k: v / total for k, v in target_genre_dist.items()}
+
     playlist, seq_metrics = sequence_playlist(
         position_pools,
         config=config,
@@ -123,6 +134,7 @@ def compose_playlist_v4(
         cluster_ids=cluster_ids,
         transition_bonuses=transition_bonuses,
         trajectory_targets=trajectory_targets,
+        target_genre_dist=target_genre_dist or None,
     )
 
     # 8. Compute metrics
@@ -219,6 +231,16 @@ def compose_playlist_v4_streaming(
         for i in range(n_pos)
     ]
 
+    target_genre_dist: dict[str, float] = {}
+    if intent.genre_hints_primary:
+        primary = list(intent.genre_hints_primary)
+        for h in primary:
+            fam = _ALIAS_TO_FAMILY.get(h.lower(), h.lower())
+            target_genre_dist[fam] = target_genre_dist.get(fam, 0.0) + 1.0
+        total = sum(target_genre_dist.values())
+        if total > 0:
+            target_genre_dist = {k: v / total for k, v in target_genre_dist.items()}
+
     playlist, seq_metrics = sequence_playlist(
         position_pools,
         config=config,
@@ -226,6 +248,7 @@ def compose_playlist_v4_streaming(
         cluster_ids=cluster_ids,
         transition_bonuses=transition_bonuses,
         trajectory_targets=trajectory_targets,
+        target_genre_dist=target_genre_dist or None,
     )
 
     report(6, 8, "Computing metrics...")

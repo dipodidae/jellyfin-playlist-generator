@@ -34,6 +34,13 @@ class PromptType(str, Enum):
     MIXED = "mixed"      # Both genre + arc signals (e.g. "build from doom to thrash")
 
 
+class GenreMode(str, Enum):
+    """Controls how strictly genre identity is enforced during generation."""
+    STRICT = "strict"           # Hard filter: only tracks with strong target-genre probability
+    BALANCED = "balanced"       # Soft weighting: target genres preferred, adjacent allowed
+    EXPLORATORY = "exploratory" # Light pull toward target genre; open to adjacent styles
+
+
 class ArcType(str, Enum):
     """Predefined trajectory arc shapes."""
     STEADY = "steady"           # Maintain consistent energy
@@ -141,6 +148,45 @@ class PlaylistIntent:
 
     # Abstract concepts for semantic matching
     abstract_concepts: list[str] = field(default_factory=list)
+
+    # Genre Manifold System
+    genre_mode: GenreMode = GenreMode.BALANCED
+    genre_centroids: dict[str, list[float]] = field(default_factory=dict)
+
+
+_GENRE_MODE_STRICT_SIGNALS = [
+    "only", "strictly", "pure", "nothing but", "exclusively", "just",
+]
+_GENRE_MODE_EXPLORATORY_SIGNALS = [
+    "adjacent", "explore", "venture", "discover", "similar", "journey",
+    "blend", "mix of", "crossover", "influences",
+]
+
+
+def detect_genre_mode(prompt: str, genre_hints: list[str], arc_type: ArcType) -> GenreMode:
+    """Classify how strictly to enforce genre identity.
+
+    STRICT:      User is asking for a tightly scoped genre ("only thrash", short genre-only).
+    EXPLORATORY: User wants adjacent/cross-genre exploration or has explicit journey arc.
+    BALANCED:    Default for most prompts.
+    """
+    p = prompt.lower()
+
+    if any(sig in p for sig in _GENRE_MODE_STRICT_SIGNALS) and genre_hints:
+        return GenreMode.STRICT
+
+    # Short, genre-only prompt with no arc signals → likely strict
+    words = prompt.split()
+    if genre_hints and len(words) <= 4 and arc_type == ArcType.STEADY:
+        return GenreMode.STRICT
+
+    if any(sig in p for sig in _GENRE_MODE_EXPLORATORY_SIGNALS):
+        return GenreMode.EXPLORATORY
+
+    if arc_type in (ArcType.JOURNEY, ArcType.WAVE):
+        return GenreMode.EXPLORATORY
+
+    return GenreMode.BALANCED
 
 
 # Keyword mappings for arc detection
@@ -919,6 +965,11 @@ spelling and capitalisation as the user likely intends.
   - "arc": Primarily about an energy/mood trajectory
   - "mixed": Both genre and trajectory elements, or abstract/conceptual prompts
 
+- "genre_mode": One of "strict", "balanced", "exploratory"
+  - "strict": User wants only tracks firmly in the target genre ("only thrash", single genre short prompt)
+  - "balanced": Mixed genre+arc prompt or moderate genre signal (default)
+  - "exploratory": User wants cross-genre exploration, journey arc, or uses words like "adjacent", "discover", "blend"
+
 - "dimension_weights": Object with "energy", "tempo", "darkness", "texture" as floats 0.15-0.45 \
 that sum to 1.0. Which dimensions matter most for this prompt. If the user talks about speed, \
 boost tempo. If about mood, boost darkness. If about intensity, boost energy. Default all to 0.25.
@@ -1031,6 +1082,11 @@ def _validate_llm_intent(data: dict) -> None:
     valid_types = {"genre", "arc", "mixed"}
     if data.get("prompt_type") not in valid_types:
         data["prompt_type"] = "mixed"
+
+    # genre_mode must be valid
+    valid_modes = {"strict", "balanced", "exploratory"}
+    if data.get("genre_mode") not in valid_modes:
+        data["genre_mode"] = "balanced"
 
     # dimension_weights: normalise
     dw = data.get("dimension_weights")
@@ -1168,6 +1224,23 @@ def _build_intent_from_llm(
     # Extract abstract concepts (still useful for semantic matching)
     abstract_concepts = extract_abstract_concepts(prompt)
 
+    # Genre mode: prefer LLM output, but override with keyword detection if needed
+    llm_genre_mode_str = data.get("genre_mode", "balanced")
+    genre_mode = GenreMode(llm_genre_mode_str)
+    # Keyword detection can sharpen LLM's classification
+    kw_genre_mode = detect_genre_mode(prompt, genre_hints_raw, arc_type)
+    if kw_genre_mode == GenreMode.STRICT and genre_mode != GenreMode.EXPLORATORY:
+        genre_mode = GenreMode.STRICT
+
+    # Load genre centroids from manifold (graceful no-op if table not yet built)
+    genre_centroids: dict[str, list[float]] = {}
+    if genre_hints_raw:
+        try:
+            from app.genre.manifold import get_genre_centroids
+            genre_centroids = get_genre_centroids(genre_hints_raw)
+        except Exception as _gce:
+            logger.debug(f"Genre centroids unavailable: {_gce}")
+
     intent = PlaylistIntent(
         raw_prompt=prompt,
         prompt_embedding=prompt_embedding,
@@ -1191,10 +1264,12 @@ def _build_intent_from_llm(
         avoid_keywords=avoid_keywords,
         year_range=year_range,
         abstract_concepts=abstract_concepts,
+        genre_mode=genre_mode,
+        genre_centroids=genre_centroids,
     )
 
     logger.info(f"LLM-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
-                f"type={prompt_type.value}, "
+                f"type={prompt_type.value}, genre_mode={genre_mode.value}, "
                 f"moods={mood_keywords}, genres={genre_hints}, "
                 f"artists={artist_seeds}, avoid={avoid_keywords}, "
                 f"weights={dimension_weights.as_dict()}")
@@ -1255,6 +1330,16 @@ def _build_intent_from_keywords(
         wp.description = phase_descriptions.get(i, f"{wp.phase_label} phase: {prompt}")
         wp.mood_embedding = generate_embedding(wp.description)
 
+    genre_mode = detect_genre_mode(prompt, genre_hints_raw, arc_type)
+
+    genre_centroids: dict[str, list[float]] = {}
+    if genre_hints_raw:
+        try:
+            from app.genre.manifold import get_genre_centroids
+            genre_centroids = get_genre_centroids(genre_hints_raw)
+        except Exception as _gce:
+            logger.debug(f"Genre centroids unavailable: {_gce}")
+
     intent = PlaylistIntent(
         raw_prompt=prompt,
         prompt_embedding=prompt_embedding,
@@ -1277,10 +1362,12 @@ def _build_intent_from_keywords(
         avoid_keywords=avoid_keywords,
         year_range=year_range,
         abstract_concepts=abstract_concepts,
+        genre_mode=genre_mode,
+        genre_centroids=genre_centroids,
     )
 
     logger.info(f"Keyword-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
-                f"type={prompt_type.value}, "
+                f"type={prompt_type.value}, genre_mode={genre_mode.value}, "
                 f"moods={mood_keywords}, genres={genre_hints}, "
                 f"weights={dimension_weights.as_dict()}")
     return intent

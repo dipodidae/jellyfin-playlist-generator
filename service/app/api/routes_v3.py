@@ -853,12 +853,43 @@ async def trigger_audio_analysis_stream(request: Request):
                 return
             await asyncio.sleep(2)
 
-    asyncio.create_task(watch_disconnect())
+        asyncio.create_task(watch_disconnect())
 
     return _make_enrichment_stream(
         "Audio analysis",
         analyze_library_async,
     )
+
+
+@router.post("/enrich/genre-manifold")
+async def trigger_genre_manifold(background_tasks: BackgroundTasks):
+    """Trigger genre manifold build (runs in background)."""
+    from app.genre.manifold import build_genre_manifold
+    background_tasks.add_task(build_genre_manifold)
+    return {"status": "started", "message": "Genre manifold build started in background"}
+
+
+_genre_manifold_lock = asyncio.Lock()
+
+
+@router.post("/enrich/genre-manifold/stream")
+async def trigger_genre_manifold_stream():
+    """Build genre probability vectors + centroids with SSE progress."""
+
+    if _genre_manifold_lock.locked():
+        raise HTTPException(status_code=409, detail="Genre manifold build is already running")
+
+    async def run_async(progress_callback):
+        from app.genre.manifold import build_genre_manifold
+        loop = asyncio.get_running_loop()
+
+        def threadsafe_cb(current: int, total: int, message: str):
+            loop.call_soon_threadsafe(progress_callback, current, total, message)
+
+        async with _genre_manifold_lock:
+            return await asyncio.to_thread(build_genre_manifold, threadsafe_cb)
+
+    return _make_enrichment_stream("Genre manifold build", run_async)
 
 
 # ============================================================================

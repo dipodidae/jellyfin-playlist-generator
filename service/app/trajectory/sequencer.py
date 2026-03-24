@@ -66,6 +66,9 @@ class BeamPath:
     cluster_counts: dict[int, int] = field(default_factory=dict)  # cluster_id -> count in window
     track_ids: set = field(default_factory=set)  # track IDs for O(1) duplicate check
 
+    # Genre Manifold System: running genre distribution for drift tracking
+    cumulative_genre_dist: dict[str, float] = field(default_factory=dict)
+
     def copy(self) -> "BeamPath":
         """Create a copy of this path."""
         return BeamPath(
@@ -75,6 +78,7 @@ class BeamPath:
             artist_counts=self.artist_counts.copy(),
             cluster_counts=self.cluster_counts.copy(),
             track_ids=self.track_ids.copy(),
+            cumulative_genre_dist=self.cumulative_genre_dist.copy(),
         )
 
     def cluster_sequence(self) -> list[int | None]:
@@ -401,6 +405,24 @@ def _precompute_candidate_artists(
     return [_normalize_artist(c.artist_name) for c in candidates]
 
 
+def _update_cumulative_genre_dist(
+    current_dist: dict[str, float],
+    track_probs: dict[str, float],
+    n_tracks: int,
+) -> dict[str, float]:
+    """Running mean of genre distributions across the beam path so far."""
+    if not track_probs:
+        return current_dist
+    # Incremental mean: new_mean = (old_mean * n + new_obs) / (n + 1)
+    new_dist: dict[str, float] = {}
+    all_keys = set(current_dist) | set(track_probs)
+    for k in all_keys:
+        old_val = current_dist.get(k, 0.0)
+        new_val = track_probs.get(k, 0.0)
+        new_dist[k] = (old_val * n_tracks + new_val) / (n_tracks + 1)
+    return new_dist
+
+
 def _extend_single_path(
     path: BeamPath,
     candidates: list[CandidateTrack],
@@ -414,6 +436,7 @@ def _extend_single_path(
     transition_bonuses: dict | None,
     skip_lookahead: bool = False,
     trajectory_targets: list[tuple[float, float]] | None = None,
+    target_genre_dist: dict[str, float] | None = None,
 ) -> tuple[list[tuple[BeamPath, float]], int]:
     """Extend one beam path at *position*.
 
@@ -467,13 +490,29 @@ def _extend_single_path(
                 # Should be rising but energy is falling
                 direction_penalty = min(0.25, abs(actual_delta) * 1.0)
 
+        # Genre drift penalty: soft penalty when this candidate would push
+        # the running genre distribution away from the target.
+        genre_drift_penalty = 0.0
+        if target_genre_dist and candidate.genre_probs:
+            projected_dist = _update_cumulative_genre_dist(
+                path.cumulative_genre_dist, candidate.genre_probs, len(path.tracks)
+            )
+            try:
+                from app.genre.manifold import compute_genre_drift_penalty
+                drift = compute_genre_drift_penalty(projected_dist, target_genre_dist)
+                if drift > 0.30:
+                    genre_drift_penalty = min(0.20, (drift - 0.30) * 0.50)
+            except Exception:
+                pass
+
         extension_score = (
             candidate.total_score +
             trans_score * 0.35 +
             lookahead * config.lookahead_weight +
             bridge_bonus * config.bridge_bonus_weight +
             trans_bonus -
-            direction_penalty
+            direction_penalty -
+            genre_drift_penalty
         )
 
         # Soft artist-reuse penalty: discourages the same artist from
@@ -504,6 +543,10 @@ def _extend_single_path(
         if candidate.cluster_id is not None:
             new_path.cluster_counts[candidate.cluster_id] = \
                 new_path.cluster_counts.get(candidate.cluster_id, 0) + 1
+        if candidate.genre_probs:
+            new_path.cumulative_genre_dist = _update_cumulative_genre_dist(
+                path.cumulative_genre_dist, candidate.genre_probs, len(path.tracks)
+            )
 
         new_candidates.append((new_path, new_path.cumulative_score))
 
@@ -568,6 +611,7 @@ def sequence_playlist(
     cluster_ids: list[int] | None = None,
     transition_bonuses: dict | None = None,
     trajectory_targets: list[tuple[float, float]] | None = None,
+    target_genre_dist: dict[str, float] | None = None,
 ) -> tuple[list[CandidateTrack], dict[str, Any]]:
     """
     Sequence playlist using beam search through position pools.
@@ -652,6 +696,7 @@ def sequence_playlist(
                     cluster_centroids, cluster_ids, transition_bonuses,
                     skip_lookahead=skip_lookahead,
                     trajectory_targets=trajectory_targets,
+                    target_genre_dist=target_genre_dist,
                 )
                 total_constraint_rejections += rejections
 

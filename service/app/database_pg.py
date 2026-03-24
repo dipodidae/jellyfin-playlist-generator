@@ -454,6 +454,16 @@ def get_stats() -> dict:
         cur.execute("SELECT COUNT(*) FROM track_audio_features")
         stats["tracks_with_audio_features"] = cur.fetchone()[0]
 
+        # Genre manifold probabilities
+        cur.execute("SAVEPOINT sp_genre_probs")
+        try:
+            cur.execute("SELECT COUNT(*) FROM track_genre_probabilities")
+            stats["tracks_with_genre_probs"] = cur.fetchone()[0]
+            cur.execute("RELEASE SAVEPOINT sp_genre_probs")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT sp_genre_probs")
+            stats["tracks_with_genre_probs"] = 0
+
         # IVFFlat index status
         cur.execute("""
             SELECT COUNT(*) FROM pg_indexes

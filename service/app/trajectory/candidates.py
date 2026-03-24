@@ -19,7 +19,7 @@ from app.database_pg import get_connection
 from app.embeddings.generator import generate_embedding
 from app.trajectory.curves import TrajectoryPoint
 from app.trajectory.gravity import GravityAnchors, compute_gravity_penalty
-from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType, PromptType, _ALIAS_TO_FAMILY, _BROAD_GENRES
+from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType, PromptType, GenreMode, _ALIAS_TO_FAMILY, _BROAD_GENRES
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,9 @@ class CandidateTrack:
 
     # Genre tags (for genre continuity and Jaccard scoring)
     genres: list = field(default_factory=list)  # list[str]
+
+    # Genre Manifold System: probabilistic genre identity vector
+    genre_probs: dict = field(default_factory=dict)  # {genre_family: probability}
 
     # Acoustic features (from track_audio_features, optional)
     bpm_norm: float | None = None
@@ -317,7 +320,8 @@ def semantic_search(
                         WHERE tg2.track_id = t.id
                     ) AS genres,
                     taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
-                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0)
+                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0),
+                    tgp.genre_probs
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -328,6 +332,7 @@ def semantic_search(
                 LEFT JOIN albums al ON tal.album_id = al.id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
+                LEFT JOIN track_genre_probabilities tgp ON t.id = tgp.track_id
                 WHERE te.embedding IS NOT NULL
                 {year_filter}
                 ORDER BY te.embedding <=> %s::vector
@@ -359,6 +364,7 @@ def semantic_search(
             brightness_norm=row[17],
             playcount=int(row[18] or 0),
             listeners=int(row[19] or 0),
+            genre_probs=dict(row[20]) if row[20] else {},
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -490,7 +496,8 @@ def keyword_search(
                         WHERE tg2.track_id = t.id
                     ) AS genres,
                     taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
-                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0)
+                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0),
+                    tgp.genre_probs
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -502,6 +509,7 @@ def keyword_search(
                 LEFT JOIN albums al ON tal.album_id = al.id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
+                LEFT JOIN track_genre_probabilities tgp ON t.id = tgp.track_id
                 WHERE t.search_vector @@ to_tsquery('simple', %s)
                 ORDER BY keyword_score DESC
                 LIMIT %s
@@ -531,6 +539,7 @@ def keyword_search(
             brightness_norm=row[16],
             playcount=int(row[17] or 0),
             listeners=int(row[18] or 0),
+            genre_probs=dict(row[19]) if row[19] else {},
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
@@ -564,7 +573,8 @@ def _fetch_candidates_by_ids(
                         WHERE tg2.track_id = t.id
                     ) AS genres,
                     taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
-                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0)
+                    COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0),
+                    tgp.genre_probs
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -576,6 +586,7 @@ def _fetch_candidates_by_ids(
                 LEFT JOIN albums al ON tal.album_id = al.id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
+                LEFT JOIN track_genre_probabilities tgp ON t.id = tgp.track_id
                 WHERE t.id = ANY(%s::uuid[])
             """, (track_ids,))
             rows = cur.fetchall()
@@ -601,6 +612,7 @@ def _fetch_candidates_by_ids(
             brightness_norm=row[15],
             playcount=int(row[16] or 0),
             listeners=int(row[17] or 0),
+            genre_probs=dict(row[18]) if row[18] else {},
             semantic_score=0.0,
         ))
 
@@ -801,10 +813,20 @@ def generate_position_pools(
                 f"sem={w_semantic}, traj={w_trajectory}, genre={w_genre}, impact={w_impact}")
 
     # --- 1. Semantic search (multi-query for non-STEADY arcs) ---
-    # For genre-focused prompts, enhance the embedding query with genre names
-    # so the embedding space is pushed toward the right neighbourhood.
+    # Build hybrid query: blend prompt embedding with genre centroid when available.
+    # This biases retrieval toward the correct genre manifold region.
     search_embedding = intent.prompt_embedding
-    if intent.prompt_type == PromptType.GENRE and intent.genre_hints:
+    if intent.genre_centroids:
+        try:
+            from app.genre.manifold import build_hybrid_query_embedding
+            search_embedding = build_hybrid_query_embedding(
+                intent.prompt_embedding, intent.genre_centroids, intent.genre_mode.value
+            )
+            logger.info(f"Hybrid query embedding: genre_mode={intent.genre_mode.value}, "
+                        f"centroids={list(intent.genre_centroids.keys())}")
+        except Exception as _he:
+            logger.debug(f"Hybrid embedding failed, using plain prompt: {_he}")
+    elif intent.prompt_type == PromptType.GENRE and intent.genre_hints:
         genre_text = " ".join(intent.genre_hints)
         enhanced_query = f"{intent.raw_prompt} {genre_text}"
         search_embedding = generate_embedding(enhanced_query)
@@ -998,6 +1020,17 @@ def generate_position_pools(
             max(existing_listeners, candidate.listeners),
         )
 
+    # Pre-compute adjacent genres for probability-based scoring (BALANCED/EXPLORATORY)
+    _adjacent_genres: dict[str, float] = {}
+    if hint_set and intent.genre_mode != GenreMode.STRICT:
+        try:
+            from app.genre.manifold import get_adjacent_genres
+            for hint in list(intent.genre_hints_primary or hint_set):
+                for adj, w in get_adjacent_genres(hint, radius=1).items():
+                    _adjacent_genres[adj] = max(_adjacent_genres.get(adj, 0.0), w)
+        except Exception:
+            pass
+
     staged_candidates: list[CandidateTrack] = []
     for track in global_candidates:
         year_score = 0.0
@@ -1005,7 +1038,20 @@ def generate_position_pools(
             distance = abs(track.year - year_midpoint)
             year_score = max(-0.12, 0.08 - distance * 0.01)
 
-        genre_match = compute_genre_match_score(track, hint_set, primary_hint_set)
+        # Use probabilistic genre score when manifold data available; Jaccard fallback
+        if track.genre_probs and hint_set:
+            try:
+                from app.genre.manifold import compute_genre_probability_score
+                genre_match = compute_genre_probability_score(
+                    track.genre_probs,
+                    list(intent.genre_hints_primary or hint_set),
+                    _adjacent_genres,
+                    intent.genre_mode.value,
+                )
+            except Exception:
+                genre_match = compute_genre_match_score(track, hint_set, primary_hint_set)
+        else:
+            genre_match = compute_genre_match_score(track, hint_set, primary_hint_set)
         negative_penalty = compute_negative_constraint_penalty(track, intent.avoid_keywords)
         tourist_penalty = compute_tourist_match_penalty(
             track.semantic_score, genre_match, semantic_floor,
@@ -1051,6 +1097,27 @@ def generate_position_pools(
         and track.admissibility_score >= admissibility_floor
         and track.negative_constraint_penalty < neg_constraint_ceiling
     ]
+
+    # STRICT genre mode: hard filter on probability threshold
+    # Only applied when >=20% of candidates have genre_probs data.
+    if intent.genre_mode == GenreMode.STRICT and hint_set:
+        n_with_probs = sum(1 for t in admissible_candidates if t.genre_probs)
+        if n_with_probs >= len(admissible_candidates) * 0.20:
+            target_families = {_ALIAS_TO_FAMILY.get(h.lower(), h.lower()) for h in hint_set}
+            strict_filtered = [
+                t for t in admissible_candidates
+                if not t.genre_probs  # keep tracks without probs (graceful)
+                or sum(t.genre_probs.get(f, 0.0) for f in target_families) >= 0.28
+            ]
+            if len(strict_filtered) >= intent.target_size * 2:
+                logger.info(
+                    f"STRICT filter: {len(strict_filtered)}/{len(admissible_candidates)} candidates kept"
+                )
+                admissible_candidates = strict_filtered
+            else:
+                logger.info(
+                    f"STRICT filter skipped (would leave only {len(strict_filtered)} candidates)"
+                )
 
     if not admissible_candidates:
         logger.warning("Admissibility gate removed all candidates; falling back to top semantic matches")
