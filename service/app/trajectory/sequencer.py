@@ -183,7 +183,7 @@ def score_transition(
 
     # Energy continuity (moderate penalty — allow gradual changes)
     energy_diff = abs(prev_track.energy - curr_track.energy)
-    energy_score = max(0.0, 1.0 - min(energy_diff * 2.5, 1.0))
+    energy_score = max(0.0, 1.0 - min(energy_diff * 2.0, 1.0))
     scores.append(energy_score)
 
     # Tempo continuity
@@ -488,7 +488,7 @@ def _extend_single_path(
                 direction_penalty = min(0.30, actual_delta * 1.2)
             elif slope > 0.02 and actual_delta < -0.06:
                 # Should be rising but energy is falling
-                direction_penalty = min(0.25, abs(actual_delta) * 1.0)
+                direction_penalty = min(0.30, abs(actual_delta) * 1.2)
 
         # Genre drift penalty: soft penalty when this candidate would push
         # the running genre distribution away from the target.
