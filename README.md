@@ -74,6 +74,7 @@ playlist-generator/
     server/api/           Nuxt server routes (proxy to backend)
   service/                FastAPI backend
     app/trajectory/       Intent parsing, curves, gravity, sequencer, composer
+    app/genre/            Genre Manifold System (probabilistic genre identity vectors)
     app/clustering/       Scene and artist clustering
     app/audio/            Librosa audio feature analysis
     app/embeddings/       Sentence-transformer embedding generation
@@ -83,7 +84,7 @@ playlist-generator/
     app/api/              API routes and Pydantic schemas
 ```
 
-See `AGENTS.md` for detailed architecture documentation including scoring formulas, trajectory dimensions, and the full v4 pipeline.
+See `AGENTS.md` for detailed architecture documentation including scoring formulas, adaptive weights, trajectory dimensions, and the full v4 pipeline.
 
 ## Features
 

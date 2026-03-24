@@ -81,6 +81,8 @@ playlist-generator/
 │   │   │   ├── composer_v4.py # Main v4 orchestration
 │   │   │   ├── composer.py  # Legacy composition (v3)
 │   │   │   └── title_generator.py  # AI title generation
+│   │   ├── genre/
+│   │   │   └── manifold.py  # Genre Manifold System (GMS): probabilistic genre identity vectors
 │   │   ├── clustering/
 │   │   │   └── scenes.py    # Multi-cluster artist grouping (v4)
 │   │   ├── audio/
@@ -101,8 +103,9 @@ playlist-generator/
 │   │   └── main.py          # FastAPI app entry
 │   ├── Dockerfile
 │   └── requirements.txt
-├── data/                     # Database files
-└── docker-compose.yml        # Local development (includes PostgreSQL)
+├── data/                     # Misc data files
+├── eval_runs/                # Evaluation run outputs (gitignored)
+└── eval_loop.py              # Multi-prompt evaluation loop
 ```
 
 ## Key Technologies
@@ -160,13 +163,27 @@ The v4 system uses a sophisticated multi-stage pipeline:
 - **Texture**: Density + complexity (0-1)
 
 ### V4 Scoring Components (Normalized 0-1)
+Weights are adaptive per `PromptType` (see `candidates.py → get_adaptive_weights()`):
 ```python
+# Candidate total_score (used in beam search)
 total_score = (
-    semantic_score * 0.25 +
-    trajectory_score * 0.35 +
-    transition_score * 0.2 +
+    semantic_score  * w_semantic  +   # GENRE=0.33 / ARC=0.15 / MIXED=0.33
+    trajectory_score * w_trajectory + # GENRE=0.15 / ARC=0.42 / MIXED=0.26
+    genre_match_score * w_genre    +  # GENRE=0.27 / ARC=0.18 / MIXED=0.18
+    - gravity_penalty * w_gravity  +  # all types: 0.15
+    - duration_penalty * w_duration   # all types: 0.10
+    - tourist_match_penalty           # 0.40 when genre hint present + zero genre match
+    - negative_constraint_penalty     # avoid_keywords violations
+)
+
+# Beam extension score (sequencer)
+extension_score = (
+    candidate.total_score +
+    transition_score * 0.35 +
+    lookahead * 0.30 +
     bridge_bonus * 0.05 -
-    gravity_penalty * 0.15
+    direction_penalty -
+    genre_drift_penalty               # GMS beam-level drift (when genre_probs available)
 )
 ```
 
@@ -177,6 +194,9 @@ total_score = (
 - **Beam search**: Path optimization with lookahead
 - **Auto bridges**: Tracks connecting distant clusters
 - **Playlist memory**: Time-decayed track usage penalty
+- **Adaptive weights**: Per-`PromptType` scoring weights (GENRE / ARC / MIXED)
+- **Artist count cap**: `max_artist_count=4` hard limit per artist per playlist
+- **Genre Manifold System (GMS)**: Probabilistic genre identity vectors (`genre_probs`) loaded from `track_genre_probabilities` table; used for `compute_genre_probability_score()` (replaces Jaccard when available), `compute_genre_drift_penalty()` in beam search, STRICT mode hard filter, and hybrid query embedding construction
 
 ## Environment Variables
 

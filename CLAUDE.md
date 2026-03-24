@@ -14,24 +14,27 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 - Python 3.12+ with type hints
 - FastAPI for API routes
 - Pydantic for data validation
-- DuckDB for database (no ORM)
+- PostgreSQL 16 + pgvector (no ORM)
 - Use `async`/`await` for I/O operations
 - Keep functions focused and small
 
 ### TypeScript/Vue (Frontend)
 - Nuxt 4 with Vue 3 Composition API
 - `<script setup lang="ts">` for components
-- Nuxt UI Pro for components
+- Nuxt UI v4 (not Pro) for components
 - TailwindCSS for styling
 - Use `ref()` and `computed()` for reactivity
 
 ## Important Files
 
 ### Backend
-- `service/app/api/routes.py` - All API endpoints
-- `service/app/trajectory/intent.py` - Prompt parsing logic
-- `service/app/trajectory/composer.py` - Playlist composition
-- `service/app/database.py` - Schema and queries
+- `service/app/api/routes_v3.py` - All API endpoints (PostgreSQL)
+- `service/app/trajectory/intent.py` - Prompt parsing, PromptType, GenreMode, waypoints
+- `service/app/trajectory/composer_v4.py` - v4 playlist composition
+- `service/app/trajectory/candidates.py` - Candidate pools, adaptive scoring weights
+- `service/app/trajectory/sequencer.py` - Beam search, SequencerConfig
+- `service/app/genre/manifold.py` - Genre Manifold System (GMS)
+- `service/app/database_pg.py` - PostgreSQL + pgvector schema and queries
 - `service/app/config.py` - Environment settings
 
 ### Frontend
@@ -47,55 +50,59 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 3. Add proxy route in `frontend/server/api/`
 
 ### Modifying the database schema
-1. Update `service/app/database.py` `init_database()`
-2. Delete local `data/music.duckdb` to recreate
-3. Re-sync from Jellyfin
+1. Add a migration file in `service/app/migrations/` (numbered, e.g. `012_my_change.sql`)
+2. Apply it: `psql $DATABASE_URL -f service/app/migrations/012_my_change.sql`
+3. Update `service/app/database_pg.py` if adding new query helpers
 
 ### Testing locally
 ```bash
-# Backend
-cd service && uvicorn app.main:app --reload --port 8100
+# Backend (stop the production service first)
+systemctl --user stop playlist-generator-backend
+cd service && source .venv/bin/activate
+uvicorn app.main:app --reload --port 8000
 
 # Frontend
-cd frontend && pnpm dev --port 3100
+cd frontend && pnpm dev --port 3000
 ```
 
 ### Deploying
 ```bash
-cd ~/nas
-docker compose build playlist-generator-service playlist-generator-frontend
-docker compose up -d playlist-generator-service playlist-generator-frontend
-docker exec swag nginx -s reload
+# Backend
+systemctl --user restart playlist-generator-backend
+
+# Frontend
+cd frontend && pnpm build && pm2 restart playlist-generator-frontend
 ```
+Note: Backend takes ~60 seconds to start on Pi 5 (sentence-transformers model load).
 
 ## Gotchas
 
 1. **Nuxt auto-imports**: `defineEventHandler`, `useRuntimeConfig`, etc. are auto-imported - IDE may show errors but they work at runtime
 
-2. **DuckDB connections**: Always close connections after use, DuckDB doesn't handle concurrent writes well
+2. **PostgreSQL connections**: Use `psycopg2` connection pool in `database_pg.py`; always return connections to the pool
 
-3. **Embedding model**: First load downloads ~90MB model, subsequent loads use cache
+3. **Embedding model**: First load downloads ~90MB model, subsequent loads use cache (~60s startup on Pi 5)
 
-4. **SWAG nginx config**: Must be copied to `/config/nginx/proxy-confs/` inside the container, or mounted via docker-compose
+4. **Backend port**: Production runs on `:8000` (systemd service). Do not hardcode `:8100`.
 
-5. **Environment variables**: Nuxt uses `NUXT_` prefix for runtime config (e.g., `NUXT_MUSIC_SERVICE_URL`)
+5. **Environment variables**: Nuxt uses `NUXT_` prefix for runtime config (e.g., `NUXT_BACKEND_URL`)
 
 ## Testing Endpoints
 
 ```bash
 # Health check
-curl http://localhost:8100/health
+curl http://localhost:8000/health
 
 # Stats
-curl http://localhost:8100/stats
+curl http://localhost:8000/stats
 
 # Generate playlist
-curl -X POST http://localhost:8100/generate-playlist \
+curl -X POST http://localhost:8000/generate-playlist \
   -H "Content-Type: application/json" \
   -d '{"prompt": "dark ambient atmospheric", "size": 20}'
 
 # Semantic search
-curl "http://localhost:8100/search?query=electronic&limit=10"
+curl "http://localhost:8000/search?query=electronic&limit=10"
 ```
 
 ## Algorithm Change Policy
@@ -119,8 +126,8 @@ Do not commit algorithm changes without a passing eval run.
 
 ## Architecture Decisions
 
-1. **DuckDB over SQLite**: Better analytics queries, native array support for embeddings
+1. **PostgreSQL + pgvector**: Native vector similarity search, concurrent writes, full SQL analytics
 2. **SSE over WebSockets**: Simpler for one-way progress updates
 3. **Nuxt server routes as proxy**: Keeps backend URL private, handles CORS
 4. **sentence-transformers**: Good balance of quality vs speed for semantic search
-5. **No background task persistence**: Simplicity over complexity for now
+5. **Native services over Docker**: Lower overhead on Pi 5; systemd + PM2 for process management
