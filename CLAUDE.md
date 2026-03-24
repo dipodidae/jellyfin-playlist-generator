@@ -105,6 +105,22 @@ curl -X POST http://localhost:8000/generate-playlist \
 curl "http://localhost:8000/search?query=electronic&limit=10"
 ```
 
+## Documentation Freshness Policy
+
+**Whenever you make any change — code, config, architecture, dependencies, or infrastructure — update the relevant documentation files in the same commit.**
+
+| What changed | Files to update |
+|---|---|
+| Scoring weights, trajectory logic, beam search, genre manifold | `AGENTS.md` (V4 Scoring section), `SKILL.md` (current weight state) |
+| New module or directory added | `AGENTS.md` (Directory Structure), `README.md` (Directory Structure) |
+| API endpoint added or removed | `AGENTS.md` (API Endpoints), `README.md` (API Reference) |
+| Infrastructure / deployment change | `AGENTS.md` (Deployment), `CLAUDE.md` (Deploying, Gotchas) |
+| Database schema change | `AGENTS.md` (PostgreSQL table list in Architecture diagram) |
+| New environment variable | `AGENTS.md` (Environment Variables), `README.md` (Configuration table) |
+| Key file renamed or repurposed | `AGENTS.md` (Directory Structure), `CLAUDE.md` (Important Files) |
+
+Do not leave any of these files stale. A reader should be able to understand the current system from the docs alone.
+
 ## Algorithm Change Policy
 
 **Any change to scoring, trajectory, genre, or sequencing logic MUST be validated with the evaluation skill before being considered complete.**
