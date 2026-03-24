@@ -8,6 +8,7 @@ of the artists, albums, and cultural context.
 """
 
 import logging
+import re
 from collections import Counter
 from typing import Any
 
@@ -47,22 +48,30 @@ def generate_playlist_title(
         if context:
             user_content += f"\n\n{context}"
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            max_tokens=30,
-            temperature=0.9,
-        )
+        def _call_api() -> str | None:
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                max_tokens=30,
+                temperature=0.7,
+            )
+            c = resp.choices[0].message.content
+            return c.strip().strip('"\'') if c else None
 
-        content = response.choices[0].message.content
-        if not content:
+        title = _call_api()
+        if not title:
             return _fallback_title(prompt)
 
-        title = content.strip().strip('"\'')
+        if re.search(r'\b\w+ of \w+\b', title, re.IGNORECASE):
+            logger.debug(f"Title '{title}' matched banned 'X of Y' pattern, retrying")
+            retry = _call_api()
+            if retry and not re.search(r'\b\w+ of \w+\b', retry, re.IGNORECASE):
+                title = retry
 
+        title = f"✦ {title}"
         logger.info(f"Generated title: {title}")
         return title
 
@@ -72,32 +81,42 @@ def generate_playlist_title(
 
 
 _SYSTEM_PROMPT = """\
-You are an expert music curator who names playlists. You receive:
+You are a music curator who names playlists. You receive:
 1. The user's original prompt describing what they wanted.
 2. The full tracklist of the playlist that was generated, including artist, \
 track title, album, year, genres, and sonic profile dimensions.
 3. A statistical summary of the playlist's character.
 
-Your job is to generate ONE short, evocative playlist title (2-5 words) that \
-captures the specific essence of this particular selection of music.
+Your job is to generate ONE short, descriptive playlist title (2-5 words) that \
+tells the listener exactly what kind of music this is.
 
-Think deeply about:
-- What you know about these artists and tracks — their cultural significance, \
-era, scene, and sound.
-- The thread connecting these tracks — what do they share thematically, \
-sonically, or emotionally?
-- How the user's prompt frames the intent — is it a mood, a situation, a \
-memory, or an abstract concept?
-- The energy arc and sonic trajectory — does the playlist build, descend, \
-oscillate, or hold steady?
+Build the title by combining, in order of priority:
+1. Genre — what style of music is this? (e.g. Thrash, Doom, Darkwave, Industrial)
+2. Mood or feel — what does it sound like? (e.g. Fast, Heavy, Dark, Raw, Slow)
+3. Era — what decade is it from, if the tracks cluster in one? (e.g. 80s, 90s)
 
-Rules:
-- 2-5 words, punchy, memorable
-- Reflect the actual music and its deeper connections, not surface-level genre labels
+For concrete prompts (user already named genre/era/mood): reflect their own \
+descriptors back in clean, natural word order.
+For abstract prompts: derive genre, mood, and era from the tracklist data provided.
+
+STRICT RULES — violations are not acceptable:
+- NEVER use "X of Y" or "X of Z" constructions. Banned examples: \
+"Throne of Shadows", "Echo of Rage", "Ruins of Dawn", "Edge of Chaos". \
+These are lazy filler. Do not produce them.
+- Do not use abstract filler words like: echoes, shadows, throne, lair, ritual, \
+void, abyss, realm, forge, descent, ascent — unless the user's prompt \
+explicitly contains them.
+- Do not be poetic or metaphorical. Be direct and descriptive.
 - No quotes, no word "playlist", no word "mix"
-- Can be poetic, witty, metaphorical, or darkly evocative — match the mood
-- Evoke specific imagery, feelings, or cultural touchstones the tracks share
-- Output ONLY the title, nothing else"""
+- Output ONLY the title, nothing else
+
+Examples (prompt → correct title):
+"pure evil 80s thrash" → Evil Thrash from the 80s
+"dark and slow for 3am" → Late-Night Doom
+"raw cold black metal" → Raw Cold Black Metal
+"driving 90s industrial" → Hard 90s Industrial
+"heavy goth with a building arc" → Heavy Building Goth
+"fast and aggressive death metal" → Fast Aggressive Death Metal"""
 
 
 def _build_context(
@@ -202,4 +221,4 @@ def _fallback_title(prompt: str) -> str:
     if len(title) > 50:
         title = title[:47] + "..."
 
-    return title
+    return f"✦ {title}"
