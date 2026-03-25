@@ -2,7 +2,7 @@
 import type { Track } from '~/types/playlist'
 import { useDurationFormatter } from '~/composables/useDurationFormatter'
 
-defineProps<{
+const props = defineProps<{
   track: Track
   index: number
 }>()
@@ -12,6 +12,19 @@ defineEmits<{
 }>()
 
 const { formatDuration } = useDurationFormatter()
+
+const isBanger = computed(() => {
+  const scores = props.track.scores
+  return scores?.banger != null && scores.banger >= 0.7
+})
+
+const legitimacyLabel = computed(() => {
+  const score = props.track.scores?.legitimacy
+  if (score == null || score <= 0) return null
+  if (score >= 0.8) return 'Highly rated'
+  if (score >= 0.5) return 'Well rated'
+  return null
+})
 </script>
 
 <template>
@@ -19,7 +32,9 @@ const { formatDuration } = useDurationFormatter()
     <span class="text-sm text-gray-400 w-6 text-right">{{ index + 1 }}</span>
     <div class="flex-1 min-w-0">
       <p class="font-medium text-gray-900 dark:text-white truncate">
+        <UIcon v-if="isBanger" name="i-lucide-flame" class="inline text-orange-500 mr-1" :title="`Banger score: ${track.scores?.banger?.toFixed(2)}`" />
         {{ track.title }}
+        <span v-if="legitimacyLabel" class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400" :title="`Album legitimacy: ${track.scores?.legitimacy?.toFixed(2)}`">{{ legitimacyLabel }}</span>
       </p>
       <p class="text-sm text-gray-500 truncate">
         {{ track.artist_name }} · {{ track.album_name }}
@@ -37,6 +52,7 @@ const { formatDuration } = useDurationFormatter()
         <span>sem:{{ track.scores.semantic.toFixed(2) }}</span>
         <span>traj:{{ track.scores.trajectory.toFixed(2) }}</span>
         <span>genre:{{ track.scores.genre_match.toFixed(2) }}</span>
+        <span v-if="track.scores.curation" class="text-orange-400">cur:{{ track.scores.curation.toFixed(2) }}</span>
         <span class="text-green-500 dark:text-green-400">total:{{ track.scores.total.toFixed(2) }}</span>
       </div>
     </div>

@@ -209,6 +209,29 @@ def init_database() -> None:
                 )
             """)
 
+            # Album legitimacy (Metal Archives data)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS album_legitimacy (
+                    album_id UUID PRIMARY KEY REFERENCES albums(id) ON DELETE CASCADE,
+                    ma_url VARCHAR,
+                    ma_rating FLOAT,
+                    ma_review_count INTEGER DEFAULT 0,
+                    match_confidence FLOAT DEFAULT 0.0,
+                    scraped_at TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+
+            # Track banger flags (computed from Last.fm + other signals)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS track_banger_flags (
+                    track_id UUID PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+                    banger_score FLOAT DEFAULT 0.0,
+                    confidence FLOAT DEFAULT 0.0,
+                    sources JSONB DEFAULT '[]',
+                    computed_at TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+
             # Embeddings with pgvector
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS track_embeddings (
@@ -463,6 +486,19 @@ def get_stats() -> dict:
         except Exception:
             cur.execute("ROLLBACK TO SAVEPOINT sp_genre_probs")
             stats["tracks_with_genre_probs"] = 0
+
+        # Album legitimacy & banger flags
+        cur.execute("SAVEPOINT sp_legitimacy")
+        try:
+            cur.execute("SELECT COUNT(*) FROM album_legitimacy")
+            stats["albums_with_legitimacy"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM track_banger_flags WHERE banger_score > 0")
+            stats["tracks_with_banger_flags"] = cur.fetchone()[0]
+            cur.execute("RELEASE SAVEPOINT sp_legitimacy")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT sp_legitimacy")
+            stats["albums_with_legitimacy"] = 0
+            stats["tracks_with_banger_flags"] = 0
 
         # IVFFlat index status
         cur.execute("""

@@ -80,6 +80,12 @@ class CandidateTrack:
     playcount: int = 0
     listeners: int = 0
 
+    # Curation signals (album legitimacy + banger detection)
+    banger_score: float = 0.0
+    album_legitimacy_score: float = 0.0  # percentile-normalized at pool level
+    _raw_ma_rating: float = 0.0          # raw MA rating (0-100), for percentile normalization
+    _raw_ma_review_count: int = 0        # raw MA review count, for confidence weighting
+
     # Scoring components (all normalized 0-1)
     semantic_score: float = 0.0   # combined retrieval: 0.65*cosine + 0.35*keyword
     keyword_score: float = 0.0    # raw BM25 score (before normalization)
@@ -101,6 +107,12 @@ class CandidateTrack:
     _w_gravity: float = 0.15
     _w_duration: float = 0.10
     _w_impact: float = 0.0
+    _w_curation: float = 0.0
+
+    @property
+    def curation_score(self) -> float:
+        """Combined curation signal from banger detection + album legitimacy."""
+        return self.banger_score * 0.65 + self.album_legitimacy_score * 0.35
 
     @property
     def total_score(self) -> float:
@@ -108,6 +120,7 @@ class CandidateTrack:
             self.semantic_score * self._w_semantic +
             self.trajectory_score * self._w_trajectory +
             self.genre_match_score * self._w_genre +
+            self.curation_score * self._w_curation +
             self.impact_score * self._w_impact +
             self.year_score -
             self.gravity_penalty * self._w_gravity -
@@ -321,7 +334,10 @@ def semantic_search(
                     ) AS genres,
                     taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
                     COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0),
-                    tgp.genre_probs
+                    tgp.genre_probs,
+                    COALESCE(tbf.banger_score, 0) as banger_score,
+                    COALESCE(al_leg.ma_rating, 0) as ma_rating,
+                    COALESCE(al_leg.ma_review_count, 0) as ma_review_count
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -333,6 +349,9 @@ def semantic_search(
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
                 LEFT JOIN track_genre_probabilities tgp ON t.id = tgp.track_id
+                LEFT JOIN track_banger_flags tbf ON t.id = tbf.track_id
+                LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
+                    AND al_leg.match_confidence >= 0.7
                 WHERE te.embedding IS NOT NULL
                 {year_filter}
                 ORDER BY te.embedding <=> %s::vector
@@ -365,6 +384,10 @@ def semantic_search(
             playcount=int(row[18] or 0),
             listeners=int(row[19] or 0),
             genre_probs=dict(row[20]) if row[20] else {},
+            banger_score=float(row[21] or 0),
+            album_legitimacy_score=0.0,  # percentile-normalized after pool assembly
+            _raw_ma_rating=float(row[22] or 0),
+            _raw_ma_review_count=int(row[23] or 0),
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -574,7 +597,10 @@ def _fetch_candidates_by_ids(
                     ) AS genres,
                     taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
                     COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0),
-                    tgp.genre_probs
+                    tgp.genre_probs,
+                    COALESCE(tbf.banger_score, 0) as banger_score,
+                    COALESCE(al_leg.ma_rating, 0) as ma_rating,
+                    COALESCE(al_leg.ma_review_count, 0) as ma_review_count
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -587,6 +613,9 @@ def _fetch_candidates_by_ids(
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
                 LEFT JOIN track_genre_probabilities tgp ON t.id = tgp.track_id
+                LEFT JOIN track_banger_flags tbf ON t.id = tbf.track_id
+                LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
+                    AND al_leg.match_confidence >= 0.7
                 WHERE t.id = ANY(%s::uuid[])
             """, (track_ids,))
             rows = cur.fetchall()
@@ -613,6 +642,10 @@ def _fetch_candidates_by_ids(
             playcount=int(row[16] or 0),
             listeners=int(row[17] or 0),
             genre_probs=dict(row[18]) if row[18] else {},
+            banger_score=float(row[19] or 0),
+            album_legitimacy_score=0.0,
+            _raw_ma_rating=float(row[20] or 0),
+            _raw_ma_review_count=int(row[21] or 0),
             semantic_score=0.0,
         ))
 
@@ -735,6 +768,34 @@ def score_duration_compatibility(
         return 0.3 * (ratio - 1.5) / (max_ratio - 1.5)
 
 
+def _normalize_album_legitimacy(candidates: list[CandidateTrack]) -> None:
+    """Percentile-normalize raw MA ratings across the candidate pool in-place.
+
+    Converts _raw_ma_rating (0-100 scale) into a 0-1 percentile score,
+    confidence-weighted by review count.  Tracks with no MA data stay at 0.0.
+    """
+    rated = [(i, c._raw_ma_rating, c._raw_ma_review_count)
+             for i, c in enumerate(candidates) if c._raw_ma_rating > 0]
+    if not rated:
+        return
+
+    # Confidence: log1p(review_count) / log1p(max_review_count)
+    max_reviews = max(rc for _, _, rc in rated) or 1
+    # Raw scores: rating/100 * confidence
+    raw_scores = []
+    for idx, rating, reviews in rated:
+        confidence = math.log1p(reviews) / math.log1p(max(1, max_reviews))
+        raw = (rating / 100.0) * (0.5 + 0.5 * confidence)  # floor at half weight
+        raw_scores.append((idx, raw))
+
+    # Percentile rank
+    sorted_scores = sorted(raw_scores, key=lambda x: x[1])
+    n = len(sorted_scores)
+    for rank, (idx, _) in enumerate(sorted_scores):
+        pctl = rank / max(1, n - 1) if n > 1 else 0.5
+        candidates[idx] = replace(candidates[idx], album_legitimacy_score=pctl)
+
+
 # ---------------------------------------------------------------------------
 # Adaptive scoring weights per prompt type  (Phase 3b)
 # ---------------------------------------------------------------------------
@@ -744,30 +805,34 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
 
     Genre-focused prompts boost genre Jaccard + semantic (which includes BM25)
     and reduce trajectory weight.  Arc-focused prompts do the opposite.
+    Curation weight draws from semantic + genre budgets (capped ≤ 0.08).
     """
     if prompt_type == PromptType.GENRE:
         return {
-            "semantic": 0.33,
+            "semantic": 0.29,
             "trajectory": 0.15,
-            "genre": 0.27,
+            "genre": 0.23,
             "gravity": 0.15,
             "duration": 0.10,
+            "curation": 0.08,
         }
     elif prompt_type == PromptType.ARC:
         return {
-            "semantic": 0.12,
+            "semantic": 0.10,
             "trajectory": 0.45,
-            "genre": 0.18,
+            "genre": 0.16,
             "gravity": 0.15,
             "duration": 0.10,
+            "curation": 0.04,
         }
     else:  # MIXED
         return {
-            "semantic": 0.33,
+            "semantic": 0.30,
             "trajectory": 0.26,
-            "genre": 0.18,
+            "genre": 0.15,
             "gravity": 0.15,
             "duration": 0.10,
+            "curation": 0.06,
         }
 
 
@@ -808,9 +873,11 @@ def generate_position_pools(
     w_gravity = weights["gravity"]
     w_duration = weights["duration"]
     w_impact = min(0.12, 0.12 * intent.impact_preference)
+    w_curation = weights.get("curation", 0.0)
 
     logger.info(f"Adaptive weights ({intent.prompt_type.value}): "
-                f"sem={w_semantic}, traj={w_trajectory}, genre={w_genre}, impact={w_impact}")
+                f"sem={w_semantic}, traj={w_trajectory}, genre={w_genre}, "
+                f"impact={w_impact}, curation={w_curation}")
 
     # --- 1. Semantic search (multi-query for non-STEADY arcs) ---
     # Build hybrid query: blend prompt embedding with genre centroid when available.
@@ -973,6 +1040,9 @@ def generate_position_pools(
         logger.warning("No candidates found across all pool sources")
         return []
 
+    # Percentile-normalize album legitimacy scores across the pool
+    _normalize_album_legitimacy(global_candidates)
+
     logger.info(f"Total global candidate pool: {len(global_candidates)} tracks")
 
     # --- 5. Fetch track usage penalties (playlist memory) ---
@@ -1080,6 +1150,7 @@ def generate_position_pools(
             _w_gravity=w_gravity,
             _w_duration=w_duration,
             _w_impact=w_impact,
+            _w_curation=w_curation,
         )
         staged_track = replace(
             staged_track,
@@ -1178,6 +1249,7 @@ def generate_position_pools(
                 _w_gravity=w_gravity,
                 _w_duration=w_duration,
                 _w_impact=w_impact,
+                _w_curation=w_curation,
             )
 
             total = scored_track.total_score

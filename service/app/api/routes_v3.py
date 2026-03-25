@@ -17,7 +17,9 @@ from pydantic import BaseModel
 from app.config import settings
 from app.database_pg import get_stats, get_cursor, get_connection, init_database, rebuild_search_vectors
 from app.ingestion.scanner import scan_library
-from app.ingestion.lastfm import enrich_artists_from_lastfm
+from app.ingestion.lastfm import enrich_artists_from_lastfm, enrich_tracks_from_lastfm
+from app.ingestion.metal_archives import enrich_albums_from_metal_archives
+from app.enrichment.banger_detector import compute_banger_flags
 from app.embeddings.generator import generate_track_embeddings, search_tracks_by_text
 from app.profiles.generator import generate_profiles
 from app.export.m3u import (
@@ -26,6 +28,7 @@ from app.export.m3u import (
 )
 from app.trajectory.composer_v4 import compose_playlist_v4, compose_playlist_v4_streaming
 from app.trajectory.title_generator import generate_playlist_title
+from app.trajectory.prompt_enhancer import enhance_prompt
 from app.observability import log_generation, update_track_usage, check_cold_start
 from app.clustering.scenes import generate_clusters
 from app.audio.analyzer import analyze_library
@@ -88,6 +91,11 @@ class ExportRequest(BaseModel):
 class JellyfinExportRequest(BaseModel):
     track_ids: list[str]
     playlist_name: str
+
+
+class EnhancePromptRequest(BaseModel):
+    prompt: str
+    mode: str = "balanced"  # light, balanced, aggressive
 
 
 class GeneratePlaylistRequest(BaseModel):
@@ -753,6 +761,25 @@ async def trigger_lastfm_enrichment_stream():
     )
 
 
+@router.post("/enrich/lastfm-tracks")
+async def trigger_lastfm_track_enrichment(
+    background_tasks: BackgroundTasks,
+    max_tracks: int | None = None,
+):
+    """Fetch per-track Last.fm stats (playcount, listeners). Slow — use max_tracks to limit."""
+    background_tasks.add_task(enrich_tracks_from_lastfm, max_tracks=max_tracks)
+    return {"status": "started", "message": f"Last.fm track enrichment started (max_tracks={max_tracks})"}
+
+
+@router.post("/enrich/lastfm-tracks/stream")
+async def trigger_lastfm_track_enrichment_stream(max_tracks: int | None = None):
+    """Fetch per-track Last.fm stats with SSE progress."""
+    return _make_enrichment_stream(
+        "Last.fm track enrichment",
+        lambda cb: enrich_tracks_from_lastfm(max_tracks=max_tracks, progress_callback=cb),
+    )
+
+
 @router.post("/enrich/embeddings")
 async def trigger_embedding_generation(background_tasks: BackgroundTasks):
     """Trigger embedding generation (runs in background)."""
@@ -892,6 +919,53 @@ async def trigger_genre_manifold_stream():
     return _make_enrichment_stream("Genre manifold build", run_async)
 
 
+_metal_archives_lock = asyncio.Lock()
+
+
+@router.post("/enrich/metal-archives")
+async def trigger_metal_archives_enrichment(
+    background_tasks: BackgroundTasks,
+    force: bool = False,
+):
+    """Trigger Metal Archives album legitimacy scraping (runs in background)."""
+    background_tasks.add_task(enrich_albums_from_metal_archives, force=force)
+    return {"status": "started", "message": "Metal Archives enrichment started in background"}
+
+
+@router.post("/enrich/metal-archives/stream")
+async def trigger_metal_archives_enrichment_stream(force: bool = False):
+    """Scrape Metal Archives album ratings with SSE progress."""
+    if _metal_archives_lock.locked():
+        raise HTTPException(status_code=409, detail="Metal Archives enrichment is already running")
+
+    async def run_async(progress_callback):
+        async with _metal_archives_lock:
+            return await enrich_albums_from_metal_archives(
+                force=force, progress_callback=progress_callback,
+            )
+
+    return _make_enrichment_stream("Metal Archives enrichment", run_async)
+
+
+@router.post("/enrich/banger-flags")
+async def trigger_banger_flag_computation(
+    background_tasks: BackgroundTasks,
+    force: bool = False,
+):
+    """Compute banger flags from existing Last.fm data (runs in background)."""
+    background_tasks.add_task(compute_banger_flags, force=force)
+    return {"status": "started", "message": "Banger flag computation started in background"}
+
+
+@router.post("/enrich/banger-flags/stream")
+async def trigger_banger_flag_computation_stream(force: bool = False):
+    """Compute banger flags with SSE progress."""
+    return _make_enrichment_stream(
+        "Banger flag computation",
+        lambda cb: compute_banger_flags(force=force, progress_callback=cb),
+    )
+
+
 # ============================================================================
 # Combined Sync (scan + all enrichment in one shot)
 # ============================================================================
@@ -900,7 +974,7 @@ async def trigger_genre_manifold_stream():
 async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_audio: bool = True):
     """Run incremental scan followed by all enrichment steps in sequence.
 
-    Chains: scan → Last.fm → embeddings → profiles → clusters → search vectors.
+    Chains: scan → Last.fm → Metal Archives → embeddings → profiles → clusters → banger flags → search vectors.
     Each step is incremental — only new/unprocessed tracks are touched.
     Streams SSE progress events throughout the entire pipeline.
 
@@ -1021,8 +1095,45 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
         else:
             yield emit("lastfm", 35, "Last.fm enrichment skipped")
 
+        # --- Stage 2b: Metal Archives enrichment ---
+        yield emit("metal_archives", 36, "Starting Metal Archives enrichment...")
+        try:
+            ma_done = asyncio.Event()
+            ma_result: dict = {}
+
+            def ma_progress(current: int, total: int, message: str):
+                pct = int((current / total) * 100) if total > 0 else 0
+                # Scale to 36-42%
+                scaled = 36 + (pct * 6 // 100)
+                ma_result["last_event"] = emit("metal_archives", scaled, message)
+
+            async def do_metal_archives():
+                try:
+                    result = await enrich_albums_from_metal_archives(progress_callback=ma_progress)
+                    ma_result["stats"] = result
+                except Exception as exc:
+                    ma_result["error"] = str(exc)
+                finally:
+                    ma_done.set()
+
+            asyncio.create_task(do_metal_archives())
+
+            while not ma_done.is_set():
+                if "last_event" in ma_result:
+                    yield ma_result.pop("last_event")
+                await asyncio.sleep(0.4)
+
+            if "error" in ma_result:
+                yield emit("metal_archives", 42, f"Metal Archives enrichment failed (continuing): {ma_result['error']}")
+            else:
+                pipeline_stats["metal_archives"] = ma_result.get("stats", {})
+                yield emit("metal_archives", 42, "Metal Archives enrichment complete")
+
+        except Exception as exc:
+            yield emit("metal_archives", 42, f"Metal Archives enrichment failed (continuing): {exc}")
+
         # --- Stage 3: Embeddings ---
-        embed_start = 36
+        embed_start = 43
         yield emit("embeddings", embed_start, "Starting embedding generation...")
         try:
             embed_done = asyncio.Event()
@@ -1030,8 +1141,8 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
 
             def embed_progress(current: int, total: int, message: str):
                 pct = int((current / total) * 100) if total > 0 else 0
-                # Scale to 36-60%
-                scaled = embed_start + (pct * 24 // 100)
+                # Scale to 43-60%
+                scaled = embed_start + (pct * 17 // 100)
                 embed_result["last_event"] = emit("embeddings", scaled, message)
 
             async def do_embeddings():
@@ -1138,6 +1249,16 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
 
         except Exception as exc:
             yield emit("clusters", 93, f"Clustering failed (continuing): {exc}")
+
+
+        # --- Stage 5b: Banger flag computation ---
+        yield emit("banger_flags", 94, "Computing banger flags...")
+        try:
+            banger_result = await compute_banger_flags()
+            pipeline_stats["banger_flags"] = banger_result
+            yield emit("banger_flags", 95, f"Banger detection complete: {banger_result.get('tracks_saved', 0)} flagged")
+        except Exception as exc:
+            yield emit("banger_flags", 95, f"Banger detection failed (continuing): {exc}")
 
         # --- Stage 6: Audio analysis (optional) ---
         if not skip_audio:
@@ -1274,6 +1395,9 @@ def _candidate_tracks_to_dicts(tracks) -> list[dict]:
                 "trajectory": round(t.trajectory_score, 3),
                 "genre_match": round(t.genre_match_score, 3),
                 "impact": round(t.impact_score, 3),
+                "curation": round(t.curation_score, 3),
+                "banger": round(t.banger_score, 3),
+                "legitimacy": round(t.album_legitimacy_score, 3),
                 "negative_constraint_penalty": round(t.negative_constraint_penalty, 3),
                 "tourist_match_penalty": round(t.tourist_match_penalty, 3),
                 "gravity_penalty": round(t.gravity_penalty, 3),
@@ -1308,6 +1432,25 @@ def _save_playlist(prompt: str, tracks) -> str | None:
                     VALUES (%s, %s, %s)
                 """, (playlist_id, track_id, i))
     return playlist_id
+
+
+@router.post("/enhance-prompt")
+async def enhance_prompt_endpoint(request: EnhancePromptRequest):
+    """Enhance a user prompt for better playlist generation results."""
+    if not request.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    valid_modes = ("light", "balanced", "aggressive")
+    mode = request.mode if request.mode in valid_modes else "balanced"
+
+    try:
+        result = await asyncio.to_thread(enhance_prompt, request.prompt.strip(), mode)
+        return result
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"Prompt enhancement failed: {e}")
+        raise HTTPException(status_code=500, detail="Prompt enhancement failed")
 
 
 @router.post("/generate-playlist")

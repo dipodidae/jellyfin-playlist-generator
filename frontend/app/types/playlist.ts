@@ -3,6 +3,9 @@ export interface TrackScores {
   trajectory: number
   genre_match: number
   gravity_penalty: number
+  curation?: number
+  banger?: number
+  legitimacy?: number
   total: number
 }
 

@@ -20,11 +20,12 @@ const profiles = useEnrichmentStream({ onCompleted })
 const clusters = useEnrichmentStream({ onCompleted })
 const audio = useEnrichmentStream({ onCompleted })
 const genreManifold = useEnrichmentStream({ onCompleted })
+const metalArchives = useEnrichmentStream({ onCompleted })
 
 const anyRunning = computed(() =>
   lastfm.isRunning.value || embeddings.isRunning.value
   || profiles.isRunning.value || clusters.isRunning.value || audio.isRunning.value
-  || genreManifold.isRunning.value,
+  || genreManifold.isRunning.value || metalArchives.isRunning.value,
 )
 
 function coveragePct(done: number | undefined, total: number): number {
@@ -38,6 +39,7 @@ const lastfmPct = computed(() => coveragePct(props.stats.artists_with_tags, prop
 const clusterPct = computed(() => coveragePct(props.stats.artists_clustered, props.stats.artists))
 const audioPct = computed(() => coveragePct(props.stats.tracks_with_audio_features, props.stats.tracks))
 const genreManifoldPct = computed(() => coveragePct(props.stats.tracks_with_genre_probs, props.stats.tracks))
+const metalArchivesPct = computed(() => coveragePct(props.stats.albums_with_legitimacy, props.stats.albums))
 
 function coverageColor(pct: number): string {
   if (pct >= 80) return 'text-green-600 dark:text-green-400'
@@ -52,11 +54,12 @@ const activeJob = computed(() => {
   if (clusters.isRunning.value) return clusters
   if (audio.isRunning.value) return audio
   if (genreManifold.isRunning.value) return genreManifold
+  if (metalArchives.isRunning.value) return metalArchives
   return null
 })
 
 const latestOutcome = computed(() => {
-  const jobs = [lastfm, embeddings, profiles, clusters, audio, genreManifold]
+  const jobs = [lastfm, embeddings, profiles, clusters, audio, genreManifold, metalArchives]
   const failedJob = jobs.find(job => job.status.value === 'error' && job.error.value)
   if (failedJob) {
     return {
@@ -95,6 +98,7 @@ const latestOutcome = computed(() => {
           <div>5. Run <code>Rebuild Clusters</code> after embeddings exist.</div>
           <div>6. Run <code>Audio Analysis</code> if you want BPM and loudness features.</div>
           <div>7. Run <code>Genre Manifold</code> after embeddings and clusters exist — required for genre fidelity constraints.</div>
+          <div>8. Run <code>Metal Archives</code> to scrape album ratings — feeds into album legitimacy scoring.</div>
         </div>
         <div>
           <div class="font-medium text-gray-900 dark:text-white">What to expect</div>
@@ -119,6 +123,7 @@ const latestOutcome = computed(() => {
             <div><span class="text-gray-900 dark:text-white font-medium">Scene Clusters</span> — Artists grouped into stylistic scenes using embedding similarity. The engine uses these to ensure variety and smooth transitions between musical zones. The count shown is the number of distinct scenes.</div>
             <div><span class="text-gray-900 dark:text-white font-medium">Audio Features</span> — Acoustic measurements (BPM, loudness, brightness) extracted directly from audio files. Optional — profiles already cover the same dimensions via semantic analysis, but audio features can sharpen accuracy.</div>
             <div><span class="text-gray-900 dark:text-white font-medium">Genre Manifold</span> — Probabilistic genre identity vectors per track, built from kNN neighborhood votes, Last.fm tags, and cluster membership. Powers strict genre filtering and prevents adjacent-genre drift (e.g. thrash staying thrash, not bleeding into NWOBHM).</div>
+            <div><span class="text-gray-900 dark:text-white font-medium">Metal Archives</span> — Album ratings and review counts scraped from Encyclopaedia Metallum. Matched to local albums via fuzzy title + year comparison. Feeds into a curation score that gently favours well-reviewed releases.</div>
           </div>
         </div>
       </div>
@@ -242,6 +247,26 @@ const latestOutcome = computed(() => {
           {{ (stats.tracks_with_genre_probs ?? 0).toLocaleString() }} / {{ stats.tracks.toLocaleString() }} tracks
         </div>
       </div>
+
+      <!-- Metal Archives -->
+      <div class="space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Album ratings and review counts scraped from Metal Archives. Used for album legitimacy scoring.">Metal Archives</span>
+          <span :class="coverageColor(metalArchivesPct)" class="text-xs font-semibold">
+            {{ metalArchivesPct }}%
+          </span>
+        </div>
+        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div
+            class="h-full bg-orange-500 rounded-full transition-all duration-500"
+            :style="{ width: `${metalArchivesPct}%` }"
+            :class="{ 'animate-pulse': metalArchives.isRunning.value }"
+          />
+        </div>
+        <div class="text-xs text-gray-400">
+          {{ (stats.albums_with_legitimacy ?? 0).toLocaleString() }} / {{ stats.albums.toLocaleString() }} albums
+        </div>
+      </div>
     </div>
 
     <!-- Active enrichment progress -->
@@ -335,6 +360,15 @@ const latestOutcome = computed(() => {
         @click="genreManifold.run('/api/enrich/genre-manifold/stream', 'Genre manifold build')"
       >
         Genre Manifold
+      </UButton>
+      <UButton
+        :loading="metalArchives.isRunning.value"
+        :disabled="anyRunning"
+        variant="outline"
+        size="xs"
+        @click="metalArchives.run('/api/enrich/metal-archives/stream', 'Metal Archives enrichment')"
+      >
+        Metal Archives
       </UButton>
       <UButton
         variant="ghost"

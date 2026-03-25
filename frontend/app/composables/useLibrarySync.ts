@@ -25,6 +25,7 @@ export function useLibrarySync(options?: { onCompleted?: () => void }) {
   const lastSyncTime = ref<Date | null>(null)
 
   let pollTimer: ReturnType<typeof setTimeout> | null = null
+  let clearStatusTimer: ReturnType<typeof setTimeout> | null = null
 
   const currentSyncStats = computed(() => syncStatus.value?.stats ?? emptyScanStats())
   const scanProgressValue = computed(() => syncStatus.value?.progress ?? 0)
@@ -37,7 +38,8 @@ export function useLibrarySync(options?: { onCompleted?: () => void }) {
   const scanElapsedText = computed(() => {
     if (!syncStatus.value?.started_at) return ''
     const started = new Date(syncStatus.value.started_at).getTime()
-    const end = syncStatus.value.completed_at
+    // Use completed_at if available, otherwise current time if still running
+    const end = (syncStatus.value.completed_at && !syncStatus.value.is_running)
       ? new Date(syncStatus.value.completed_at).getTime()
       : Date.now()
     const seconds = Math.max(0, Math.floor((end - started) / 1000))
@@ -65,28 +67,51 @@ export function useLibrarySync(options?: { onCompleted?: () => void }) {
   }
 
   function applyScanStatus(status: ScanStatus, source: 'stream' | 'snapshot') {
+    // When scan is complete, ensure completed_at and is_running are set correctly
+    let finalStatus = { ...status }
+
+    if (status.stage === 'complete' && !status.completed_at) {
+      // If backend sent complete event but missing completed_at, use current time
+      finalStatus.completed_at = new Date().toISOString()
+    }
+
+    if (status.stage === 'complete' || status.status === 'completed') {
+      // Ensure is_running is false when scan is done
+      finalStatus.is_running = false
+
+      // Clear status after a delay so the progress bar disappears
+      if (clearStatusTimer) {
+        clearTimeout(clearStatusTimer)
+      }
+      clearStatusTimer = setTimeout(() => {
+        if (!isSyncing.value) {
+          syncStatus.value = null
+        }
+      }, 5000)
+    }
+
     syncStatus.value = {
-      ...status,
-      stats: status.stats ?? emptyScanStats(),
+      ...finalStatus,
+      stats: finalStatus.stats ?? emptyScanStats(),
       source,
       is_live: source === 'stream',
     }
-    isSyncing.value = status.is_running
-    syncError.value = status.error ?? null
+    isSyncing.value = finalStatus.is_running
+    syncError.value = finalStatus.error ?? null
 
-    if (status.message) {
+    if (finalStatus.message) {
       addScanActivity({
-        stage: status.stage,
-        event_type: status.status,
-        message: status.message,
-        current: status.current,
-        total: status.total,
-        created_at: status.updated_at ?? status.started_at,
+        stage: finalStatus.stage,
+        event_type: finalStatus.status,
+        message: finalStatus.message,
+        current: finalStatus.current,
+        total: finalStatus.total,
+        created_at: finalStatus.updated_at ?? finalStatus.started_at,
       })
     }
 
-    if (!status.is_running && status.completed_at) {
-      lastSyncTime.value = new Date(status.completed_at)
+    if (!finalStatus.is_running && finalStatus.completed_at) {
+      lastSyncTime.value = new Date(finalStatus.completed_at)
     }
   }
 
@@ -256,6 +281,9 @@ export function useLibrarySync(options?: { onCompleted?: () => void }) {
 
   onBeforeUnmount(() => {
     resetPollTimer()
+    if (clearStatusTimer) {
+      clearTimeout(clearStatusTimer)
+    }
   })
 
   return {
