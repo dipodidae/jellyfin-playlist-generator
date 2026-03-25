@@ -1210,7 +1210,7 @@ def _build_intent_from_llm(
         num_waypoints = min(target_size, 10)
         waypoints = generate_waypoints_from_curve(trajectory_curve, num_waypoints)
 
-    # Enrich waypoints with mood embeddings
+    # Set waypoint descriptions (mood embeddings removed — unused by v4 pipeline)
     for i, wp in enumerate(waypoints):
         phase_descriptions = {
             0: f"opening: {prompt}",
@@ -1219,7 +1219,6 @@ def _build_intent_from_llm(
         wp.description = wp.description or phase_descriptions.get(
             i, f"{wp.phase_label} phase: {prompt}"
         )
-        wp.mood_embedding = generate_embedding(wp.description)
 
     # Extract abstract concepts (still useful for semantic matching)
     abstract_concepts = extract_abstract_concepts(prompt)
@@ -1321,14 +1320,13 @@ def _build_intent_from_keywords(
     num_waypoints = min(target_size, 10)  # Cap at 10 waypoints
     waypoints = generate_waypoints_from_curve(trajectory_curve, num_waypoints)
 
-    # Enrich waypoints with mood embeddings
+    # Set waypoint descriptions (mood embeddings removed — unused by v4 pipeline)
     for i, wp in enumerate(waypoints):
         phase_descriptions = {
             0: f"opening: {prompt}",
             len(waypoints) - 1: f"closing: {prompt}",
         }
         wp.description = phase_descriptions.get(i, f"{wp.phase_label} phase: {prompt}")
-        wp.mood_embedding = generate_embedding(wp.description)
 
     genre_mode = detect_genre_mode(prompt, genre_hints_raw, arc_type)
 

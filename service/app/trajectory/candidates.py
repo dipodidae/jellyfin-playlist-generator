@@ -121,7 +121,6 @@ class CandidateTrack:
             self.trajectory_score * self._w_trajectory +
             self.genre_match_score * self._w_genre +
             self.curation_score * self._w_curation +
-            self.impact_score * self._w_impact +
             self.year_score -
             self.gravity_penalty * self._w_gravity -
             self.duration_penalty * self._w_duration -
@@ -248,13 +247,25 @@ def compute_impact_score(
 def compute_admissibility_score(
     track: CandidateTrack,
     semantic_floor: float,
+    prompt_type: PromptType = PromptType.MIXED,
 ) -> float:
     semantic_strength = min(1.0, track.semantic_score / max(semantic_floor, 1e-6))
+    if prompt_type == PromptType.ARC:
+        # ARC prompts: reduce semantic gate, add trajectory contribution
+        return (
+            semantic_strength * 0.35 +
+            track.trajectory_score * 0.25 +
+            track.genre_match_score * 0.20 +
+            max(0.0, track.year_score) * 0.05 +
+            track.curation_score * 0.15 -
+            track.negative_constraint_penalty * 0.50 -
+            track.tourist_match_penalty * 0.35
+        )
     return (
         semantic_strength * 0.60 +
         track.genre_match_score * 0.20 +
         max(0.0, track.year_score) * 0.05 +
-        track.impact_score * 0.15 -
+        track.curation_score * 0.15 -
         track.negative_constraint_penalty * 0.50 -
         track.tourist_match_penalty * 0.35
     )
@@ -827,7 +838,7 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
         }
     else:  # MIXED
         return {
-            "semantic": 0.30,
+            "semantic": 0.28,
             "trajectory": 0.26,
             "genre": 0.15,
             "gravity": 0.15,
@@ -872,12 +883,14 @@ def generate_position_pools(
     w_genre = weights["genre"]
     w_gravity = weights["gravity"]
     w_duration = weights["duration"]
-    w_impact = min(0.12, 0.12 * intent.impact_preference)
-    w_curation = weights.get("curation", 0.0)
+    # impact_preference scales curation weight (no separate impact_score — avoids
+    # double-counting Last.fm data already used by banger_score inside curation_score)
+    base_curation = weights.get("curation", 0.0)
+    w_curation = min(0.15, base_curation + 0.12 * intent.impact_preference)
 
     logger.info(f"Adaptive weights ({intent.prompt_type.value}): "
                 f"sem={w_semantic}, traj={w_trajectory}, genre={w_genre}, "
-                f"impact={w_impact}, curation={w_curation}")
+                f"curation={w_curation} (impact_pref={intent.impact_preference:.2f})")
 
     # --- 1. Semantic search (multi-query for non-STEADY arcs) ---
     # Build hybrid query: blend prompt embedding with genre centroid when available.
@@ -1127,20 +1140,12 @@ def generate_position_pools(
             track.semantic_score, genre_match, semantic_floor,
             has_genre_hints=bool(hint_set),
         )
-        impact_score = compute_impact_score(
-            track,
-            artist_maxima,
-            global_max_playcount,
-            global_max_listeners,
-            intent.impact_preference,
-        )
         usage_penalty = usage_penalties.get(track.id, 0.0)
 
         staged_track = replace(
             track,
             year_score=year_score,
             genre_match_score=genre_match,
-            impact_score=impact_score,
             negative_constraint_penalty=negative_penalty,
             tourist_match_penalty=tourist_penalty,
             usage_penalty=usage_penalty,
@@ -1149,17 +1154,17 @@ def generate_position_pools(
             _w_genre=w_genre,
             _w_gravity=w_gravity,
             _w_duration=w_duration,
-            _w_impact=w_impact,
             _w_curation=w_curation,
         )
         staged_track = replace(
             staged_track,
-            admissibility_score=compute_admissibility_score(staged_track, semantic_floor),
+            admissibility_score=compute_admissibility_score(staged_track, semantic_floor, intent.prompt_type),
         )
         staged_candidates.append(staged_track)
 
-    # Tighter admissibility for ARC prompts (genre fidelity matters more)
-    admissibility_floor = 0.40 if intent.prompt_type == PromptType.ARC else 0.35
+    # ARC prompts get a lower admissibility floor since arc-following candidates
+    # score lower on the (still partially semantic-weighted) admissibility formula
+    admissibility_floor = 0.30 if intent.prompt_type == PromptType.ARC else 0.35
     neg_constraint_ceiling = 0.35 if intent.prompt_type == PromptType.ARC else 0.45
 
     admissible_candidates = [
@@ -1248,7 +1253,6 @@ def generate_position_pools(
                 _w_genre=w_genre,
                 _w_gravity=w_gravity,
                 _w_duration=w_duration,
-                _w_impact=w_impact,
                 _w_curation=w_curation,
             )
 
