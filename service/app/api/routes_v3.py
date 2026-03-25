@@ -19,6 +19,8 @@ from app.database_pg import get_stats, get_cursor, get_connection, init_database
 from app.ingestion.scanner import scan_library
 from app.ingestion.lastfm import enrich_artists_from_lastfm, enrich_tracks_from_lastfm
 from app.ingestion.metal_archives import enrich_albums_from_metal_archives
+from app.ingestion.musicbrainz import resolve_musicbrainz_ids
+from app.ingestion.rym import enrich_albums_from_rym
 from app.enrichment.banger_detector import compute_banger_flags
 from app.embeddings.generator import generate_track_embeddings, search_tracks_by_text
 from app.profiles.generator import generate_profiles
@@ -966,6 +968,85 @@ async def trigger_banger_flag_computation_stream(force: bool = False):
     )
 
 
+_musicbrainz_lock = asyncio.Lock()
+
+
+@router.post("/enrich/musicbrainz")
+async def trigger_musicbrainz_enrichment(
+    background_tasks: BackgroundTasks,
+    force: bool = False,
+):
+    """Trigger MusicBrainz identity resolution (runs in background)."""
+    background_tasks.add_task(resolve_musicbrainz_ids, force=force)
+    return {"status": "started", "message": "MusicBrainz resolution started in background"}
+
+
+@router.post("/enrich/musicbrainz/stream")
+async def trigger_musicbrainz_enrichment_stream(force: bool = False):
+    """Resolve MusicBrainz IDs for artists and albums with SSE progress."""
+    if _musicbrainz_lock.locked():
+        raise HTTPException(status_code=409, detail="MusicBrainz resolution is already running")
+
+    async def run_async(progress_callback):
+        async with _musicbrainz_lock:
+            return await resolve_musicbrainz_ids(
+                force=force, progress_callback=progress_callback,
+            )
+
+    return _make_enrichment_stream("MusicBrainz resolution", run_async)
+
+
+_rym_lock = asyncio.Lock()
+
+
+@router.post("/enrich/rym")
+async def trigger_rym_enrichment(
+    background_tasks: BackgroundTasks,
+    force: bool = False,
+    max_albums: int | None = None,
+):
+    """Trigger RateYourMusic album scraping (runs in background). Disabled by default."""
+    background_tasks.add_task(enrich_albums_from_rym, force=force, max_albums=max_albums)
+    return {"status": "started", "message": "RYM enrichment started in background"}
+
+
+@router.post("/enrich/rym/stream")
+async def trigger_rym_enrichment_stream(force: bool = False, max_albums: int | None = None):
+    """Scrape RateYourMusic album data with SSE progress. Disabled by default."""
+    if _rym_lock.locked():
+        raise HTTPException(status_code=409, detail="RYM enrichment is already running")
+
+    async def run_async(progress_callback):
+        async with _rym_lock:
+            return await enrich_albums_from_rym(
+                force=force, max_albums=max_albums, progress_callback=progress_callback,
+            )
+
+    return _make_enrichment_stream("RYM enrichment", run_async)
+
+
+@router.get("/enrich/rym/status")
+async def get_rym_status():
+    """Get RYM enrichment coverage stats."""
+    with get_cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM albums")
+        total_albums = (cur.fetchone() or [0])[0]
+        cur.execute("SELECT COUNT(*) FROM rym_albums")
+        rym_albums = (cur.fetchone() or [0])[0]
+        cur.execute("SELECT AVG(rym_rating), AVG(rym_votes) FROM rym_albums WHERE rym_rating IS NOT NULL")
+        row = cur.fetchone()
+        avg_rating = round(float(row[0]), 2) if row and row[0] else None
+        avg_votes = round(float(row[1]), 1) if row and row[1] else None
+    return {
+        "total_albums": total_albums,
+        "rym_albums": rym_albums,
+        "coverage_pct": round(rym_albums / max(1, total_albums) * 100, 1),
+        "avg_rating": avg_rating,
+        "avg_votes": avg_votes,
+        "scraping_enabled": settings.rym_scrape_enabled,
+    }
+
+
 # ============================================================================
 # Combined Sync (scan + all enrichment in one shot)
 # ============================================================================
@@ -974,7 +1055,7 @@ async def trigger_banger_flag_computation_stream(force: bool = False):
 async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_audio: bool = True):
     """Run incremental scan followed by all enrichment steps in sequence.
 
-    Chains: scan → Last.fm → Metal Archives → embeddings → profiles → clusters → banger flags → search vectors.
+    Chains: scan → MusicBrainz → Last.fm → Metal Archives → embeddings → profiles → clusters → banger flags → search vectors.
     Each step is incremental — only new/unprocessed tracks are touched.
     Streams SSE progress events throughout the entire pipeline.
 
@@ -1049,9 +1130,46 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
             yield emit("error", 0, f"Scan failed: {exc}", error=str(exc), done=True)
             return
 
+        # --- Stage 1b: MusicBrainz identity resolution ---
+        yield emit("musicbrainz", 16, "Starting MusicBrainz resolution...")
+        try:
+            mb_done = asyncio.Event()
+            mb_result: dict = {}
+
+            def mb_progress(current: int, total: int, message: str):
+                pct = int((current / total) * 100) if total > 0 else 0
+                # Scale to 16-22%
+                scaled = 16 + (pct * 6 // 100)
+                mb_result["last_event"] = emit("musicbrainz", scaled, message)
+
+            async def do_musicbrainz():
+                try:
+                    result = await resolve_musicbrainz_ids(progress_callback=mb_progress)
+                    mb_result["stats"] = result
+                except Exception as exc:
+                    mb_result["error"] = str(exc)
+                finally:
+                    mb_done.set()
+
+            asyncio.create_task(do_musicbrainz())
+
+            while not mb_done.is_set():
+                if "last_event" in mb_result:
+                    yield mb_result.pop("last_event")
+                await asyncio.sleep(0.4)
+
+            if "error" in mb_result:
+                yield emit("musicbrainz", 22, f"MusicBrainz resolution failed (continuing): {mb_result['error']}")
+            else:
+                pipeline_stats["musicbrainz"] = mb_result.get("stats", {})
+                yield emit("musicbrainz", 22, "MusicBrainz resolution complete")
+
+        except Exception as exc:
+            yield emit("musicbrainz", 22, f"MusicBrainz resolution failed (continuing): {exc}")
+
         # --- Stage 2: Last.fm enrichment (optional) ---
         if not skip_lastfm:
-            yield emit("lastfm", 16, "Starting Last.fm enrichment...")
+            yield emit("lastfm", 23, "Starting Last.fm enrichment...")
             try:
                 lastfm_done = asyncio.Event()
                 lastfm_result: dict = {}

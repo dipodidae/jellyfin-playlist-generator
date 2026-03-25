@@ -89,6 +89,16 @@ def build_track_text(track: dict[str, Any]) -> str:
         if top_tags:
             lines.append(f"Tags: {', '.join(top_tags)}")
 
+    # RYM genres (higher-resolution than file tags)
+    rym_genres = track.get("rym_genres") or []
+    if rym_genres:
+        lines.append(f"RYM genres: {', '.join(rym_genres[:5])}")
+
+    # RYM descriptors (atmospheric, melancholic, etc.)
+    rym_descriptors = track.get("rym_descriptors") or []
+    if rym_descriptors:
+        lines.append(f"Style: {', '.join(rym_descriptors[:5])}")
+
     # Mood and energy labels derived from genre/tag profile scores
     all_tags = genres + [t["name"] for t in (tags_raw or artist_tags_raw)]
     if all_tags:
@@ -170,6 +180,19 @@ def get_track_with_metadata(cur, track_id: str) -> dict[str, Any] | None:
             LIMIT 10
         """, (track_id,))
         result["artist_tags"] = [{"name": r[0], "weight": r[1]} for r in cur.fetchall()]
+
+    # RYM genres + descriptors (via album)
+    cur.execute("""
+        SELECT ra.genres, ra.descriptors
+        FROM rym_albums ra
+        JOIN track_albums tal ON tal.album_id = ra.album_id
+        WHERE tal.track_id = %s
+        LIMIT 1
+    """, (track_id,))
+    rym_row = cur.fetchone()
+    if rym_row:
+        result["rym_genres"] = list(rym_row[0]) if rym_row[0] else []
+        result["rym_descriptors"] = list(rym_row[1]) if rym_row[1] else []
 
     return result
 

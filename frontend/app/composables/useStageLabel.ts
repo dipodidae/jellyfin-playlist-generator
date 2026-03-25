@@ -4,6 +4,7 @@ const STAGE_LABELS: Record<string, string> = {
   discovering: 'Discovering files',
   scanning_files: 'Scanning files',
   saving_tracks: 'Saving tracks',
+  musicbrainz: 'MusicBrainz resolution',
   complete: 'Complete',
   error: 'Error',
 }

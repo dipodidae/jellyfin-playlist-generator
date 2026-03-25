@@ -422,6 +422,84 @@ def init_database() -> None:
                 )
             """)
 
+            # MusicBrainz lookup cache
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS mb_release_groups (
+                    mbid         VARCHAR(36) PRIMARY KEY,
+                    title        VARCHAR NOT NULL,
+                    artist_credit VARCHAR,
+                    primary_type  VARCHAR(20),
+                    first_release_year INTEGER,
+                    fetched_at   TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS mb_lookup_cache (
+                    entity_type  VARCHAR(10) NOT NULL,
+                    local_id     UUID NOT NULL,
+                    mbid         VARCHAR(36),
+                    match_score  FLOAT,
+                    lookup_at    TIMESTAMPTZ DEFAULT now(),
+                    PRIMARY KEY (entity_type, local_id)
+                )
+            """)
+
+            # RYM album-level data
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS rym_albums (
+                    album_id     UUID PRIMARY KEY REFERENCES albums(id) ON DELETE CASCADE,
+                    rym_url      VARCHAR,
+                    rym_rating   FLOAT,
+                    rym_votes    INTEGER DEFAULT 0,
+                    rym_lists    INTEGER DEFAULT 0,
+                    genres       JSONB DEFAULT '[]',
+                    descriptors  JSONB DEFAULT '[]',
+                    rating_std   FLOAT,
+                    fetched_at   TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_rym_albums_rating ON rym_albums(rym_rating)")
+
+            # RYM genre taxonomy
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS rym_genres (
+                    id           SERIAL PRIMARY KEY,
+                    name         VARCHAR UNIQUE NOT NULL,
+                    parent_name  VARCHAR,
+                    is_primary   BOOLEAN DEFAULT false
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS rym_album_genres (
+                    album_id     UUID REFERENCES albums(id) ON DELETE CASCADE,
+                    genre_id     INTEGER REFERENCES rym_genres(id) ON DELETE CASCADE,
+                    position     INTEGER DEFAULT 0,
+                    vote_count   INTEGER DEFAULT 0,
+                    PRIMARY KEY (album_id, genre_id)
+                )
+            """)
+
+            # Album co-occurrence from RYM user lists
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS rym_album_adjacency (
+                    album_a_id   UUID REFERENCES albums(id) ON DELETE CASCADE,
+                    album_b_id   UUID REFERENCES albums(id) ON DELETE CASCADE,
+                    co_occurrence INTEGER DEFAULT 1,
+                    PRIMARY KEY (album_a_id, album_b_id)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_rym_adjacency_a ON rym_album_adjacency(album_a_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_rym_adjacency_b ON rym_album_adjacency(album_b_id)")
+
+            # RYM scrape cache (raw HTML)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS rym_scrape_cache (
+                    url          VARCHAR PRIMARY KEY,
+                    html         TEXT,
+                    fetched_at   TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+
             logger.info("Database schema initialized")
 
 
@@ -499,6 +577,32 @@ def get_stats() -> dict:
             cur.execute("ROLLBACK TO SAVEPOINT sp_legitimacy")
             stats["albums_with_legitimacy"] = 0
             stats["tracks_with_banger_flags"] = 0
+
+        # MusicBrainz resolution
+        cur.execute("SAVEPOINT sp_musicbrainz")
+        try:
+            cur.execute("SELECT COUNT(*) FROM artists WHERE musicbrainz_id IS NOT NULL")
+            stats["artists_with_mbid"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM albums WHERE musicbrainz_id IS NOT NULL")
+            stats["albums_with_mbid"] = cur.fetchone()[0]
+            cur.execute("RELEASE SAVEPOINT sp_musicbrainz")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT sp_musicbrainz")
+            stats["artists_with_mbid"] = 0
+            stats["albums_with_mbid"] = 0
+
+        # RYM enrichment
+        cur.execute("SAVEPOINT sp_rym")
+        try:
+            cur.execute("SELECT COUNT(*) FROM rym_albums")
+            stats["albums_with_rym"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM rym_album_adjacency")
+            stats["rym_adjacency_pairs"] = cur.fetchone()[0]
+            cur.execute("RELEASE SAVEPOINT sp_rym")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT sp_rym")
+            stats["albums_with_rym"] = 0
+            stats["rym_adjacency_pairs"] = 0
 
         # IVFFlat index status
         cur.execute("""

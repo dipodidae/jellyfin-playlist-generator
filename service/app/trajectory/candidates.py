@@ -50,6 +50,7 @@ class CandidateTrack:
     artist_name: str
     artist_id: str | None
     album_name: str
+    album_id: str | None
     year: int | None
     duration_ms: int
     file_path: str | None = None
@@ -80,11 +81,17 @@ class CandidateTrack:
     playcount: int = 0
     listeners: int = 0
 
-    # Curation signals (album legitimacy + banger detection)
+    # Curation signals (album legitimacy + banger detection + RYM culture)
     banger_score: float = 0.0
     album_legitimacy_score: float = 0.0  # percentile-normalized at pool level
     _raw_ma_rating: float = 0.0          # raw MA rating (0-100), for percentile normalization
     _raw_ma_review_count: int = 0        # raw MA review count, for confidence weighting
+
+    # RYM cultural data (from rym_albums table)
+    rym_rating: float | None = None      # 0.0-5.0 scale, None = no data
+    rym_votes: int = 0
+    rym_genres: list = field(default_factory=list)  # list[str] — high-resolution RYM genres
+    rym_descriptors: list = field(default_factory=list)  # list[str]
 
     # Scoring components (all normalized 0-1)
     semantic_score: float = 0.0   # combined retrieval: 0.65*cosine + 0.35*keyword
@@ -111,8 +118,23 @@ class CandidateTrack:
 
     @property
     def curation_score(self) -> float:
-        """Combined curation signal from banger detection + album legitimacy."""
-        return self.banger_score * 0.65 + self.album_legitimacy_score * 0.35
+        """Combined curation signal from banger detection + album legitimacy + RYM culture."""
+        ma_signal = self.album_legitimacy_score
+
+        # RYM quality prior: rating + vote confidence
+        rym_signal = 0.0
+        has_rym = self.rym_rating is not None and self.rym_rating > 0
+        if has_rym:
+            vote_confidence = min(1.0, math.log1p(self.rym_votes) / math.log1p(100))
+            rym_signal = (self.rym_rating / 5.0) * 0.7 + vote_confidence * 0.3
+
+        # Weighted combination with graceful degradation
+        if has_rym and ma_signal > 0:
+            return self.banger_score * 0.40 + ma_signal * 0.25 + rym_signal * 0.35
+        elif has_rym:
+            return self.banger_score * 0.50 + rym_signal * 0.50
+        else:
+            return self.banger_score * 0.65 + ma_signal * 0.35
 
     @property
     def total_score(self) -> float:
@@ -348,7 +370,10 @@ def semantic_search(
                     tgp.genre_probs,
                     COALESCE(tbf.banger_score, 0) as banger_score,
                     COALESCE(al_leg.ma_rating, 0) as ma_rating,
-                    COALESCE(al_leg.ma_review_count, 0) as ma_review_count
+                    COALESCE(al_leg.ma_review_count, 0) as ma_review_count,
+                    ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
+                    ra.genres as rym_genres, ra.descriptors as rym_descriptors,
+                    tal.album_id
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -363,6 +388,7 @@ def semantic_search(
                 LEFT JOIN track_banger_flags tbf ON t.id = tbf.track_id
                 LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
                     AND al_leg.match_confidence >= 0.7
+                LEFT JOIN rym_albums ra ON tal.album_id = ra.album_id
                 WHERE te.embedding IS NOT NULL
                 {year_filter}
                 ORDER BY te.embedding <=> %s::vector
@@ -399,6 +425,11 @@ def semantic_search(
             album_legitimacy_score=0.0,  # percentile-normalized after pool assembly
             _raw_ma_rating=float(row[22] or 0),
             _raw_ma_review_count=int(row[23] or 0),
+            rym_rating=float(row[24]) if row[24] is not None else None,
+            rym_votes=int(row[25] or 0),
+            rym_genres=list(row[26]) if row[26] else [],
+            rym_descriptors=list(row[27]) if row[27] else [],
+            album_id=str(row[28]) if row[28] else None,
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -531,7 +562,8 @@ def keyword_search(
                     ) AS genres,
                     taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
                     COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0),
-                    tgp.genre_probs
+                    tgp.genre_probs,
+                    tal.album_id
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -574,6 +606,7 @@ def keyword_search(
             playcount=int(row[17] or 0),
             listeners=int(row[18] or 0),
             genre_probs=dict(row[19]) if row[19] else {},
+            album_id=str(row[20]) if row[20] else None,
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
@@ -611,7 +644,10 @@ def _fetch_candidates_by_ids(
                     tgp.genre_probs,
                     COALESCE(tbf.banger_score, 0) as banger_score,
                     COALESCE(al_leg.ma_rating, 0) as ma_rating,
-                    COALESCE(al_leg.ma_review_count, 0) as ma_review_count
+                    COALESCE(al_leg.ma_review_count, 0) as ma_review_count,
+                    ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
+                    ra.genres as rym_genres, ra.descriptors as rym_descriptors,
+                    tal.album_id
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -627,6 +663,7 @@ def _fetch_candidates_by_ids(
                 LEFT JOIN track_banger_flags tbf ON t.id = tbf.track_id
                 LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
                     AND al_leg.match_confidence >= 0.7
+                LEFT JOIN rym_albums ra ON tal.album_id = ra.album_id
                 WHERE t.id = ANY(%s::uuid[])
             """, (track_ids,))
             rows = cur.fetchall()
@@ -657,6 +694,11 @@ def _fetch_candidates_by_ids(
             album_legitimacy_score=0.0,
             _raw_ma_rating=float(row[20] or 0),
             _raw_ma_review_count=int(row[21] or 0),
+            rym_rating=float(row[22]) if row[22] is not None else None,
+            rym_votes=int(row[23] or 0),
+            rym_genres=list(row[24]) if row[24] else [],
+            rym_descriptors=list(row[25]) if row[25] else [],
+            album_id=str(row[26]) if row[26] else None,
             semantic_score=0.0,
         ))
 
