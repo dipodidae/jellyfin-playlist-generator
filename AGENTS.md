@@ -206,7 +206,7 @@ total_score = (
     year_score                     +   # soft bonus/penalty for year-range match (verified > file)
     - gravity_penalty * w_gravity  +   # all types: 0.15
     - duration_penalty * w_duration    # all types: 0.10
-    - tourist_match_penalty            # 0.40 when genre hint present + zero genre match
+    - tourist_match_penalty            # 0.50 when genre hint present + zero genre match
     - negative_constraint_penalty      # avoid_keywords violations (checks genres + RYM data)
     - usage_penalty                    # time-decayed track reuse penalty
 )
@@ -217,7 +217,7 @@ total_score = (
 # Beam extension score (sequencer)
 extension_score = (
     candidate.total_score +
-    transition_score * 0.35 +
+    transition_score * 0.40 +
     lookahead * 0.30 +
     bridge_bonus * 0.05 -
     direction_penalty -

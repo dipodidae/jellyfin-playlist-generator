@@ -45,10 +45,10 @@ The historical reference scores are:
 | darkwave_steady   | 5.80     | 6.30          |
 | doom_journey      | 5.50     | 6.30          |
 | black_metal_raw   | 7.30     | 7.30          |
-| industrial_ritual | 6.30     | 6.80          |
+| industrial_ritual | 6.30     | 7.10          |
 | post_punk_goth    | 5.80     | 5.80          |
 | jazz_nocturnal    | 4.50     | 4.80          |
-| shoegaze_dreampop | 4.35     | 5.05          |
+| shoegaze_dreampop | 4.35     | 6.30          |
 | **Overall**       | **5.41** | **5.99**      |
 
 A change is an improvement if the new overall score exceeds the previous run's overall score.

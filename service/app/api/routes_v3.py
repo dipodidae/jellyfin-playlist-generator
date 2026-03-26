@@ -2136,3 +2136,71 @@ async def trigger_rebuild_search_vectors():
         "Search vector rebuild",
         lambda cb: rebuild_search_vectors(progress_callback=cb),
     )
+
+
+# ============================================================================
+# Eval Runs
+# ============================================================================
+
+@router.get("/eval-runs")
+async def get_eval_runs():
+    """Return all multi-prompt eval runs with aggregated scores and diagnosis."""
+    eval_dir = Path(__file__).resolve().parents[3] / "eval_runs"
+    if not eval_dir.exists():
+        return {"runs": []}
+
+    runs = []
+    for folder in sorted(eval_dir.iterdir()):
+        if not folder.is_dir() or not folder.name.endswith("_multi"):
+            continue
+
+        aggregated_path = folder / "aggregated.json"
+        diagnosis_path = folder / "diagnosis.json"
+
+        if not aggregated_path.exists():
+            continue
+
+        try:
+            with open(aggregated_path) as f:
+                aggregated = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        diagnosis = None
+        if diagnosis_path.exists():
+            try:
+                with open(diagnosis_path) as f:
+                    diagnosis = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Extract timestamp from folder name: 20260326_143806_multi -> 2026-03-26T14:38:06
+        ts_str = folder.name.replace("_multi", "")
+        try:
+            ts = datetime.strptime(ts_str, "%Y%m%d_%H%M%S")
+            timestamp_iso = ts.isoformat()
+        except ValueError:
+            timestamp_iso = ts_str
+
+        # Build per-prompt summary (scores + weighted_score + title only, skip full evaluation text)
+        prompt_summaries = {}
+        for prompt_key, prompt_data in aggregated.get("prompt_results", {}).items():
+            prompt_summaries[prompt_key] = {
+                "scores": prompt_data.get("scores", {}),
+                "weighted_score": prompt_data.get("weighted_score"),
+                "playlist_title": prompt_data.get("playlist_title", ""),
+                "prompt": prompt_data.get("prompt", ""),
+            }
+
+        runs.append({
+            "id": ts_str,
+            "timestamp": timestamp_iso,
+            "means": aggregated.get("aggregated", {}).get("means", {}),
+            "raw": aggregated.get("aggregated", {}).get("raw", {}),
+            "per_prompt_weighted": aggregated.get("aggregated", {}).get("per_prompt_weighted", []),
+            "prompt_results": prompt_summaries,
+            "diagnosis_summary": diagnosis.get("overall_diagnosis") if diagnosis else None,
+            "systemic_issues": diagnosis.get("systemic_issues", []) if diagnosis else [],
+        })
+
+    return {"runs": runs, "total": len(runs)}

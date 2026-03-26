@@ -50,7 +50,7 @@ class SequencerConfig:
     max_cluster_per_window: int = 8
     cluster_window_size: int = 10
     max_duration_ratio: float = 3.0
-    lookahead_weight: float = 0.3
+    lookahead_weight: float = 0.30
     bridge_bonus_weight: float = 0.05
     diversity_threshold: float = 0.8
 
@@ -593,7 +593,7 @@ def _extend_single_path(
 
         extension_score = (
             candidate.total_score +
-            trans_score * 0.35 +
+            trans_score * 0.40 +
             lookahead * config.lookahead_weight +
             bridge_bonus * config.bridge_bonus_weight +
             adjacency_bonus +

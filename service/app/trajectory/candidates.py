@@ -270,7 +270,7 @@ def compute_tourist_match_penalty(
     # This catches tracks like Saxon/Krokus leaking into ambient/doom arcs
     # because they score well semantically but are completely wrong genres.
     if has_genre_hints and genre_match_score <= 0.0:
-        return 0.40
+        return 0.50
 
     return 0.0
 

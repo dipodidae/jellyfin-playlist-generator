@@ -1,7 +1,19 @@
 <script setup lang="ts">
 const route = useRoute()
 
-const isObservatory = computed(() => route.path === '/observatory')
+const activeNav = computed(() => {
+  if (route.path === '/observatory') return 'observatory'
+  if (route.path === '/eval') return 'eval'
+  return 'generator'
+})
+
+const navItems = [
+  { to: '/', key: 'generator', label: 'Generator' },
+  { to: '/observatory', key: 'observatory', label: 'Observatory' },
+  { to: '/eval', key: 'eval', label: 'Eval' },
+]
+
+const widePages = computed(() => activeNav.value === 'observatory' || activeNav.value === 'eval')
 </script>
 
 <template>
@@ -17,22 +29,15 @@ const isObservatory = computed(() => route.path === '/observatory')
           </NuxtLink>
           <nav class="flex items-center gap-1">
             <NuxtLink
-              to="/"
+              v-for="item in navItems"
+              :key="item.key"
+              :to="item.to"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
-              :class="!isObservatory
+              :class="activeNav === item.key
                 ? 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'"
             >
-              Generator
-            </NuxtLink>
-            <NuxtLink
-              to="/observatory"
-              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
-              :class="isObservatory
-                ? 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'"
-            >
-              Observatory
+              {{ item.label }}
             </NuxtLink>
           </nav>
         </div>
@@ -40,7 +45,7 @@ const isObservatory = computed(() => route.path === '/observatory')
     </header>
     <main
       class="mx-auto px-4 py-8"
-      :class="isObservatory ? 'max-w-6xl' : 'max-w-4xl'"
+      :class="widePages ? 'max-w-6xl' : 'max-w-4xl'"
     >
       <slot />
     </main>

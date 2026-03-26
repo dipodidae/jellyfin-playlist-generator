@@ -90,10 +90,10 @@ OpenAI evaluation has **±0.3–0.5 variance per prompt** across identical runs.
 | darkwave_steady | 5.80 | 6.30 |
 | doom_journey | 5.50 | 6.30 |
 | black_metal_raw | 7.30 | 7.30 |
-| industrial_ritual | 6.30 | 6.80 |
+| industrial_ritual | 6.30 | 7.10 |
 | post_punk_goth | 5.80 | 5.80 |
 | jazz_nocturnal | 4.50 | 4.80 |
-| shoegaze_dreampop | 4.35 | 5.05 |
+| shoegaze_dreampop | 4.35 | 6.30 |
 | **Overall** | **5.41** | **5.99** |
 
 **Library coverage note:** `jazz_nocturnal` and `shoegaze_dreampop` are soft-capped around 4.5–5.5 due to sparse library coverage (library is ~95% metal/goth). Do not chase those scores with weight changes — they need more library tracks.
@@ -151,14 +151,14 @@ if prompt_type == PromptType.GENRE:
 **Fix B — Tourist penalty:** Increase zero genre-match penalty in `compute_tourist_match_penalty()`:
 ```python
 if has_genre_hints and genre_match_score <= 0.0:
-    return 0.40  # raise toward 0.50 for severe drift
+    return 0.50  # current value; raise further toward 0.60 for severe drift
 ```
 **Fix C — GMS strict filter:** If `genre_probs` data exists for ≥20% of candidates, the STRICT mode filter in `generate_position_pools()` uses a probability threshold of `0.28` — raise toward `0.35` for stricter filtering.
 
 ### `TRANSITION_WEAKNESS` (MEDIUM)
 **Symptom:** `transition` score weak (< 5.5) across most prompts.
 **Root cause check first:** Is genre drift causing the transitions to seem jarring? Fix genre drift first — transitions often improve automatically.
-**If genre is fine but transitions are still weak:** The `trans_score` weight in `_extend_single_path()` is currently `0.35`. Do NOT simply reduce it — that lowers transition quality further. Instead, check that `score_transition()` is not over-penalizing intentional directional changes.
+**If genre is fine but transitions are still weak:** The `trans_score` weight in `_extend_single_path()` is currently `0.40`. Do NOT simply reduce it — that lowers transition quality further. Instead, check that `score_transition()` is not over-penalizing intentional directional changes.
 
 ### `CURATION_FLATNESS` (LOW)
 **Symptom:** `curation` < 5 consistently. Evaluator says "safe/obvious picks".
@@ -176,7 +176,7 @@ if has_genre_hints and genre_match_score <= 0.0:
 | `service/app/trajectory/candidates.py` | `compute_tourist_match_penalty()` | Genre drift penalty for zero-match tracks |
 | `service/app/trajectory/candidates.py` | `generate_position_pools()` | STRICT mode GMS filter, admissibility gate, tourist penalty application |
 | `service/app/trajectory/sequencer.py` | `SequencerConfig` | `max_artist_count` (hard cap, default 4), `min_artist_distance` (default 4), beam width |
-| `service/app/trajectory/sequencer.py` | `_extend_single_path()` | Extension score formula: `total_score + trans_score*0.35 + lookahead*0.3 + bridge_bonus*0.05 - direction_penalty - genre_drift_penalty` |
+| `service/app/trajectory/sequencer.py` | `_extend_single_path()` | Extension score formula: `total_score + trans_score*0.40 + lookahead*0.3 + bridge_bonus*0.05 - direction_penalty - genre_drift_penalty` |
 | `service/app/genre/manifold.py` | `compute_genre_probability_score()` | GMS-based genre score replacing Jaccard when `genre_probs` available |
 | `service/app/genre/manifold.py` | `compute_genre_drift_penalty()` | Beam-level genre drift penalty using running distribution |
 | `service/app/trajectory/intent.py` | `classify_prompt_type()` | `PromptType.GENRE / ARC / MIXED` — determines which weight set is used |
@@ -198,7 +198,7 @@ max_artist_count = 4      # hard cap per artist per playlist
 min_artist_distance = 4   # tracks between same-artist appearances
 
 # Tourist penalty (zero genre-match tracks when genre hints present)
-return 0.40
+return 0.50
 ```
 
 ## Improvement loop discipline
