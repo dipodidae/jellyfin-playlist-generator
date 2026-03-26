@@ -3,13 +3,18 @@
 # rebuild-library.sh — Flush and rebuild the playlist-generator music library.
 #
 # Runs the complete enrichment pipeline in order:
-#   1. flush      — TRUNCATE all library tables (skip with --no-flush)
-#   2. scan       — Scan music files from MUSIC_DIRECTORIES
-#   3. lastfm     — Enrich artist metadata from Last.fm
-#   4. embeddings — Generate sentence-transformer embeddings for all tracks
-#   5. profiles   — Generate 4D semantic profiles (energy/tempo/darkness/texture)
-#   6. clusters   — Generate scene/artist clusters for diversity scoring
-#   7. audio      — Analyse audio features (BPM/loudness/brightness) via librosa
+#   1.  flush          — TRUNCATE all library tables (skip with --no-flush)
+#   2.  scan           — Scan music files from MUSIC_DIRECTORIES
+#   3.  musicbrainz    — Resolve MusicBrainz IDs for artists & albums
+#   4.  lastfm         — Enrich artist metadata from Last.fm
+#   5.  metal_archives — Enrich album legitimacy from Metal Archives
+#   6.  release_dates  — Resolve true original release dates (Discogs/MB/file)
+#   7.  embeddings     — Generate sentence-transformer embeddings for all tracks
+#   8.  profiles       — Generate 4D semantic profiles (energy/tempo/darkness/texture)
+#   9.  clusters       — Generate scene/artist clusters for diversity scoring
+#   10. banger_flags   — Compute banger detection flags
+#   11. audio          — Analyse audio features (BPM/loudness/brightness) via librosa
+#   12. search_vectors — Rebuild BM25 search vectors
 #
 # RESUMABILITY
 #   Each step writes a sentinel file to STATE_DIR on success. Re-running the
@@ -26,7 +31,9 @@
 #   -f, --force          Ignore all checkpoints; re-run every step
 #       --no-flush       Skip the database flush (incremental rebuild)
 #       --from=STEP      Restart from STEP, clearing later checkpoints
-#                        Steps: flush scan lastfm embeddings profiles clusters audio
+#                        Steps: flush scan musicbrainz lastfm metal_archives
+#                               release_dates embeddings profiles clusters
+#                               banger_flags audio search_vectors
 #       --skip-audio     Skip the long-running audio analysis step
 #       --state-dir=DIR  Override checkpoint directory
 #                        Default: ~/.local/state/playlist-generator/rebuild
@@ -54,7 +61,7 @@ readonly ENV_FILE="${SERVICE_DIR}/.env"
 readonly BACKEND_URL="http://localhost:8000"
 
 # Pipeline steps in execution order
-readonly -a ALL_STEPS=(flush scan lastfm embeddings profiles clusters audio)
+readonly -a ALL_STEPS=(flush scan musicbrainz lastfm metal_archives release_dates embeddings profiles clusters banger_flags audio search_vectors)
 
 # ─── Colour support ──────────────────────────────────────────────────────────
 
@@ -342,7 +349,7 @@ run_cli() {
 # ─── Pipeline steps ───────────────────────────────────────────────────────────
 
 step_flush() {
-	log_step "Step 1/7 — Flush library data"
+	log_step "Step 1/12 — Flush library data"
 
 	if [[ "${OPT_NO_FLUSH}" == "true" ]]; then
 		log_info "Skipping flush (--no-flush passed)."
@@ -366,7 +373,7 @@ step_flush() {
 }
 
 step_scan() {
-	log_step "Step 2/7 — Scan music files"
+	log_step "Step 2/12 — Scan music files"
 	log_info "Scanning MUSIC_DIRECTORIES (full scan)..."
 
 	run_cli scan --full
@@ -377,8 +384,22 @@ step_scan() {
 	mark_done scan
 }
 
+step_musicbrainz() {
+	log_step "Step 3/12 — MusicBrainz resolution"
+	require_backend
+
+	log_info "Resolving MusicBrainz IDs for artists and albums..."
+
+	stream_enrichment_with_retry \
+		"MusicBrainz resolution" \
+		"${BACKEND_URL}/enrich/musicbrainz/stream" \
+	|| return 1
+
+	mark_done musicbrainz
+}
+
 step_lastfm() {
-	log_step "Step 3/7 — Last.fm enrichment"
+	log_step "Step 4/12 — Last.fm enrichment"
 
 	local artist_count
 	artist_count="$(query_count artists)"
@@ -389,8 +410,40 @@ step_lastfm() {
 	mark_done lastfm
 }
 
+step_metal_archives() {
+	log_step "Step 5/12 — Metal Archives enrichment"
+	require_backend
+
+	log_info "Enriching album legitimacy from Metal Archives..."
+
+	stream_enrichment_with_retry \
+		"Metal Archives enrichment" \
+		"${BACKEND_URL}/enrich/metal-archives/stream" \
+	|| return 1
+
+	mark_done metal_archives
+}
+
+step_release_dates() {
+	log_step "Step 6/12 — Release date resolution"
+	require_backend
+
+	log_info "Resolving true original release dates (Discogs/MusicBrainz/file metadata)..."
+
+	stream_enrichment_with_retry \
+		"Release date resolution" \
+		"${BACKEND_URL}/enrich/release-dates/stream" \
+	|| return 1
+
+	local resolved
+	resolved="$(psql --no-psqlrc -t -q "${DB_URL}" \
+		-c "SELECT COUNT(*) FROM album_release_dates;" 2>/dev/null | tr -d ' \n' || echo '?')"
+	log_ok "Release dates resolved: ${resolved} albums."
+	mark_done release_dates
+}
+
 step_embeddings() {
-	log_step "Step 4/7 — Generate embeddings"
+	log_step "Step 7/12 — Generate embeddings"
 
 	local pending
 	pending="$(psql --no-psqlrc -t -q "${DB_URL}" \
@@ -405,7 +458,7 @@ step_embeddings() {
 }
 
 step_profiles() {
-	log_step "Step 5/7 — Generate semantic profiles"
+	log_step "Step 8/12 — Generate semantic profiles"
 
 	local pending
 	pending="$(psql --no-psqlrc -t -q "${DB_URL}" \
@@ -420,12 +473,13 @@ step_profiles() {
 }
 
 step_clusters() {
-	log_step "Step 6/7 — Scene clustering"
+	log_step "Step 9/12 — Scene clustering"
 	require_backend
 
 	stream_enrichment_with_retry \
 		"Scene clustering" \
-		"${BACKEND_URL}/enrich/clusters/stream"
+		"${BACKEND_URL}/enrich/clusters/stream" \
+	|| return 1
 
 	local cluster_count
 	cluster_count="$(query_count scene_clusters)"
@@ -433,8 +487,22 @@ step_clusters() {
 	mark_done clusters
 }
 
+step_banger_flags() {
+	log_step "Step 10/12 — Banger flag computation"
+	require_backend
+
+	log_info "Computing banger detection flags..."
+
+	stream_enrichment_with_retry \
+		"Banger flag computation" \
+		"${BACKEND_URL}/enrich/banger-flags/stream" \
+	|| return 1
+
+	mark_done banger_flags
+}
+
 step_audio() {
-	log_step "Step 7/7 — Audio feature analysis"
+	log_step "Step 11/12 — Audio feature analysis"
 
 	if [[ "${OPT_SKIP_AUDIO}" == "true" ]]; then
 		log_warn "Skipping audio analysis (--skip-audio)."
@@ -462,12 +530,28 @@ step_audio() {
 
 	stream_enrichment_with_retry \
 		"Audio analysis" \
-		"${BACKEND_URL}/enrich/audio/stream"
+		"${BACKEND_URL}/enrich/audio/stream" \
+	|| return 1
 
 	local audio_count
 	audio_count="$(query_count track_audio_features)"
 	log_ok "Audio analysis complete: ${audio_count} tracks with audio features."
 	mark_done audio
+}
+
+step_search_vectors() {
+	log_step "Step 12/12 — Rebuild search vectors"
+	require_backend
+
+	log_info "Rebuilding BM25 search vectors..."
+
+	stream_enrichment_with_retry \
+		"Search vector rebuild" \
+		"${BACKEND_URL}/rebuild-search-vectors" \
+	|| return 1
+
+	log_ok "Search vectors rebuilt."
+	mark_done search_vectors
 }
 
 # ─── Exit trap ───────────────────────────────────────────────────────────────
@@ -537,9 +621,12 @@ main() {
 	printf "  %-25s %s\n" "tracks:" "$(query_count tracks)"
 	printf "  %-25s %s\n" "track_embeddings:" "$(query_count track_embeddings)"
 	printf "  %-25s %s\n" "track_profiles:" "$(query_count track_profiles)"
-	printf "  %-25s %s\n" "track_audio_features:""$(query_count track_audio_features)"
+	printf "  %-25s %s\n" "track_audio_features:" "$(query_count track_audio_features)"
 	printf "  %-25s %s\n" "scene_clusters:" "$(query_count scene_clusters)"
 	printf "  %-25s %s\n" "artist_clusters:" "$(query_count artist_clusters)"
+	printf "  %-25s %s\n" "album_release_dates:" "$(query_count album_release_dates)"
+	printf "  %-25s %s\n" "album_legitimacy:" "$(query_count album_legitimacy)"
+	printf "  %-25s %s\n" "track_banger_flags:" "$(query_count track_banger_flags)"
 	echo
 	log_ok "Rebuild complete. Checkpoints: ${STATE_DIR}"
 }

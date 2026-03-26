@@ -21,6 +21,7 @@ from app.ingestion.lastfm import enrich_artists_from_lastfm, enrich_tracks_from_
 from app.ingestion.metal_archives import enrich_albums_from_metal_archives
 from app.ingestion.musicbrainz import resolve_musicbrainz_ids
 from app.ingestion.rym import enrich_albums_from_rym
+from app.ingestion.release_dates import resolve_release_dates
 from app.enrichment.banger_detector import compute_banger_flags
 from app.embeddings.generator import generate_track_embeddings, search_tracks_by_text
 from app.profiles.generator import generate_profiles
@@ -782,6 +783,28 @@ async def trigger_lastfm_track_enrichment_stream(max_tracks: int | None = None):
     )
 
 
+@router.get("/enrich/lastfm-tracks/status")
+async def lastfm_track_enrichment_status():
+    """Return Last.fm track enrichment coverage stats."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM tracks")
+            total_tracks = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM lastfm_stats")
+            with_stats = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM lastfm_stats WHERE listeners > 0")
+            with_listeners = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM lastfm_stats WHERE playcount > 0")
+            with_playcount = cur.fetchone()[0]
+    return {
+        "total_tracks": total_tracks,
+        "tracks_with_stats": with_stats,
+        "tracks_with_listeners": with_listeners,
+        "tracks_with_playcount": with_playcount,
+        "coverage_pct": round((with_stats / total_tracks) * 100, 1) if total_tracks else 0,
+    }
+
+
 @router.post("/enrich/embeddings")
 async def trigger_embedding_generation(background_tasks: BackgroundTasks):
     """Trigger embedding generation (runs in background)."""
@@ -1047,6 +1070,67 @@ async def get_rym_status():
     }
 
 
+_release_dates_lock = asyncio.Lock()
+
+
+@router.post("/enrich/release-dates")
+async def trigger_release_date_enrichment(
+    background_tasks: BackgroundTasks,
+    force: bool = False,
+    max_albums: int | None = None,
+):
+    """Trigger true original release date resolution (runs in background)."""
+    background_tasks.add_task(resolve_release_dates, force=force, max_albums=max_albums)
+    return {"status": "started", "message": "Release date resolution started in background"}
+
+
+@router.post("/enrich/release-dates/stream")
+async def trigger_release_date_enrichment_stream(force: bool = False, max_albums: int | None = None):
+    """Resolve true original release dates with SSE progress."""
+    if _release_dates_lock.locked():
+        raise HTTPException(status_code=409, detail="Release date resolution already running")
+
+    async def run_async(progress_callback):
+        async with _release_dates_lock:
+            return await resolve_release_dates(
+                force=force, max_albums=max_albums, progress_callback=progress_callback,
+            )
+
+    return _make_enrichment_stream("Release date resolution", run_async)
+
+
+@router.get("/enrich/release-dates/status")
+async def get_release_dates_status():
+    """Get release date resolution coverage stats."""
+    with get_cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM albums")
+        total_albums = (cur.fetchone() or [0])[0]
+        cur.execute("SAVEPOINT sp_rd")
+        try:
+            cur.execute("SELECT COUNT(*) FROM album_release_dates")
+            resolved = (cur.fetchone() or [0])[0]
+            cur.execute("SELECT COUNT(*) FROM album_release_dates WHERE confidence >= 0.8")
+            high_conf = (cur.fetchone() or [0])[0]
+            cur.execute("""
+                SELECT primary_source, COUNT(*) FROM album_release_dates
+                GROUP BY primary_source ORDER BY COUNT(*) DESC
+            """)
+            by_source = {row[0]: row[1] for row in cur.fetchall()}
+            cur.execute("RELEASE SAVEPOINT sp_rd")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT sp_rd")
+            resolved = 0
+            high_conf = 0
+            by_source = {}
+    return {
+        "total_albums": total_albums,
+        "resolved": resolved,
+        "high_confidence": high_conf,
+        "coverage_pct": round(resolved / max(1, total_albums) * 100, 1),
+        "by_source": by_source,
+    }
+
+
 # ============================================================================
 # Combined Sync (scan + all enrichment in one shot)
 # ============================================================================
@@ -1055,7 +1139,7 @@ async def get_rym_status():
 async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_audio: bool = True):
     """Run incremental scan followed by all enrichment steps in sequence.
 
-    Chains: scan → MusicBrainz → Last.fm → Metal Archives → embeddings → profiles → clusters → banger flags → search vectors.
+    Chains: scan → MusicBrainz → Last.fm → Metal Archives → release dates → embeddings → profiles → clusters → banger flags → search vectors.
     Each step is incremental — only new/unprocessed tracks are touched.
     Streams SSE progress events throughout the entire pipeline.
 
@@ -1197,10 +1281,10 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
                     await asyncio.sleep(0.4)
 
                 if "error" in lastfm_result:
-                    yield emit("lastfm", 35, f"Last.fm enrichment failed (continuing): {lastfm_result['error']}")
+                    yield emit("lastfm", 30, f"Last.fm artist enrichment failed (continuing): {lastfm_result['error']}")
                 else:
                     pipeline_stats["lastfm"] = lastfm_result.get("stats", {})
-                    yield emit("lastfm", 35, "Last.fm enrichment complete")
+                    yield emit("lastfm", 30, "Last.fm artist enrichment complete")
 
                 # Rebuild search vectors after Last.fm
                 try:
@@ -1209,9 +1293,47 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
                     pass
 
             except Exception as exc:
-                yield emit("lastfm", 35, f"Last.fm enrichment failed (continuing): {exc}")
+                yield emit("lastfm", 30, f"Last.fm artist enrichment failed (continuing): {exc}")
+
+            # --- Stage 2a: Last.fm track enrichment ---
+            yield emit("lastfm_tracks", 30, "Starting Last.fm track enrichment...")
+            try:
+                lfmt_done = asyncio.Event()
+                lfmt_result: dict = {}
+
+                def lfmt_progress(current: int, total: int, message: str):
+                    pct = int((current / total) * 100) if total > 0 else 0
+                    # Scale to 30-36%
+                    scaled = 30 + (pct * 6 // 100)
+                    lfmt_result["last_event"] = emit("lastfm_tracks", scaled, message)
+
+                async def do_lastfm_tracks():
+                    try:
+                        result = await enrich_tracks_from_lastfm(progress_callback=lfmt_progress)
+                        lfmt_result["stats"] = result
+                    except Exception as exc:
+                        lfmt_result["error"] = str(exc)
+                    finally:
+                        lfmt_done.set()
+
+                asyncio.create_task(do_lastfm_tracks())
+
+                while not lfmt_done.is_set():
+                    if "last_event" in lfmt_result:
+                        yield lfmt_result.pop("last_event")
+                    await asyncio.sleep(0.4)
+
+                if "error" in lfmt_result:
+                    yield emit("lastfm_tracks", 36, f"Last.fm track enrichment failed (continuing): {lfmt_result['error']}")
+                else:
+                    pipeline_stats["lastfm_tracks"] = lfmt_result.get("stats", {})
+                    yield emit("lastfm_tracks", 36, "Last.fm track enrichment complete")
+
+            except Exception as exc:
+                yield emit("lastfm_tracks", 36, f"Last.fm track enrichment failed (continuing): {exc}")
+
         else:
-            yield emit("lastfm", 35, "Last.fm enrichment skipped")
+            yield emit("lastfm", 36, "Last.fm enrichment skipped")
 
         # --- Stage 2b: Metal Archives enrichment ---
         yield emit("metal_archives", 36, "Starting Metal Archives enrichment...")
@@ -1250,8 +1372,45 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
         except Exception as exc:
             yield emit("metal_archives", 42, f"Metal Archives enrichment failed (continuing): {exc}")
 
+        # --- Stage 2c: Release date resolution ---
+        yield emit("release_dates", 43, "Starting release date resolution...")
+        try:
+            rd_done = asyncio.Event()
+            rd_result: dict = {}
+
+            def rd_progress(current: int, total: int, message: str):
+                pct = int((current / total) * 100) if total > 0 else 0
+                # Scale to 43-48%
+                scaled = 43 + (pct * 5 // 100)
+                rd_result["last_event"] = emit("release_dates", scaled, message)
+
+            async def do_release_dates():
+                try:
+                    result = await resolve_release_dates(progress_callback=rd_progress)
+                    rd_result["stats"] = result
+                except Exception as exc:
+                    rd_result["error"] = str(exc)
+                finally:
+                    rd_done.set()
+
+            asyncio.create_task(do_release_dates())
+
+            while not rd_done.is_set():
+                if "last_event" in rd_result:
+                    yield rd_result.pop("last_event")
+                await asyncio.sleep(0.4)
+
+            if "error" in rd_result:
+                yield emit("release_dates", 48, f"Release date resolution failed (continuing): {rd_result['error']}")
+            else:
+                pipeline_stats["release_dates"] = rd_result.get("stats", {})
+                yield emit("release_dates", 48, "Release date resolution complete")
+
+        except Exception as exc:
+            yield emit("release_dates", 48, f"Release date resolution failed (continuing): {exc}")
+
         # --- Stage 3: Embeddings ---
-        embed_start = 43
+        embed_start = 49
         yield emit("embeddings", embed_start, "Starting embedding generation...")
         try:
             embed_done = asyncio.Event()
@@ -1512,10 +1671,12 @@ def _candidate_tracks_to_dicts(tracks) -> list[dict]:
                 "admissibility": round(t.admissibility_score, 3),
                 "trajectory": round(t.trajectory_score, 3),
                 "genre_match": round(t.genre_match_score, 3),
-                "impact": round(t.impact_score, 3),
+                "year": round(t.year_score, 3),
                 "curation": round(t.curation_score, 3),
                 "banger": round(t.banger_score, 3),
                 "legitimacy": round(t.album_legitimacy_score, 3),
+                "rym_rating": round(t.rym_rating, 2) if t.rym_rating is not None else None,
+                "usage_penalty": round(t.usage_penalty, 3),
                 "negative_constraint_penalty": round(t.negative_constraint_penalty, 3),
                 "tourist_match_penalty": round(t.tourist_match_penalty, 3),
                 "gravity_penalty": round(t.gravity_penalty, 3),
@@ -1527,6 +1688,8 @@ def _candidate_tracks_to_dicts(tracks) -> list[dict]:
                 "darkness": round(t.darkness, 2),
                 "texture": round(t.texture, 2),
             },
+            "effective_year": t.effective_year,
+            "original_year": t.original_year,
         }
         for t in tracks
     ]

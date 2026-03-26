@@ -2,10 +2,10 @@
 V4 Playlist Composer - Main orchestration module.
 
 Ties together all v4 components:
-1. Intent parsing with 4D trajectories
+1. Intent parsing with 5D trajectories (energy, tempo, darkness, texture, era)
 2. Gravity anchor computation
-3. Position-based candidate pools
-4. Beam search sequencing
+3. Position-based candidate pools with curation scoring (banger + MA + RYM)
+4. Beam search sequencing with acoustic continuity + era coherence
 5. Automatic bridge scoring
 """
 
@@ -62,7 +62,7 @@ def compose_playlist_v4(
 
     logger.info(f"V4 compose: '{prompt[:50]}...', size={target_size}")
 
-    # 1. Parse prompt into intent with 4D trajectory
+    # 1. Parse prompt into intent with 5D trajectory
     intent = parse_prompt(prompt, target_size=target_size)
 
     # 2. Get top semantic matches for scene anchor

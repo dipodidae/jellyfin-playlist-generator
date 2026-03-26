@@ -284,6 +284,22 @@ def score_transition(
         acoustic_score = bpm_score * 0.4 + loudness_score * 0.4 + brightness_score * 0.2
         scores.append(acoustic_score)
 
+    # Era coherence: prefer tracks from similar time periods to avoid jarring
+    # temporal jumps (e.g. 1983 → 2019 → 1976) unless an era arc is intended.
+    prev_year = prev_track.effective_year
+    curr_year = curr_track.effective_year
+    if prev_year and curr_year:
+        year_gap = abs(prev_year - curr_year)
+        if year_gap <= 3:
+            era_score = 0.80
+        elif year_gap <= 7:
+            era_score = 0.60
+        elif year_gap <= 15:
+            era_score = 0.40
+        else:
+            era_score = 0.20
+        scores.append(era_score)
+
     return sum(scores) / len(scores) if scores else 0.5
 
 

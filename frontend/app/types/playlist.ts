@@ -22,6 +22,8 @@ export interface Track {
   artist_name: string
   album_name: string
   year: number
+  original_year?: number | null
+  effective_year?: number | null
   duration_ms: number
   genres?: string[]
   scores?: TrackScores

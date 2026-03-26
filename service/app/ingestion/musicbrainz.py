@@ -194,6 +194,123 @@ def _search_release_group(
     return None
 
 
+def extract_release_date_from_mb(mbid: str) -> dict[str, Any] | None:
+    """Fetch the earliest release date for a release group from MusicBrainz.
+
+    Uses the release group's individual releases to find the true first
+    release event, ignoring reissues/remasters. Returns structured date
+    info or None.
+    """
+    _ensure_init()
+    try:
+        rg = musicbrainzngs.get_release_group_by_id(
+            mbid, includes=["releases"]
+        )
+    except Exception as e:
+        logger.debug(f"MB release group fetch failed for {mbid}: {e}")
+        return None
+
+    releases = rg.get("release-group", {}).get("release-list", [])
+    if not releases:
+        return None
+
+    earliest_year = None
+    earliest_month = None
+    earliest_day = None
+    earliest_country = None
+    earliest_label = None
+    earliest_format = None
+
+    for release in releases:
+        title = release.get("title", "").lower()
+        # Skip reissues/remasters
+        if any(tag in title for tag in [
+            "remaster", "reissue", "deluxe", "anniversary",
+            "expanded", "bonus", "special edition", "collector",
+        ]):
+            continue
+
+        # Skip non-album release statuses
+        status = (release.get("status") or "").lower()
+        if status in ("bootleg", "pseudo-release", "promotion"):
+            continue
+
+        date_str = release.get("date", "")
+        if not date_str or len(date_str) < 4:
+            continue
+
+        try:
+            year = int(date_str[:4])
+        except ValueError:
+            continue
+
+        # Sanity check
+        if year < 1900 or year > 2030:
+            continue
+
+        month = None
+        day = None
+        if len(date_str) >= 7:
+            try:
+                month = int(date_str[5:7])
+                if month < 1 or month > 12:
+                    month = None
+            except ValueError:
+                pass
+        if len(date_str) >= 10:
+            try:
+                day = int(date_str[8:10])
+                if day < 1 or day > 31:
+                    day = None
+            except ValueError:
+                pass
+
+        # Track earliest
+        if earliest_year is None or year < earliest_year or (
+            year == earliest_year and (month or 13) < (earliest_month or 13)
+        ):
+            earliest_year = year
+            earliest_month = month
+            earliest_day = day
+            earliest_country = release.get("country")
+
+            # Extract label from label-info
+            label_info = release.get("label-info-list", [])
+            if label_info:
+                li = label_info[0]
+                label = li.get("label", {})
+                earliest_label = label.get("name") if label else None
+
+            # Extract format from medium-list
+            media = release.get("medium-list", [])
+            if media:
+                earliest_format = media[0].get("format")
+
+    if earliest_year is None:
+        return None
+
+    # Determine precision
+    if earliest_day:
+        precision = "day"
+    elif earliest_month:
+        precision = "month"
+    else:
+        precision = "year"
+
+    return {
+        "source": "musicbrainz",
+        "year": earliest_year,
+        "month": earliest_month,
+        "day": earliest_day,
+        "precision": precision,
+        "country": earliest_country,
+        "label": earliest_label,
+        "format": earliest_format,
+        "catalog_number": None,
+        "confidence": 0.7,  # MB alone gets 0.7; cross-validated gets higher
+    }
+
+
 def _save_album_mbid(cur, album_id: str, rg: dict[str, Any]) -> None:
     """Store MBID on album row, cache release group, and cache lookup."""
     cur.execute(

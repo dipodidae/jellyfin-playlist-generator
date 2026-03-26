@@ -23,6 +23,7 @@ export interface LibraryStats {
   tracks_with_genre_probs?: number
   scene_clusters?: number
   artists_clustered?: number
+  tracks_with_lastfm_stats?: number
   albums_with_legitimacy?: number
   artists_with_mbid?: number
   albums_with_mbid?: number

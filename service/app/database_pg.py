@@ -500,6 +500,26 @@ def init_database() -> None:
                 )
             """)
 
+            # True original release dates (multi-source verified)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS album_release_dates (
+                    album_id        UUID PRIMARY KEY REFERENCES albums(id) ON DELETE CASCADE,
+                    original_year   INTEGER,
+                    original_month  INTEGER,
+                    original_day    INTEGER,
+                    precision       VARCHAR(5) DEFAULT 'year',
+                    confidence      FLOAT DEFAULT 0.0,
+                    primary_source  VARCHAR(20),
+                    country         VARCHAR(50),
+                    label           VARCHAR(200),
+                    format          VARCHAR(50),
+                    catalog_number  VARCHAR(100),
+                    evidence        JSONB DEFAULT '{}',
+                    resolved_at     TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_album_release_dates_year ON album_release_dates(original_year)")
+
             logger.info("Database schema initialized")
 
 
@@ -572,11 +592,14 @@ def get_stats() -> dict:
             stats["albums_with_legitimacy"] = cur.fetchone()[0]
             cur.execute("SELECT COUNT(*) FROM track_banger_flags WHERE banger_score > 0")
             stats["tracks_with_banger_flags"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM lastfm_stats")
+            stats["tracks_with_lastfm_stats"] = cur.fetchone()[0]
             cur.execute("RELEASE SAVEPOINT sp_legitimacy")
         except Exception:
             cur.execute("ROLLBACK TO SAVEPOINT sp_legitimacy")
             stats["albums_with_legitimacy"] = 0
             stats["tracks_with_banger_flags"] = 0
+            stats["tracks_with_lastfm_stats"] = 0
 
         # MusicBrainz resolution
         cur.execute("SAVEPOINT sp_musicbrainz")
@@ -590,6 +613,19 @@ def get_stats() -> dict:
             cur.execute("ROLLBACK TO SAVEPOINT sp_musicbrainz")
             stats["artists_with_mbid"] = 0
             stats["albums_with_mbid"] = 0
+
+        # Release date resolution
+        cur.execute("SAVEPOINT sp_release_dates")
+        try:
+            cur.execute("SELECT COUNT(*) FROM album_release_dates")
+            stats["albums_with_release_dates"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM album_release_dates WHERE confidence >= 0.8")
+            stats["albums_high_confidence_dates"] = cur.fetchone()[0]
+            cur.execute("RELEASE SAVEPOINT sp_release_dates")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT sp_release_dates")
+            stats["albums_with_release_dates"] = 0
+            stats["albums_high_confidence_dates"] = 0
 
         # RYM enrichment
         cur.execute("SAVEPOINT sp_rym")
@@ -1589,6 +1625,8 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
     The vector is composed of:
       - Weight A: track title + primary artist name + genre names
       - Weight B: Last.fm tags (track-level if available, else artist-level fallback)
+                  + RYM genres (high-resolution subgenre terms)
+      - Weight C: RYM descriptors (mood/style terms like atmospheric, melancholic)
 
     Args:
         progress_callback: Optional (current, total, message) callback.
@@ -1626,6 +1664,8 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
 
             # 3. Populate search_vector using artist_lastfm_tags as fallback
             #    since track_lastfm_tags typically has 0 rows.
+            #    RYM genres added as Weight B (same level as Last.fm tags).
+            #    RYM descriptors added as Weight C (mood/style terms).
             cur.execute("""
                 UPDATE tracks t
                 SET search_vector =
@@ -1663,7 +1703,21 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
                             ORDER BY alt.weight DESC
                             LIMIT 20
                         ) sub2
-                    ), '')), 'B')
+                    ), '')), 'B') ||
+                    setweight(to_tsvector('simple', coalesce((
+                        SELECT string_agg(g, ' ')
+                        FROM rym_albums ra
+                        JOIN track_albums tal ON tal.album_id = ra.album_id,
+                        LATERAL jsonb_array_elements_text(ra.genres) AS g
+                        WHERE tal.track_id = t.id
+                    ), '')), 'B') ||
+                    setweight(to_tsvector('simple', coalesce((
+                        SELECT string_agg(d, ' ')
+                        FROM rym_albums ra
+                        JOIN track_albums tal ON tal.album_id = ra.album_id,
+                        LATERAL jsonb_array_elements_text(ra.descriptors) AS d
+                        WHERE tal.track_id = t.id
+                    ), '')), 'C')
             """)
             stats["updated"] = cur.rowcount
 

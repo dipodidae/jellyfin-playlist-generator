@@ -54,12 +54,13 @@ class ArcType(str, Enum):
 
 @dataclass
 class TrajectoryWaypoint:
-    """A point along the playlist trajectory (4D)."""
+    """A point along the playlist trajectory (5D)."""
     position: float  # 0.0 to 1.0 (start to end)
     energy: float    # 0.0 to 1.0
     tempo: float = 0.5
     darkness: float = 0.5
     texture: float = 0.5
+    era: float = 0.5  # normalized temporal position (0=earliest, 1=latest)
     phase_label: str = ""  # intro/build/peak/resolve
     mood_embedding: list[float] | None = None
     description: str = ""
@@ -72,10 +73,11 @@ class DimensionWeights:
     tempo: float = 0.25
     darkness: float = 0.25
     texture: float = 0.25
+    era: float = 0.0  # default zero — no temporal preference unless detected
 
     def normalize(self) -> "DimensionWeights":
         """Normalize weights to sum to 1, with min/max clamping."""
-        total = self.energy + self.tempo + self.darkness + self.texture
+        total = self.energy + self.tempo + self.darkness + self.texture + self.era
         if total == 0:
             return DimensionWeights()
 
@@ -84,29 +86,35 @@ class DimensionWeights:
         t = self.tempo / total
         d = self.darkness / total
         x = self.texture / total
+        er = self.era / total
 
-        # Clamp to [0.15, 0.45]
-        e = max(0.15, min(0.45, e))
-        t = max(0.15, min(0.45, t))
-        d = max(0.15, min(0.45, d))
-        x = max(0.15, min(0.45, x))
+        # Clamp core dims to [0.10, 0.45], era to [0.0, 0.20]
+        e = max(0.10, min(0.45, e))
+        t = max(0.10, min(0.45, t))
+        d = max(0.10, min(0.45, d))
+        x = max(0.10, min(0.45, x))
+        er = max(0.0, min(0.20, er))
 
         # Re-normalize after clamping
-        total = e + t + d + x
+        total = e + t + d + x + er
         return DimensionWeights(
             energy=e / total,
             tempo=t / total,
             darkness=d / total,
             texture=x / total,
+            era=er / total,
         )
 
     def as_dict(self) -> dict[str, float]:
-        return {
+        d = {
             "energy": self.energy,
             "tempo": self.tempo,
             "darkness": self.darkness,
             "texture": self.texture,
         }
+        if self.era > 0:
+            d["era"] = self.era
+        return d
 
 
 @dataclass
@@ -145,6 +153,9 @@ class PlaylistIntent:
     # Constraints
     avoid_keywords: list[str] = field(default_factory=list)
     year_range: tuple[int | None, int | None] = (None, None)
+
+    # Temporal trajectory (era dimension)
+    era_mode: str = "none"  # none, chronological, reverse, locked, arc
 
     # Abstract concepts for semantic matching
     abstract_concepts: list[str] = field(default_factory=list)
@@ -684,6 +695,60 @@ def extract_year_range(prompt: str) -> tuple[int | None, int | None]:
     return (None, None)
 
 
+# Temporal trajectory detection patterns
+_ERA_CHRONOLOGICAL_SIGNALS = [
+    "chronological", "through the decades", "through the years",
+    "evolution of", "history of", "early to late", "oldest to newest",
+    "from the beginning", "timeline", "progression through",
+    "how .+ evolved", "from .+ to modern",
+]
+_ERA_REVERSE_SIGNALS = [
+    "reverse chronological", "newest to oldest", "modern to classic",
+    "late to early", "backwards through", "reverse timeline",
+]
+_ERA_LOCKED_SIGNALS = [
+    "only from", "strictly from", "nothing outside",
+]
+
+
+def detect_era_mode(
+    prompt: str,
+    year_range: tuple[int | None, int | None],
+    arc_type: ArcType,
+) -> str:
+    """Detect temporal trajectory mode from the prompt.
+
+    Returns one of: none, chronological, reverse, locked, arc.
+    """
+    p = prompt.lower()
+
+    # Explicit reverse chronological signals
+    for sig in _ERA_REVERSE_SIGNALS:
+        if re.search(sig, p):
+            return "reverse"
+
+    # Explicit chronological signals
+    for sig in _ERA_CHRONOLOGICAL_SIGNALS:
+        if re.search(sig, p):
+            return "chronological"
+
+    # Locked era: strict year constraint with narrow range
+    yr0, yr1 = year_range
+    if yr0 and yr1:
+        span = yr1 - yr0
+        for sig in _ERA_LOCKED_SIGNALS:
+            if sig in p:
+                return "locked"
+        # Very narrow range (≤5 years) implies locked
+        if span <= 5:
+            return "locked"
+        # Wide range (>15 years) with journey/wave arc implies chronological
+        if span > 15 and arc_type in (ArcType.JOURNEY, ArcType.RISE):
+            return "chronological"
+
+    return "none"
+
+
 def extract_abstract_concepts(prompt: str) -> list[str]:
     """Extract abstract concepts that need semantic interpretation."""
     # These are phrases that can't be matched literally but need embedding similarity
@@ -970,9 +1035,13 @@ spelling and capitalisation as the user likely intends.
   - "balanced": Mixed genre+arc prompt or moderate genre signal (default)
   - "exploratory": User wants cross-genre exploration, journey arc, or uses words like "adjacent", "discover", "blend"
 
-- "dimension_weights": Object with "energy", "tempo", "darkness", "texture" as floats 0.15-0.45 \
-that sum to 1.0. Which dimensions matter most for this prompt. If the user talks about speed, \
-boost tempo. If about mood, boost darkness. If about intensity, boost energy. Default all to 0.25.
+- "dimension_weights": Object with "energy", "tempo", "darkness", "texture", "era" as floats. \
+The first four should be 0.15-0.45 and sum to ~1.0. "era" is 0.0 by default and only set to \
+0.10-0.20 when the prompt has a clear temporal trajectory (e.g. "from 70s to modern", \
+"reverse chronological"). Which dimensions matter most for this prompt: if the user talks about \
+speed, boost tempo. If about mood, boost darkness. If about intensity, boost energy. \
+If about temporal progression, set era to 0.10-0.20 and reduce others proportionally. \
+Default: {"energy": 0.25, "tempo": 0.25, "darkness": 0.25, "texture": 0.25, "era": 0.0}.
 
 - "custom_waypoints": Array of objects or null. Only set if the user describes a specific \
 trajectory shape (e.g., "start ambient, build to crushing, end with clean guitar"). Each waypoint:
@@ -981,6 +1050,7 @@ trajectory shape (e.g., "start ambient, build to crushing, end with clean guitar
   - "darkness": Float 0.0-1.0
   - "tempo": Float 0.0-1.0
   - "texture": Float 0.0-1.0
+  - "era": Float 0.0-1.0 (optional, only if temporal trajectory requested; 0=oldest, 1=newest)
   - "description": Short label for this phase
   If null, the system will generate waypoints from arc_type and base dimensions.
 
@@ -989,6 +1059,10 @@ trajectory shape (e.g., "start ambient, build to crushing, end with clean guitar
 - "Crushing doom" implies high darkness, low tempo, high texture, moderate-high energy.
 - "Like Neurosis meets Bohren" implies post-metal/doom blended with dark jazz.
 - Infer implicit genre hints even if not stated explicitly (e.g., "headbanging" → metal).
+- Temporal/era awareness: prompts like "from 70s punk to modern post-punk" or "reverse \
+chronological journey through metal" imply a temporal trajectory. Set era dimension weight \
+to 0.10-0.20 for these. Simple decade references ("80s thrash") are just year_range filters, \
+not temporal trajectories — keep era at 0.0 for those.
 - Return ONLY valid JSON, no other text."""
 
 
@@ -1097,6 +1171,7 @@ def _validate_llm_intent(data: dict) -> None:
                 tempo=float(dw.get("tempo", 0.25)),
                 darkness=float(dw.get("darkness", 0.25)),
                 texture=float(dw.get("texture", 0.25)),
+                era=float(dw.get("era", 0.0)),
             )
             data["dimension_weights"] = weights.normalize()
         except (TypeError, ValueError):
@@ -1117,6 +1192,7 @@ def _validate_llm_intent(data: dict) -> None:
                         "darkness": max(0.0, min(1.0, float(wp.get("darkness", 0.5)))),
                         "tempo": max(0.0, min(1.0, float(wp.get("tempo", 0.5)))),
                         "texture": max(0.0, min(1.0, float(wp.get("texture", 0.5)))),
+                        "era": max(0.0, min(1.0, float(wp.get("era", 0.5)))),
                         "description": str(wp.get("description", "")),
                     })
                 except (TypeError, ValueError):
@@ -1181,6 +1257,15 @@ def _build_intent_from_llm(
     target_duration = data.get("target_duration_minutes")
     impact_preference = extract_impact_preference(prompt)
 
+    # Detect temporal trajectory mode
+    # If LLM already set era weight > 0, trust it; otherwise use keyword detection default
+    era_mode = detect_era_mode(prompt, year_range, arc_type)
+    if era_mode != "none" and dimension_weights.era < 0.05:
+        dimension_weights.era = 0.12
+        dimension_weights = dimension_weights.normalize()
+    if era_mode != "none":
+        logger.info(f"Temporal mode detected: era_mode={era_mode}, era_weight={dimension_weights.era:.2f}")
+
     # Generate trajectory curve from LLM's base dimensions and arc type
     trajectory_curve = generate_trajectory_curve(
         arc_type=arc_type.value,
@@ -1189,6 +1274,9 @@ def _build_intent_from_llm(
         base_darkness=base_darkness,
         base_tempo=base_tempo,
         base_texture=base_texture,
+        era_mode=era_mode,
+        era_start=0.0 if era_mode in ("chronological", "arc") else 0.5,
+        era_end=1.0 if era_mode in ("chronological", "arc") else 0.5,
     )
 
     # If LLM provided custom waypoints, use them to override the curve waypoints
@@ -1201,6 +1289,7 @@ def _build_intent_from_llm(
                 darkness=wp["darkness"],
                 tempo=wp["tempo"],
                 texture=wp["texture"],
+                era=wp.get("era", 0.5),
                 phase_label=wp.get("description", ""),
                 description=wp.get("description", ""),
             )
@@ -1262,6 +1351,7 @@ def _build_intent_from_llm(
         base_texture=base_texture,
         avoid_keywords=avoid_keywords,
         year_range=year_range,
+        era_mode=era_mode,
         abstract_concepts=abstract_concepts,
         genre_mode=genre_mode,
         genre_centroids=genre_centroids,
@@ -1269,6 +1359,7 @@ def _build_intent_from_llm(
 
     logger.info(f"LLM-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
                 f"type={prompt_type.value}, genre_mode={genre_mode.value}, "
+                f"era_mode={era_mode}, "
                 f"moods={mood_keywords}, genres={genre_hints}, "
                 f"artists={artist_seeds}, avoid={avoid_keywords}, "
                 f"weights={dimension_weights.as_dict()}")
@@ -1306,7 +1397,14 @@ def _build_intent_from_keywords(
         genre_hints, arc_type, arc_confidence, mood_keywords, prompt,
     )
 
-    # Generate 4D trajectory curve
+    # Detect temporal trajectory mode
+    era_mode = detect_era_mode(prompt, year_range, arc_type)
+    if era_mode != "none":
+        dimension_weights.era = 0.12
+        dimension_weights = dimension_weights.normalize()
+        logger.info(f"Temporal mode detected: era_mode={era_mode}, era_weight={dimension_weights.era:.2f}")
+
+    # Generate 5D trajectory curve
     trajectory_curve = generate_trajectory_curve(
         arc_type=arc_type.value,
         playlist_length=target_size,
@@ -1314,6 +1412,9 @@ def _build_intent_from_keywords(
         base_darkness=base_dims["darkness"],
         base_tempo=base_dims["tempo"],
         base_texture=base_dims["texture"],
+        era_mode=era_mode,
+        era_start=0.0 if era_mode in ("chronological", "arc") else 0.5,
+        era_end=1.0 if era_mode in ("chronological", "arc") else 0.5,
     )
 
     # Sample waypoints from curve
@@ -1359,6 +1460,7 @@ def _build_intent_from_keywords(
         base_texture=base_dims["texture"],
         avoid_keywords=avoid_keywords,
         year_range=year_range,
+        era_mode=era_mode,
         abstract_concepts=abstract_concepts,
         genre_mode=genre_mode,
         genre_centroids=genre_centroids,
@@ -1366,6 +1468,7 @@ def _build_intent_from_keywords(
 
     logger.info(f"Keyword-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
                 f"type={prompt_type.value}, genre_mode={genre_mode.value}, "
+                f"era_mode={era_mode}, "
                 f"moods={mood_keywords}, genres={genre_hints}, "
                 f"weights={dimension_weights.as_dict()}")
     return intent

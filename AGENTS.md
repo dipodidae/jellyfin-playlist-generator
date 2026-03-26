@@ -31,12 +31,20 @@ A prompt-driven playlist generation system that creates intelligent, curated pla
 │  └─────────────────────────────────────────────────────────────┘│
 │                              │                                   │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐ │
-│  │ 4D Trajectories  │  │ Scene Clustering │  │ Audio Analysis │ │
+│  │ 5D Trajectories  │  │ Scene Clustering │  │ Audio Analysis │ │
 │  │ - Energy         │  │ - Multi-cluster  │  │ - BPM          │ │
 │  │ - Tempo          │  │   weights        │  │ - Loudness     │ │
 │  │ - Darkness       │  │ - Auto bridges   │  │ - Brightness   │ │
 │  │ - Texture        │  │ - Centroids      │  │ - (Optional)   │ │
+│  │ - Era (temporal) │  │                  │  │                │ │
 │  └──────────────────┘  └──────────────────┘  └────────────────┘ │
+│                              │                                   │
+│  ┌──────────────────┐  ┌──────────────────────────────────────┐ │
+│  │ Curation Signals │  │ Release Date Resolution              │ │
+│  │ - Banger detect  │  │ - Discogs / MusicBrainz / file meta  │ │
+│  │ - MA legitimacy  │  │ - Multi-source cross-reference       │ │
+│  │ - RYM culture    │  │ - Confidence scoring                 │ │
+│  └──────────────────┘  └──────────────────────────────────────┘ │
 │                              │                                   │
 │  ┌──────────────────┐  ┌──────────────────────────────────────┐ │
 │  │ Observability    │  │         M3U Exporter                 │ │
@@ -51,7 +59,10 @@ A prompt-driven playlist generation system that creates intelligent, curated pla
 │                   PostgreSQL + pgvector                         │
 │  tracks, track_files, artists, albums, track_embeddings,        │
 │  track_profiles (4D), scene_clusters, artist_clusters,          │
-│  track_audio_features, track_usage, playlist_generation_log     │
+│  track_audio_features, track_usage, playlist_generation_log,    │
+│  track_genre_probabilities, genre_manifold, track_banger_flags, │
+│  album_legitimacy, rym_albums, album_release_dates,             │
+│  lastfm_stats, musicbrainz_artists, musicbrainz_albums          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,11 +84,11 @@ playlist-generator/
 │   │   │   ├── routes.py    # Legacy API (DuckDB)
 │   │   │   └── schemas.py   # Pydantic models
 │   │   ├── trajectory/
-│   │   │   ├── intent.py    # Prompt parsing, 4D waypoints, dimension weights
-│   │   │   ├── curves.py    # Spline interpolation, trajectory curves (v4)
+│   │   │   ├── intent.py    # Prompt parsing, 5D waypoints, dimension weights, era mode
+│   │   │   ├── curves.py    # Spline interpolation, trajectory curves (v4, 5D with era)
 │   │   │   ├── gravity.py   # Dual-anchor gravity wells (v4)
-│   │   │   ├── candidates.py # Position-based candidate pools (v4)
-│   │   │   ├── sequencer.py # Beam search with constraints (v4)
+│   │   │   ├── candidates.py # Position-based candidate pools, curation scoring (v4)
+│   │   │   ├── sequencer.py # Beam search with constraints, era coherence (v4)
 │   │   │   ├── composer_v4.py # Main v4 orchestration
 │   │   │   ├── composer.py  # Legacy composition (v3)
 │   │   │   └── title_generator.py  # AI title generation
@@ -91,9 +102,15 @@ playlist-generator/
 │   │   │   └── generator.py # Sentence-transformers embeddings
 │   │   ├── ingestion/
 │   │   │   ├── scanner.py   # File-based library scanner
-│   │   │   └── lastfm.py    # Last.fm enrichment
+│   │   │   ├── lastfm.py    # Last.fm enrichment
+│   │   │   ├── musicbrainz.py # MusicBrainz ID resolution + release dates
+│   │   │   ├── metal_archives.py # Metal Archives album legitimacy
+│   │   │   ├── discogs.py   # Discogs release date resolution
+│   │   │   └── release_dates.py  # Multi-source original release date resolver
+│   │   ├── enrichment/
+│   │   │   └── banger_detector.py # Banger detection from Last.fm popularity
 │   │   ├── profiles/
-│   │   │   └── generator.py # Semantic track profiles (4D: energy, darkness, tempo, texture)
+│   │   │   └── generator.py # Semantic track profiles (4D: energy, darkness, tempo, texture) + RYM data
 │   │   ├── export/
 │   │   │   └── m3u.py       # M3U playlist exporter
 │   │   ├── migrations/      # Database migrations
@@ -116,7 +133,7 @@ playlist-generator/
 - **Embeddings**: sentence-transformers (all-MiniLM-L6-v2)
 - **Tag Extraction**: mutagen (audio file metadata)
 - **AI**: OpenAI GPT-4o-mini for title generation
-- **External APIs**: Last.fm
+- **External APIs**: Last.fm, Discogs, MusicBrainz, Metal Archives
 
 ## API Endpoints (v3)
 
@@ -127,11 +144,18 @@ playlist-generator/
 | `/scan/status` | GET | Check scan progress |
 | `/scan` | POST | Trigger library scan |
 | `/scan/stream` | POST | Scan with SSE progress |
+| `/enrich/musicbrainz` | POST | Resolve MusicBrainz IDs for artists & albums |
 | `/enrich/lastfm` | POST | Enrich artists from Last.fm |
+| `/enrich/metal-archives` | POST | Enrich album legitimacy from Metal Archives |
+| `/enrich/release-dates` | POST | Resolve true original release dates |
 | `/enrich/embeddings` | POST | Generate track embeddings |
 | `/enrich/profiles` | POST | Generate semantic profiles |
 | `/enrich/clusters` | POST | Generate scene clusters |
+| `/enrich/banger-flags` | POST | Compute banger detection flags |
 | `/enrich/audio` | POST | Analyze audio features |
+| `/enrich/genre-manifold` | POST | Build genre probability vectors |
+| `/enrich/rym` | POST | Scrape RateYourMusic album data |
+| `/rebuild-search-vectors` | POST | Rebuild BM25 search vectors |
 | `/sync/full-pipeline` | POST | Incremental scan + all enrichment (SSE) |
 | `/path-mappings` | GET/POST | Manage path mappings |
 | `/path-mappings/{name}` | DELETE | Delete path mapping |
@@ -156,25 +180,39 @@ The v4 system uses a sophisticated multi-stage pipeline:
 - **journey**: Narrative arc with intro/build/climax/denouement
 - **wave**: Oscillating energy pattern
 
-### 4D Trajectory Dimensions
+### 5D Trajectory Dimensions
 - **Energy**: Intensity/loudness (0-1)
 - **Tempo**: Speed/BPM correlation (0-1)
 - **Darkness**: Mood valence (0-1, 1=darkest)
 - **Texture**: Density + complexity (0-1)
+- **Era**: Temporal position (0-1), active only when `era_mode` ≠ "none"
+
+### Era Modes (Temporal Trajectory)
+- **none**: No temporal trajectory (default)
+- **chronological**: Older → newer progression
+- **reverse**: Newer → older progression
+- **locked**: Tight era window (narrow year range)
+- **arc**: Follows the arc shape through time
 
 ### V4 Scoring Components (Normalized 0-1)
 Weights are adaptive per `PromptType` (see `candidates.py → get_adaptive_weights()`):
 ```python
 # Candidate total_score (used in beam search)
 total_score = (
-    semantic_score  * w_semantic  +   # GENRE=0.33 / ARC=0.15 / MIXED=0.33
-    trajectory_score * w_trajectory + # GENRE=0.15 / ARC=0.42 / MIXED=0.26
-    genre_match_score * w_genre    +  # GENRE=0.27 / ARC=0.18 / MIXED=0.18
-    - gravity_penalty * w_gravity  +  # all types: 0.15
-    - duration_penalty * w_duration   # all types: 0.10
-    - tourist_match_penalty           # 0.40 when genre hint present + zero genre match
-    - negative_constraint_penalty     # avoid_keywords violations
+    semantic_score   * w_semantic   +  # GENRE=0.29 / ARC=0.10 / MIXED=0.28
+    trajectory_score * w_trajectory +  # GENRE=0.15 / ARC=0.45 / MIXED=0.26
+    genre_match_score * w_genre    +   # GENRE=0.23 / ARC=0.16 / MIXED=0.15
+    curation_score   * w_curation  +   # GENRE=0.08 / ARC=0.04 / MIXED=0.06 (+ impact_pref boost)
+    year_score                     +   # soft bonus/penalty for year-range match (verified > file)
+    - gravity_penalty * w_gravity  +   # all types: 0.15
+    - duration_penalty * w_duration    # all types: 0.10
+    - tourist_match_penalty            # 0.40 when genre hint present + zero genre match
+    - negative_constraint_penalty      # avoid_keywords violations (checks genres + RYM data)
+    - usage_penalty                    # time-decayed track reuse penalty
 )
+
+# curation_score = banger_score * w1 + album_legitimacy * w2 + rym_signal * w3
+# (graceful degradation when data sources are partially available)
 
 # Beam extension score (sequencer)
 extension_score = (
@@ -197,6 +235,10 @@ extension_score = (
 - **Adaptive weights**: Per-`PromptType` scoring weights (GENRE / ARC / MIXED)
 - **Artist count cap**: `max_artist_count=4` hard limit per artist per playlist
 - **Genre Manifold System (GMS)**: Probabilistic genre identity vectors (`genre_probs`) loaded from `track_genre_probabilities` table; used for `compute_genre_probability_score()` (replaces Jaccard when available), `compute_genre_drift_penalty()` in beam search, STRICT mode hard filter, and hybrid query embedding construction
+- **Curation scoring**: Combined signal from banger detection (Last.fm popularity), Metal Archives album legitimacy (percentile-normalized), and RYM album ratings; weighted by `impact_preference`
+- **RYM genre enrichment**: High-resolution RYM genres supplement Jaccard genre matching and BM25 search vectors; RYM descriptors feed negative constraint checking
+- **True original release dates**: Multi-source (Discogs/MusicBrainz/file) verified dates used for year scoring (stronger signal than file metadata) and 5D era trajectory dimension
+- **BM25 search vectors**: Composed of track title + artist (Weight A), file genres + Last.fm tags + RYM genres (Weight B), RYM descriptors (Weight C)
 
 ## Environment Variables
 
@@ -217,6 +259,9 @@ LASTFM_API_SECRET=your-api-secret
 
 # OpenAI (for title generation)
 OPENAI_API_KEY=your-api-key
+
+# Discogs (for original release date resolution)
+DISCOGS_TOKEN=your-discogs-personal-access-token
 ```
 
 ## Documentation Freshness Policy
@@ -357,11 +402,17 @@ css: ['~/assets/css/main.css'],
 ## Data Flow
 
 1. **Scan**: Music files → PostgreSQL (tracks, track_files, artists, albums, genres)
-2. **Enrich**: Last.fm → PostgreSQL (tags, artist similarity)
-3. **Embed**: tracks → sentence-transformers → pgvector (embeddings)
-4. **Profile**: tags → heuristics → PostgreSQL (energy, darkness, tempo, texture)
-5. **Cluster**: artist embeddings → KMeans → scene_clusters, artist_clusters
-6. **Generate (v4)**: prompt → 4D trajectory → single semantic search → position pools → beam search → M3U export
+2. **MusicBrainz**: Resolve artist/album MBIDs for downstream enrichment
+3. **Last.fm**: Enrich artists with tags, similarity; fetch per-track play/listener counts
+4. **Metal Archives**: Scrape album ratings → album_legitimacy (match_confidence ≥ 0.7)
+5. **Release Dates**: Multi-source (Discogs/MusicBrainz/file) → album_release_dates (true original year)
+6. **Embed**: tracks + RYM data → sentence-transformers → pgvector (embeddings)
+7. **Profile**: tags → heuristics → PostgreSQL (energy, darkness, tempo, texture)
+8. **Cluster**: artist embeddings → KMeans → scene_clusters, artist_clusters
+9. **Banger Detection**: Last.fm playcount/listeners → within-artist rank + global percentile → track_banger_flags
+10. **Genre Manifold**: kNN voting → track_genre_probabilities + genre centroids
+11. **Search Vectors**: BM25 tsvector (title/artist/genres + Last.fm tags + RYM genres/descriptors)
+12. **Generate (v4)**: prompt → 5D trajectory → semantic+BM25 search → curation scoring → position pools → beam search → M3U export
 
 ### Quick Sync: Add & Analyze New Tracks
 
@@ -371,7 +422,7 @@ To incrementally scan for new music files and run all analysis in one command:
 curl -N -X POST 'http://localhost:8000/sync/full-pipeline'
 ```
 
-This streams SSE progress through: scan → Last.fm → embeddings → profiles → clusters → search vectors.
+This streams SSE progress through: scan → MusicBrainz → Last.fm → Metal Archives → release dates → embeddings → profiles → clusters → banger flags → audio (optional) → search vectors.
 Each step is incremental — only new/unprocessed tracks are touched. Options:
 
 - `?skip_lastfm=true` — skip Last.fm enrichment (faster, avoids API rate limits)

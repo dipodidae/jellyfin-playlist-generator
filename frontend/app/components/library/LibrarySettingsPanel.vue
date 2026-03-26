@@ -15,6 +15,7 @@ const emit = defineEmits<{
 const onCompleted = () => emit('refresh-stats')
 
 const lastfm = useEnrichmentStream({ onCompleted })
+const lastfmTracks = useEnrichmentStream({ onCompleted })
 const embeddings = useEnrichmentStream({ onCompleted })
 const profiles = useEnrichmentStream({ onCompleted })
 const clusters = useEnrichmentStream({ onCompleted })
@@ -25,7 +26,7 @@ const musicbrainz = useEnrichmentStream({ onCompleted })
 const rym = useEnrichmentStream({ onCompleted })
 
 const anyRunning = computed(() =>
-  lastfm.isRunning.value || embeddings.isRunning.value
+  lastfm.isRunning.value || lastfmTracks.isRunning.value || embeddings.isRunning.value
   || profiles.isRunning.value || clusters.isRunning.value || audio.isRunning.value
   || genreManifold.isRunning.value || metalArchives.isRunning.value
   || musicbrainz.isRunning.value || rym.isRunning.value,
@@ -39,6 +40,7 @@ function coveragePct(done: number | undefined, total: number): number {
 const embeddingPct = computed(() => coveragePct(props.stats.tracks_with_embeddings, props.stats.tracks))
 const profilePct = computed(() => coveragePct(props.stats.tracks_with_profiles, props.stats.tracks))
 const lastfmPct = computed(() => coveragePct(props.stats.artists_with_tags, props.stats.artists))
+const lastfmTracksPct = computed(() => coveragePct(props.stats.tracks_with_lastfm_stats, props.stats.tracks))
 const clusterPct = computed(() => coveragePct(props.stats.artists_clustered, props.stats.artists))
 const audioPct = computed(() => coveragePct(props.stats.tracks_with_audio_features, props.stats.tracks))
 const genreManifoldPct = computed(() => coveragePct(props.stats.tracks_with_genre_probs, props.stats.tracks))
@@ -56,6 +58,7 @@ function coverageColor(pct: number): string {
 const activeJob = computed(() => {
   if (musicbrainz.isRunning.value) return musicbrainz
   if (lastfm.isRunning.value) return lastfm
+  if (lastfmTracks.isRunning.value) return lastfmTracks
   if (embeddings.isRunning.value) return embeddings
   if (profiles.isRunning.value) return profiles
   if (clusters.isRunning.value) return clusters
@@ -67,7 +70,7 @@ const activeJob = computed(() => {
 })
 
 const latestOutcome = computed(() => {
-  const jobs = [musicbrainz, lastfm, embeddings, profiles, clusters, audio, genreManifold, metalArchives, rym]
+  const jobs = [musicbrainz, lastfm, lastfmTracks, embeddings, profiles, clusters, audio, genreManifold, metalArchives, rym]
   const failedJob = jobs.find(job => job.status.value === 'error' && job.error.value)
   if (failedJob) {
     return {
@@ -102,6 +105,7 @@ const latestOutcome = computed(() => {
           <div>1. Run <code>Full Sync</code> if the library is missing tracks or paths changed.</div>
           <div>2. Run <code>MusicBrainz</code> to resolve canonical IDs for artists and albums.</div>
           <div>3. Run <code>Last.fm</code> to fetch artist tags and similarities.</div>
+          <div>3b. Run <code>Last.fm Tracks</code> to fetch per-track playcount and listener stats (feeds banger detection).</div>
           <div>4. Run <code>Embeddings</code> to build semantic search vectors.</div>
           <div>5. Run <code>Profiles</code> to generate trajectory-ready track features.</div>
           <div>6. Run <code>Rebuild Clusters</code> after embeddings exist.</div>
@@ -132,6 +136,7 @@ const latestOutcome = computed(() => {
             <div><span class="text-gray-900 dark:text-white font-medium">Embeddings</span> — Semantic vectors computed for each track. The generator queries these to find candidates matching your prompt. Without them, playlist generation won't work.</div>
             <div><span class="text-gray-900 dark:text-white font-medium">Profiles</span> — Per-track scores across four dimensions: energy, darkness, tempo, and texture (0–1 each). These power the trajectory engine — they're what shapes how mood and intensity evolve across a playlist.</div>
             <div><span class="text-gray-900 dark:text-white font-medium">Last.fm Artists</span> — Genre tags and artist similarity data fetched from Last.fm. Used to enrich scoring and improve stylistic coherence between tracks.</div>
+            <div><span class="text-gray-900 dark:text-white font-medium">Last.fm Tracks</span> — Per-track playcount and listener counts from Last.fm. Powers banger detection — identifying standout tracks within each artist's catalog and across the library.</div>
             <div><span class="text-gray-900 dark:text-white font-medium">Scene Clusters</span> — Artists grouped into stylistic scenes using embedding similarity. The engine uses these to ensure variety and smooth transitions between musical zones. The count shown is the number of distinct scenes.</div>
             <div><span class="text-gray-900 dark:text-white font-medium">Audio Features</span> — Acoustic measurements (BPM, loudness, brightness) extracted directly from audio files. Optional — profiles already cover the same dimensions via semantic analysis, but audio features can sharpen accuracy.</div>
             <div><span class="text-gray-900 dark:text-white font-medium">Genre Manifold</span> — Probabilistic genre identity vectors per track, built from kNN neighborhood votes, Last.fm tags, and cluster membership. Powers strict genre filtering and prevents adjacent-genre drift (e.g. thrash staying thrash, not bleeding into NWOBHM).</div>
@@ -199,6 +204,26 @@ const latestOutcome = computed(() => {
         </div>
         <div class="text-xs text-gray-400">
           {{ (stats.artists_with_tags ?? 0).toLocaleString() }} / {{ stats.artists.toLocaleString() }} artists
+        </div>
+      </div>
+
+      <!-- Last.fm Tracks -->
+      <div class="space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Per-track playcount and listener stats from Last.fm. Powers banger detection.">Last.fm Tracks</span>
+          <span :class="coverageColor(lastfmTracksPct)" class="text-xs font-semibold">
+            {{ lastfmTracksPct }}%
+          </span>
+        </div>
+        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div
+            class="h-full bg-pink-500 rounded-full transition-all duration-500"
+            :style="{ width: `${lastfmTracksPct}%` }"
+            :class="{ 'animate-pulse': lastfmTracks.isRunning.value }"
+          />
+        </div>
+        <div class="text-xs text-gray-400">
+          {{ (stats.tracks_with_lastfm_stats ?? 0).toLocaleString() }} / {{ stats.tracks.toLocaleString() }} tracks
         </div>
       </div>
 
@@ -371,6 +396,15 @@ const latestOutcome = computed(() => {
         @click="lastfm.run('/api/enrich/lastfm/stream', 'Last.fm enrichment')"
       >
         Last.fm
+      </UButton>
+      <UButton
+        :loading="lastfmTracks.isRunning.value"
+        :disabled="anyRunning"
+        variant="outline"
+        size="xs"
+        @click="lastfmTracks.run('/api/enrich/lastfm-tracks/stream', 'Last.fm track enrichment')"
+      >
+        Last.fm Tracks
       </UButton>
       <UButton
         :loading="embeddings.isRunning.value"

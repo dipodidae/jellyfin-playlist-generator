@@ -4,8 +4,10 @@
 
 This is a playlist generator that creates intelligent playlists from a Jellyfin music library using:
 - Semantic embeddings for understanding prompts
-- Trajectory-based composition for energy flow
-- Last.fm data for artist similarity and genre tags
+- 5D trajectory-based composition (energy, tempo, darkness, texture, era)
+- Multi-source enrichment: Last.fm (tags, similarity, play stats), MusicBrainz (IDs), Metal Archives (legitimacy), Discogs (release dates), RYM (ratings, genres, descriptors)
+- Curation scoring: banger detection + album legitimacy + RYM cultural signal
+- Genre Manifold System (GMS): probabilistic genre identity vectors
 - OpenAI for creative playlist titles
 
 ## Code Style
@@ -29,12 +31,16 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 
 ### Backend
 - `service/app/api/routes_v3.py` - All API endpoints (PostgreSQL)
-- `service/app/trajectory/intent.py` - Prompt parsing, PromptType, GenreMode, waypoints
+- `service/app/trajectory/intent.py` - Prompt parsing, PromptType, GenreMode, 5D waypoints, era mode
 - `service/app/trajectory/composer_v4.py` - v4 playlist composition
-- `service/app/trajectory/candidates.py` - Candidate pools, adaptive scoring weights
-- `service/app/trajectory/sequencer.py` - Beam search, SequencerConfig
+- `service/app/trajectory/candidates.py` - Candidate pools, curation scoring, adaptive weights
+- `service/app/trajectory/sequencer.py` - Beam search, acoustic continuity, era coherence
 - `service/app/genre/manifold.py` - Genre Manifold System (GMS)
-- `service/app/database_pg.py` - PostgreSQL + pgvector schema and queries
+- `service/app/ingestion/release_dates.py` - Multi-source original release date resolver
+- `service/app/ingestion/musicbrainz.py` - MusicBrainz ID resolution
+- `service/app/ingestion/metal_archives.py` - Metal Archives album legitimacy
+- `service/app/enrichment/banger_detector.py` - Banger detection from Last.fm
+- `service/app/database_pg.py` - PostgreSQL + pgvector schema, queries, BM25 search vectors
 - `service/app/config.py` - Environment settings
 
 ### Frontend

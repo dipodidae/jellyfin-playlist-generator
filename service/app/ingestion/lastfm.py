@@ -277,7 +277,8 @@ async def enrich_tracks_from_lastfm(
         LEFT JOIN track_artists ta ON ta.track_id = t.id AND ta.role = 'primary'
         LEFT JOIN artists a ON ta.artist_id = a.id
         LEFT JOIN track_lastfm_tags tlt ON t.id = tlt.track_id
-        WHERE tlt.track_id IS NULL
+        LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
+        WHERE tlt.track_id IS NULL OR ls.track_id IS NULL
         ORDER BY RANDOM()
     """
     if max_tracks:

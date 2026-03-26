@@ -3,12 +3,17 @@
 # sync-new-tracks.sh — Incrementally add new tracks and run all analysis.
 #
 # Hits the /sync/full-pipeline endpoint which chains:
-#   1. scan       — Incremental file scan (new/changed files only)
-#   2. lastfm     — Enrich new artists from Last.fm
-#   3. embeddings — Generate embeddings for unprocessed tracks
-#   4. profiles   — Generate 4D profiles for unprocessed tracks
-#   5. clusters   — Rebuild scene/artist clusters (global operation)
-#   6. vectors    — Rebuild BM25 search vectors
+#   1.  scan            — Incremental file scan (new/changed files only)
+#   1b. musicbrainz     — Resolve MusicBrainz IDs for artists & albums
+#   2.  lastfm          — Enrich new artists from Last.fm
+#   2b. metal_archives  — Enrich album legitimacy from Metal Archives
+#   2c. release_dates   — Resolve true original release dates (Discogs/MB/file)
+#   3.  embeddings      — Generate embeddings for unprocessed tracks
+#   4.  profiles        — Generate 4D profiles for unprocessed tracks
+#   5.  clusters        — Rebuild scene/artist clusters (global operation)
+#   5b. banger_flags    — Compute banger detection flags
+#   6.  audio           — Audio feature analysis (optional, off by default)
+#   7.  vectors         — Rebuild BM25 search vectors
 #
 # Designed to run in a screen/tmux session. Safe to re-run at any time;
 # each step only processes what hasn't been done yet.
@@ -135,15 +140,19 @@ consume_pipeline_stream() {
 import sys, json
 
 stage_labels = {
-    'scan':           'Scanning',
-    'lastfm':         'Last.fm',
-    'embeddings':     'Embeddings',
-    'profiles':       'Profiles',
-    'clusters':       'Clustering',
-    'audio':          'Audio',
-    'search_vectors': 'Search vectors',
-    'complete':       'Complete',
-    'error':          'Error',
+    'scan':            'Scanning',
+    'musicbrainz':     'MusicBrainz',
+    'lastfm':          'Last.fm',
+    'metal_archives':  'Metal Archives',
+    'release_dates':   'Release dates',
+    'embeddings':      'Embeddings',
+    'profiles':        'Profiles',
+    'clusters':        'Clustering',
+    'banger_flags':    'Banger detection',
+    'audio':           'Audio',
+    'search_vectors':  'Search vectors',
+    'complete':        'Complete',
+    'error':           'Error',
 }
 
 prev_stage = None

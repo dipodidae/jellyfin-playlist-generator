@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     musicbrainz_app_version: str = "1.0"
     musicbrainz_contact: str = ""  # email, required by MB API ToS
 
+    # Discogs (release date resolution)
+    discogs_token: str = ""  # personal access token from discogs.com/settings/developers
+
     # RateYourMusic (scraping)
     rym_scrape_delay_min: float = 2.0
     rym_scrape_delay_max: float = 5.0

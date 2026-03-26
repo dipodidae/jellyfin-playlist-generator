@@ -18,6 +18,10 @@ const isBanger = computed(() => {
   return scores?.banger != null && scores.banger >= 0.7
 })
 
+const displayYear = computed(() => {
+  return props.track.effective_year ?? props.track.original_year ?? props.track.year ?? null
+})
+
 const legitimacyLabel = computed(() => {
   const score = props.track.scores?.legitimacy
   if (score == null || score <= 0) return null
@@ -37,7 +41,7 @@ const legitimacyLabel = computed(() => {
         <span v-if="legitimacyLabel" class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400" :title="`Album legitimacy: ${track.scores?.legitimacy?.toFixed(2)}`">{{ legitimacyLabel }}</span>
       </p>
       <p class="text-sm text-gray-500 truncate">
-        {{ track.artist_name }} · {{ track.album_name }}
+        {{ track.artist_name }} · {{ track.album_name }}<template v-if="displayYear"> · {{ displayYear }}</template>
       </p>
       <div v-if="track.genres?.length" class="flex flex-wrap gap-1 mt-1">
         <span

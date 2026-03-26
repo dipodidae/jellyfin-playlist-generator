@@ -15,27 +15,32 @@ from scipy.interpolate import CubicSpline
 
 @dataclass
 class TrajectoryPoint:
-    """A point on the 4D trajectory curve."""
+    """A point on the 5D trajectory curve (energy, tempo, darkness, texture, era)."""
     position: float  # 0.0 to 1.0
     energy: float
     tempo: float
     darkness: float
     texture: float
+    era: float = 0.5  # normalized temporal position (0=earliest, 1=latest)
     phase_label: str = ""  # metadata only: intro/build/peak/resolve
 
     def as_array(self) -> np.ndarray:
-        """Return dimensions as numpy array."""
+        """Return dimensions as numpy array (4D, excludes era for backward compat)."""
         return np.array([self.energy, self.tempo, self.darkness, self.texture])
 
+    def as_array_5d(self) -> np.ndarray:
+        """Return all 5 dimensions as numpy array."""
+        return np.array([self.energy, self.tempo, self.darkness, self.texture, self.era])
+
     def distance_to(self, other: "TrajectoryPoint") -> float:
-        """Euclidean distance to another point."""
+        """Euclidean distance to another point (4D)."""
         return float(np.linalg.norm(self.as_array() - other.as_array()))
 
 
 class TrajectoryCurve:
     """
     Multi-dimensional trajectory curve with spline interpolation.
-    
+
     Generates smooth curves through key waypoints for energy, tempo,
     darkness, and texture dimensions.
     """
@@ -47,17 +52,19 @@ class TrajectoryCurve:
         tempo: list[float],
         darkness: list[float],
         texture: list[float],
+        era: list[float] | None = None,
         phase_labels: list[str] | None = None,
     ):
         """
         Initialize trajectory curve from waypoint data.
-        
+
         Args:
             positions: Normalized positions [0, 1] for each waypoint
             energy: Energy values at each waypoint
             tempo: Tempo values at each waypoint
             darkness: Darkness values at each waypoint
             texture: Texture values at each waypoint
+            era: Optional era values at each waypoint (0=earliest, 1=latest)
             phase_labels: Optional phase labels for each waypoint
         """
         self.positions = np.array(positions)
@@ -65,7 +72,9 @@ class TrajectoryCurve:
         self._tempo = np.array(tempo)
         self._darkness = np.array(darkness)
         self._texture = np.array(texture)
+        self._era = np.array(era) if era else np.full(len(positions), 0.5)
         self._phase_labels = phase_labels or [""] * len(positions)
+        self.has_era = era is not None
 
         # Create spline interpolators for each dimension
         # Use 'clamped' boundary condition for natural endpoints
@@ -74,20 +83,28 @@ class TrajectoryCurve:
             self._spline_tempo = CubicSpline(positions, tempo, bc_type='clamped')
             self._spline_darkness = CubicSpline(positions, darkness, bc_type='clamped')
             self._spline_texture = CubicSpline(positions, texture, bc_type='clamped')
+            if era:
+                self._spline_era = CubicSpline(positions, era, bc_type='clamped')
+            else:
+                self._spline_era = lambda x: 0.5
         else:
             # Fall back to linear interpolation for small waypoint counts
             self._spline_energy = lambda x: np.interp(x, positions, energy)
             self._spline_tempo = lambda x: np.interp(x, positions, tempo)
             self._spline_darkness = lambda x: np.interp(x, positions, darkness)
             self._spline_texture = lambda x: np.interp(x, positions, texture)
+            if era:
+                self._spline_era = lambda x: np.interp(x, positions, era)
+            else:
+                self._spline_era = lambda x: 0.5
 
     def evaluate(self, t: float) -> TrajectoryPoint:
         """
         Evaluate the trajectory at position t.
-        
+
         Args:
             t: Position along trajectory [0, 1]
-            
+
         Returns:
             TrajectoryPoint with interpolated values
         """
@@ -102,12 +119,15 @@ class TrajectoryCurve:
         # Determine phase label
         phase_label = self._get_phase_label(t)
 
+        era_val = float(np.clip(self._spline_era(t), 0.0, 1.0))
+
         return TrajectoryPoint(
             position=t,
             energy=energy,
             tempo=tempo,
             darkness=darkness,
             texture=texture,
+            era=era_val,
             phase_label=phase_label,
         )
 
@@ -115,7 +135,7 @@ class TrajectoryCurve:
         """Get phase label for position t."""
         if not self._phase_labels:
             return ""
-        
+
         # Find the closest waypoint
         idx = int(np.argmin(np.abs(self.positions - t)))
         return self._phase_labels[idx]
@@ -123,16 +143,16 @@ class TrajectoryCurve:
     def sample(self, n_points: int) -> list[TrajectoryPoint]:
         """
         Sample the curve at n evenly-spaced points.
-        
+
         Args:
             n_points: Number of points to sample
-            
+
         Returns:
             List of TrajectoryPoints
         """
         if n_points <= 1:
             return [self.evaluate(0.5)]
-        
+
         return [
             self.evaluate(i / (n_points - 1))
             for i in range(n_points)
@@ -141,22 +161,22 @@ class TrajectoryCurve:
     def deviation_from(self, actual_points: list[TrajectoryPoint]) -> float:
         """
         Calculate average deviation between this curve and actual points.
-        
+
         Args:
             actual_points: List of actual trajectory points achieved
-            
+
         Returns:
             Average Euclidean distance (0-1 normalized)
         """
         if not actual_points:
             return 0.0
-        
+
         total_deviation = 0.0
         for point in actual_points:
             target = self.evaluate(point.position)
             total_deviation += point.distance_to(target)
-        
-        # Normalize by max possible distance (sqrt(4) = 2 for 4 dimensions)
+
+        # Normalize by max possible distance (sqrt(4) = 2 for 4D, sqrt(5) ~= 2.24 for 5D)
         return total_deviation / (len(actual_points) * 2.0)
 
 
@@ -231,58 +251,82 @@ def generate_trajectory_curve(
     base_darkness: float = 0.5,
     base_tempo: float = 0.5,
     base_texture: float = 0.5,
+    era_mode: str = "none",
+    era_start: float = 0.5,
+    era_end: float = 0.5,
 ) -> TrajectoryCurve:
     """
     Generate a trajectory curve for the given arc type.
-    
+
     The primary dimension (energy) follows the arc shape.
     Secondary dimensions have correlated but dampened variations.
-    
+
     Args:
         arc_type: One of steady, rise, fall, peak, valley, wave, journey
         playlist_length: Number of tracks (affects resolution)
         base_*: Base values for each dimension (from prompt analysis)
-        
+        era_mode: Temporal trajectory mode:
+            - "none": era dimension stays at 0.5 (no temporal preference)
+            - "chronological": era rises linearly (early → late)
+            - "reverse": era falls linearly (late → early)
+            - "locked": era stays constant at era_start
+            - "arc": era follows the main arc shape
+        era_start: Starting era value (0=earliest in range, 1=latest)
+        era_end: Ending era value
+
     Returns:
         TrajectoryCurve instance
     """
     # Resolution scales with playlist length
     n_waypoints = max(5, min(playlist_length, 20))
-    
+
     curve_fn = ARC_CURVES.get(arc_type.lower(), _steady_curve)
-    
+
     positions = []
     energy_vals = []
     tempo_vals = []
     darkness_vals = []
     texture_vals = []
+    era_vals = []
     phase_labels = []
-    
+
     for i in range(n_waypoints):
         t = i / (n_waypoints - 1) if n_waypoints > 1 else 0.5
         positions.append(t)
-        
+
         # Primary dimension follows arc
         arc_value = curve_fn(t)
-        
+
         # Energy follows arc directly
         energy_vals.append(arc_value)
-        
+
         # Tempo correlates with energy (dampened)
         tempo_delta = (arc_value - 0.5) * 0.6
         tempo_vals.append(max(0.0, min(1.0, base_tempo + tempo_delta)))
-        
+
         # Darkness inversely correlates with energy for some arcs
         if arc_type in ("rise", "peak"):
             darkness_delta = (arc_value - 0.5) * -0.3
         else:
             darkness_delta = 0
         darkness_vals.append(max(0.0, min(1.0, base_darkness + darkness_delta)))
-        
+
         # Texture correlates with energy (dampened)
         texture_delta = (arc_value - 0.5) * 0.4
         texture_vals.append(max(0.0, min(1.0, base_texture + texture_delta)))
-        
+
+        # Era dimension based on mode
+        if era_mode == "chronological":
+            era_vals.append(era_start + (era_end - era_start) * t)
+        elif era_mode == "reverse":
+            era_vals.append(era_end + (era_start - era_end) * t)
+        elif era_mode == "locked":
+            era_vals.append(era_start)
+        elif era_mode == "arc":
+            era_vals.append(era_start + (era_end - era_start) * arc_value)
+        else:
+            era_vals.append(0.5)  # neutral — no temporal preference
+
         # Assign phase labels
         if t < 0.15:
             phase_labels.append("intro")
@@ -292,12 +336,13 @@ def generate_trajectory_curve(
             phase_labels.append("peak")
         else:
             phase_labels.append("resolve")
-    
+
     return TrajectoryCurve(
         positions=positions,
         energy=energy_vals,
         tempo=tempo_vals,
         darkness=darkness_vals,
         texture=texture_vals,
+        era=era_vals if era_mode != "none" else None,
         phase_labels=phase_labels,
     )

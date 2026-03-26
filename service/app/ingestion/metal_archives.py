@@ -22,11 +22,12 @@ Usage:
 import asyncio
 import logging
 import re
-from typing import Dict, Optional, Tuple
+import unicodedata
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 import time
 
-import httpx
+from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 from urllib.parse import quote
 
@@ -50,6 +51,123 @@ def _rate_limit() -> None:
         time.sleep(sleep_time)
 
     _last_request_time = time.monotonic()
+
+
+_NOT_FOUND = {
+    "rating": None,
+    "review_count": None,
+    "year": None,
+}
+
+
+def _ma_session() -> cffi_requests.Session:
+    """Create a curl_cffi session that impersonates Chrome to bypass Cloudflare."""
+    return cffi_requests.Session(impersonate="chrome", timeout=20)
+
+
+def _normalize_text(text: str) -> str:
+    """Normalize text for comparison: strip diacritics, punctuation, articles, whitespace."""
+    # Decompose unicode and strip combining marks (diacritics)
+    nfkd = unicodedata.normalize("NFKD", text)
+    ascii_text = "".join(c for c in nfkd if not unicodedata.combining(c))
+    s = ascii_text.lower()
+    # Normalize fancy quotes/apostrophes/dashes to plain ASCII
+    s = re.sub(r"[\u2018\u2019\u0060\u00B4]", "'", s)
+    s = re.sub(r"[\u201C\u201D]", '"', s)
+    s = re.sub(r"[\u2013\u2014\u2015]", "-", s)
+    s = s.replace("\u2026", "...")
+    # Strip punctuation except apostrophes inside words
+    s = re.sub(r"[^a-z0-9' ]", " ", s)
+    # Remove leading articles
+    s = re.sub(r"^(the|a|an)\s+", "", s)
+    # Collapse whitespace
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _tokenize(text: str) -> set:
+    """Split normalized text into a set of tokens."""
+    return set(_normalize_text(text).split())
+
+
+def _name_similarity(a: str, b: str) -> float:
+    """Score similarity between two names (0-1). Combines exact and token overlap."""
+    na, nb = _normalize_text(a), _normalize_text(b)
+    if na == nb:
+        return 1.0
+    # One is a prefix/suffix of the other (e.g. "Burzum" vs "Burzum / Aske")
+    if na.startswith(nb) or nb.startswith(na):
+        return 0.85
+    ta, tb = set(na.split()), set(nb.split())
+    if not ta or not tb:
+        return 0.0
+    intersection = ta & tb
+    # Jaccard-ish but weighted toward the shorter name
+    overlap = len(intersection) / min(len(ta), len(tb))
+    return overlap * 0.8
+
+
+def _extract_band_id_and_name(html_cell: str) -> Tuple[Optional[str], Optional[str]]:
+    """Extract band ID and name from MA search result HTML cell.
+
+    MA returns HTML like: <a href="https://www.metal-archives.com/bands/Slayer/72">Slayer</a>
+    """
+    soup = BeautifulSoup(html_cell, "html.parser")
+    link = soup.find("a")
+    if not link:
+        return None, None
+    href = link.get("href", "")
+    name = link.get_text().strip()
+    # Band ID is the last path segment
+    match = re.search(r"/bands/[^/]+/(\d+)", href)
+    band_id = match.group(1) if match else None
+    return band_id, name
+
+
+def _pick_best_band(results: list, target_artist: str) -> List[Tuple[str, str, float]]:
+    """Rank all matching bands from MA search results.
+
+    Returns list of (band_id, band_name, confidence) sorted by descending score.
+    Only includes results with score >= 0.4.
+    """
+    candidates = []
+    for row in results:
+        band_id, band_name = _extract_band_id_and_name(str(row[0]))
+        if not band_id:
+            continue
+        score = _name_similarity(target_artist, band_name)
+        if score >= 0.4:
+            candidates.append((band_id, band_name, score))
+    candidates.sort(key=lambda x: x[2], reverse=True)
+    return candidates
+
+
+def _match_album_title(target: str, candidate: str, artist: str = "") -> float:
+    """Score how well a candidate album title matches the target (0-1)."""
+    nt = _normalize_text(target)
+    nc = _normalize_text(candidate)
+
+    if nt == nc:
+        return 1.0
+
+    # Self-titled: album name matches the artist name
+    if _normalize_text(artist) == nt and _normalize_text(artist) == nc:
+        return 1.0
+
+    # One contains the other (handles subtitle differences)
+    if nt in nc or nc in nt:
+        length_ratio = min(len(nt), len(nc)) / max(len(nt), len(nc)) if max(len(nt), len(nc)) > 0 else 0
+        return 0.7 + 0.2 * length_ratio
+
+    # Token overlap
+    tt, tc = set(nt.split()), set(nc.split())
+    if not tt or not tc:
+        return 0.0
+    intersection = tt & tc
+    if not intersection:
+        return 0.0
+    overlap = len(intersection) / min(len(tt), len(tc))
+    return overlap * 0.7
 
 
 def scrape_album_rating(artist: str, album: str) -> Optional[Dict[str, any]]:
@@ -77,173 +195,163 @@ def scrape_album_rating(artist: str, album: str) -> Optional[Dict[str, any]]:
     """
     try:
         _rate_limit()
+        session = _ma_session()
 
         # Step 1: Search for the band
-        search_url = f"https://www.metal-archives.com/search/ajax-bands/search/?iBand=&sBand={quote(artist)}"
+        search_url = f"https://www.metal-archives.com/search/ajax-band-search/?field=name&query={quote(artist)}&sEcho=1"
+        response = session.get(search_url)
+        response.raise_for_status()
 
-        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-            response = client.get(search_url, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            })
-            response.raise_for_status()
+        try:
+            data = response.json()
+        except Exception as e:
+            logger.error(f"Failed to parse JSON from band search: {e}")
+            return {**_NOT_FOUND, "error": f"JSON parse error: {e}"}
 
-            # Parse JSON response
+        if not data.get("aaData"):
+            logger.warning(f"No band results for: {artist}")
+            return {**_NOT_FOUND, "error": f"Band not found: {artist}"}
+
+        # Rank all matching bands; may have multiple with same name (e.g. "Slayer", "Death")
+        band_candidates = _pick_best_band(data["aaData"], artist)
+
+        if not band_candidates:
+            logger.warning(f"No confident band match for '{artist}'")
+            return {**_NOT_FOUND, "error": f"Band not found: {artist}"}
+
+        # Step 2: Try each band candidate's discography until we find the target album.
+        # This handles disambiguation (e.g. Slayer JP vs Slayer US) by verifying the
+        # album actually exists in that band's discography.
+        best_url, best_title, best_album_score = None, None, 0.0
+        band_id, band_name, band_confidence = None, None, 0.0
+        available_titles: List[str] = []
+
+        # Only try top candidates with competitive name scores (within 0.15 of best)
+        top_score = band_candidates[0][2]
+        candidates_to_try = [
+            c for c in band_candidates if c[2] >= top_score - 0.15
+        ][:5]  # cap at 5 to avoid excessive requests
+
+        for cand_id, cand_name, cand_confidence in candidates_to_try:
+            _rate_limit()
+            disco_url = f"https://www.metal-archives.com/band/discography/id/{cand_id}/tab/all"
             try:
-                data = response.json()
+                disco_response = session.get(disco_url)
+                disco_response.raise_for_status()
             except Exception as e:
-                logger.error(f"Failed to parse JSON from band search: {e}")
-                return {
-                    "rating": None,
-                    "review_count": None,
-                    "year": None,
-                    "error": f"JSON parse error: {e}"
-                }
+                logger.debug(f"Failed to fetch discography for {cand_name} (ID={cand_id}): {e}")
+                continue
 
-            if not data.get("aaData"):
-                logger.warning(f"No band results for: {artist}")
-                return {
-                    "rating": None,
-                    "review_count": None,
-                    "year": None,
-                    "error": f"Band not found: {artist}"
-                }
+            disco_soup = BeautifulSoup(disco_response.text, "html.parser")
+            album_links = disco_soup.select("a[href*='/albums/']")
+            if not album_links:
+                continue
 
-            # Get first matching band
-            first_band = data["aaData"][0]
-            # Format: [id, name, country, genres, status, formed, location]
-            band_id = str(first_band[0])
-
-            logger.info(f"Found band '{first_band[1]}' with ID {band_id}")
-
-            # Step 2: Get the band's albums
-            band_url = f"https://www.metal-archives.com/bands/_/{band_id}"
-            band_response = client.get(band_url, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            })
-            band_response.raise_for_status()
-
-            band_soup = BeautifulSoup(band_response.text, "html.parser")
-
-            # Find album links
-            # Look for links in the discography section
-            album_links = band_soup.select("table#band_tab_discog a[href*='/albums/']")
-            album_url = None
-
-            album_url_lower = album.lower()
+            # Score all albums in this band's discography
             for link in album_links:
                 link_text = link.get_text().strip()
-                # Try exact match first, then partial
-                if link_text.lower() == album_url_lower:
-                    album_url = link["href"]
-                    break
-                # Skip "Various Artists" compilations
-                if "various artists" not in link_text.lower():
-                    if album_url_lower in link_text.lower() or link_text.lower() in album_url_lower:
-                        album_url = link["href"]
-                        break
+                score = _match_album_title(album, link_text, artist)
+                if score > best_album_score:
+                    best_album_score = score
+                    best_url = link.get("href")
+                    best_title = link_text
+                    band_id, band_name, band_confidence = cand_id, cand_name, cand_confidence
+                    available_titles = [l.get_text().strip() for l in album_links]
 
-            if not album_url:
-                logger.warning(f"Album '{album}' not found on band page for '{artist}'")
-                # List available albums for debugging
-                available = [link.get_text().strip() for link in album_links[:10]]
-                logger.debug(f"Available albums: {available}")
-                return {
-                    "rating": None,
-                    "review_count": None,
-                    "year": None,
-                    "error": f"Album not found: '{album}' (found: {available[:3]}...)"
-                }
+            # Perfect album match — no need to check other bands
+            if best_album_score >= 1.0:
+                break
 
-            logger.info(f"Found album URL: {album_url}")
-
-            # Step 3: Fetch album page
-            album_response = client.get(album_url, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            })
-            album_response.raise_for_status()
-
-            album_soup = BeautifulSoup(album_response.text, "html.parser")
-
-            # Extract year from album page
-            year = None
-            year_match = re.search(r'(\d{4})', album_soup.get_text())
-            if year_match:
-                # Get the year that seems to be part of the album information
-                # Look for year in the sidebar/panel or release info
-                year_str = year_match.group(1)
-                try:
-                    year = int(year_str)
-                    # Sanity check: year should be reasonable (1970-2026)
-                    if year < 1970 or year > 2026:
-                        year = None
-                except ValueError:
-                    year = None
-
-            # Extract rating percentage
-            rating = None
-            rating_elem = album_soup.find("span", class_="score")
-            if rating_elem:
-                try:
-                    rating_text = rating_elem.get_text().strip()
-                    rating = int(rating_text)
-                    logger.debug(f"Found rating: {rating}")
-                except ValueError:
-                    logger.warning(f"Could not parse rating: '{rating_text}'")
-
-            # Extract review count
-            review_count = 0
-            review_elem = album_soup.find("span", class_="float_right")
-            if review_elem:
-                # Format: "X reviews" or "X review" or "X review(s)"
-                review_text = review_elem.get_text().strip()
-                review_match = re.search(r'(\d+)\s*review', review_text, re.IGNORECASE)
-                if review_match:
-                    review_count = int(review_match.group(1))
-                    logger.debug(f"Found review count: {review_count}")
-
-            # Alternative: look for review count in ratingStats
-            if review_count == 0:
-                rating_stats = album_soup.find("div", id="ratingStats")
-                if rating_stats:
-                    review_text = rating_stats.get_text().strip()
-                    review_match = re.search(r'(\d+)\s*review', review_text, re.IGNORECASE)
-                    if review_match:
-                        review_count = int(review_match.group(1))
-
-            logger.info(f"Scraped album: {artist} - {album} - Rating: {rating}%, Reviews: {review_count}, Year: {year}")
-
+        if best_album_score < 0.5 or not best_url:
+            logger.warning(
+                f"Album '{album}' not found for '{artist}' "
+                f"(best: '{best_title}' score={best_album_score:.2f}, "
+                f"tried {len(candidates_to_try)} band(s), "
+                f"available: {available_titles[:8]})"
+            )
             return {
-                "rating": rating,
-                "review_count": review_count,
-                "year": year,
-                "error": None
+                **_NOT_FOUND,
+                "error": f"Album not found: '{album}' (best: '{best_title}' score={best_album_score:.2f})"
             }
 
-    except httpx.TimeoutException as e:
-        logger.error(f"Timeout fetching album rating for {artist} - {album}: {e}")
+        logger.info(
+            f"Matched band '{band_name}' (ID={band_id}, confidence={band_confidence:.2f}) for '{artist}'"
+        )
+        if best_album_score < 1.0:
+            logger.info(f"Fuzzy album match: '{album}' -> '{best_title}' (score={best_album_score:.2f})")
+        else:
+            logger.info(f"Exact album match: '{best_title}'")
+
+        # Step 3: Fetch album page
+        _rate_limit()
+        album_response = session.get(best_url)
+        album_response.raise_for_status()
+
+        album_soup = BeautifulSoup(album_response.text, "html.parser")
+
+        # Extract year from album info (dt/dd pairs in the album sidebar)
+        year = None
+        for dt in album_soup.find_all("dt"):
+            if "release date" in dt.get_text().lower():
+                dd = dt.find_next_sibling("dd")
+                if dd:
+                    year_match = re.search(r"(\d{4})", dd.get_text())
+                    if year_match:
+                        y = int(year_match.group(1))
+                        if 1960 <= y <= 2030:
+                            year = y
+                break
+        # Fallback: look for year anywhere in page text (less reliable)
+        if year is None:
+            for m in re.finditer(r"\b(\d{4})\b", album_soup.get_text()):
+                y = int(m.group(1))
+                if 1970 <= y <= 2026:
+                    year = y
+                    break
+
+        # Extract rating and review count
+        # MA shows these as "N reviews (avg. XX%)" in the album info section
+        rating = None
+        review_count = 0
+        album_text = album_soup.get_text()
+
+        # Pattern: "45 reviews (avg. 85%)" or "1 review (100%)"
+        review_rating_match = re.search(
+            r'(\d+)\s+reviews?\s*\((?:avg\.\s*)?(\d+)%\)', album_text
+        )
+        if review_rating_match:
+            review_count = int(review_rating_match.group(1))
+            rating = int(review_rating_match.group(2))
+            logger.debug(f"Found {review_count} reviews, avg rating: {rating}%")
+
+        # Fallback: try span.score (older MA page format)
+        if rating is None:
+            score_elem = album_soup.find("span", class_="score")
+            if score_elem:
+                try:
+                    rating = int(score_elem.get_text().strip())
+                except ValueError:
+                    pass
+
+        # Combined match confidence: band * album
+        match_confidence = round(band_confidence * best_album_score, 3)
+        logger.info(
+            f"Scraped album: {artist} - {album} -> {band_name} - {best_title} "
+            f"| Rating: {rating}%, Reviews: {review_count}, Year: {year}, "
+            f"Confidence: {match_confidence:.2f} (band={band_confidence:.2f}, album={best_album_score:.2f})"
+        )
+
         return {
-            "rating": None,
-            "review_count": None,
-            "year": None,
-            "error": f"Timeout: {e}"
+            "rating": rating,
+            "review_count": review_count,
+            "year": year,
+            "match_confidence": match_confidence,
+            "error": None
         }
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error fetching album rating for {artist} - {album}: {e}")
-        return {
-            "rating": None,
-            "review_count": None,
-            "year": None,
-            "error": f"HTTP error: {e.response.status_code}"
-        }
+
     except Exception as e:
         logger.error(f"Error scraping album rating for {artist} - {album}: {e}")
-        return {
-            "rating": None,
-            "review_count": None,
-            "year": None,
-            "error": str(e)
-        }
+        return {**_NOT_FOUND, "error": str(e)}
 
 
 def fetch_album_rating(artist: str, album: str) -> Optional[Dict[str, any]]:
@@ -527,6 +635,95 @@ def get_albums_legitimacy_data(albums: list[Tuple[str, str]]) -> Dict[str, any]:
     logger.info(f"Fetched legitimacy data for {len(results)} albums")
 
     return results
+
+
+async def enrich_albums_from_metal_archives(
+    force: bool = False,
+    progress_callback=None,
+) -> dict:
+    """Batch-enrich albums with Metal Archives legitimacy data.
+
+    Queries all albums from the database, skips those already enriched (unless force=True),
+    scrapes Metal Archives for each, and stores results in album_legitimacy.
+
+    Args:
+        force: Re-scrape albums that already have legitimacy data.
+        progress_callback: Optional callable(current, total, message) for progress reporting.
+
+    Returns:
+        Dict with enrichment stats.
+    """
+    from app.database_pg import get_connection
+
+    # Gather albums needing enrichment
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            if force:
+                cur.execute("""
+                    SELECT a.id, a.title, ar.name
+                    FROM albums a
+                    JOIN album_artists aa ON aa.album_id = a.id
+                    JOIN artists ar ON ar.id = aa.artist_id
+                    WHERE aa.position = 0
+                """)
+            else:
+                cur.execute("""
+                    SELECT a.id, a.title, ar.name
+                    FROM albums a
+                    JOIN album_artists aa ON aa.album_id = a.id
+                    JOIN artists ar ON ar.id = aa.artist_id
+                    LEFT JOIN album_legitimacy al ON al.album_id = a.id
+                    WHERE aa.position = 0 AND al.album_id IS NULL
+                """)
+            rows = cur.fetchall()
+
+    total = len(rows)
+    if total == 0:
+        msg = "No albums need Metal Archives enrichment"
+        logger.info(msg)
+        if progress_callback:
+            progress_callback(0, 0, msg)
+        return {"enriched": 0, "skipped": 0, "errors": 0, "total": 0}
+
+    logger.info(f"Metal Archives enrichment: {total} albums to process")
+    enriched = 0
+    errors = 0
+
+    for i, (album_id, album_title, artist_name) in enumerate(rows):
+        if progress_callback and i % 5 == 0:
+            progress_callback(i, total, f"Scraping {artist_name} - {album_title}")
+
+        try:
+            data = await asyncio.to_thread(get_album_legitimacy_data, artist_name, album_title)
+
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO album_legitimacy (album_id, ma_rating, ma_review_count, match_confidence)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (album_id) DO UPDATE SET
+                            ma_rating = EXCLUDED.ma_rating,
+                            ma_review_count = EXCLUDED.ma_review_count,
+                            match_confidence = EXCLUDED.match_confidence,
+                            scraped_at = now()
+                    """, (
+                        str(album_id),
+                        data.get("rating"),
+                        data.get("review_count", 0),
+                        data.get("match_confidence", 0.0),
+                    ))
+                    conn.commit()
+            enriched += 1
+        except Exception as e:
+            logger.warning(f"MA enrichment failed for {artist_name} - {album_title}: {e}")
+            errors += 1
+
+    msg = f"Metal Archives enrichment complete: {enriched} enriched, {errors} errors out of {total}"
+    logger.info(msg)
+    if progress_callback:
+        progress_callback(total, total, msg)
+
+    return {"enriched": enriched, "errors": errors, "total": total}
 
 
 if __name__ == "__main__":

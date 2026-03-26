@@ -54,6 +54,7 @@ class CandidateTrack:
     year: int | None
     duration_ms: int
     file_path: str | None = None
+    original_year: int | None = None  # verified true original release year
 
     # Embeddings
     embedding: list[float] | None = None
@@ -117,6 +118,11 @@ class CandidateTrack:
     _w_curation: float = 0.0
 
     @property
+    def effective_year(self) -> int | None:
+        """Return the best available release year: verified original > file metadata."""
+        return self.original_year or self.year
+
+    @property
     def curation_score(self) -> float:
         """Combined curation signal from banger detection + album legitimacy + RYM culture."""
         ma_signal = self.album_legitimacy_score
@@ -161,25 +167,50 @@ def compute_genre_match_score(
     hint_set: set[str],
     primary_hint_set: set[str],
 ) -> float:
-    if not hint_set or not track.genres:
+    if not hint_set:
         return 0.0
 
-    genre_set_raw = {g.lower() for g in track.genres}
-    genre_set_with_families: set[str] = set(genre_set_raw)
-    for genre_name in genre_set_raw:
+    # Primary genre tags (Last.fm / file metadata)
+    genre_set_raw = {g.lower() for g in track.genres} if track.genres else set()
+
+    # Supplement with high-resolution RYM genres when available.
+    # RYM genres are often more specific (e.g. "ethereal wave", "atmospheric
+    # sludge metal") and catch matches that coarse Last.fm tags miss.
+    rym_set_raw = set()
+    if track.rym_genres:
+        for rg in track.rym_genres:
+            # RYM genres can be multi-word; normalize and also add individual tokens
+            rg_lower = rg.lower().strip()
+            if rg_lower:
+                rym_set_raw.add(rg_lower)
+                # Also add individual words for partial matching (e.g. "sludge" from "atmospheric sludge metal")
+                for token in rg_lower.split():
+                    if len(token) >= 3:
+                        rym_set_raw.add(token)
+
+    combined_raw = genre_set_raw | rym_set_raw
+    if not combined_raw:
+        return 0.0
+
+    genre_set_with_families: set[str] = set(combined_raw)
+    for genre_name in combined_raw:
         family = _ALIAS_TO_FAMILY.get(genre_name)
         if family:
             genre_set_with_families.add(family)
 
     weight_sum = 0.0
-    n_tags = len(genre_set_raw)
+    n_tags = len(genre_set_raw) if genre_set_raw else len(rym_set_raw)
     for genre_name in genre_set_with_families:
         if genre_name not in hint_set:
             continue
         if genre_name in _BROAD_GENRES:
             weight_sum += 0.25
         elif genre_name in primary_hint_set:
-            weight_sum += 1.0
+            # Full weight for primary tag matches, slight discount for RYM-only matches
+            if genre_name in genre_set_raw:
+                weight_sum += 1.0
+            else:
+                weight_sum += 0.75
         else:
             weight_sum += 0.5
 
@@ -195,6 +226,8 @@ def compute_negative_constraint_penalty(
 
     haystack_parts = [track.title or "", track.artist_name or "", track.album_name or ""]
     haystack_parts.extend(track.genres or [])
+    haystack_parts.extend(track.rym_genres or [])
+    haystack_parts.extend(track.rym_descriptors or [])
     haystack = " ".join(haystack_parts).lower()
     haystack_tokens = {token for token in re.findall(r"[a-z0-9]+", haystack) if len(token) >= 2}
 
@@ -242,28 +275,6 @@ def compute_tourist_match_penalty(
     return 0.0
 
 
-def compute_impact_score(
-    track: CandidateTrack,
-    artist_maxima: dict[str, tuple[int, int]],
-    global_max_playcount: int,
-    global_max_listeners: int,
-    impact_preference: float,
-) -> float:
-    if impact_preference <= 0.0:
-        return 0.0
-
-    global_play = math.log1p(max(0, track.playcount)) / math.log1p(max(1, global_max_playcount))
-    global_listeners = math.log1p(max(0, track.listeners)) / math.log1p(max(1, global_max_listeners))
-    global_score = 0.5 * (global_play + global_listeners)
-
-    within_artist_score = global_score
-    if track.artist_id and track.artist_id in artist_maxima:
-        max_playcount, max_listeners = artist_maxima[track.artist_id]
-        artist_play = (track.playcount / max_playcount) if max_playcount > 0 else 0.0
-        artist_listeners = (track.listeners / max_listeners) if max_listeners > 0 else 0.0
-        within_artist_score = 0.5 * (artist_play + artist_listeners)
-
-    return min(1.0, (0.45 * global_score + 0.55 * within_artist_score) * impact_preference)
 
 
 def compute_admissibility_score(
@@ -339,10 +350,10 @@ def semantic_search(
             year_params: list = []
 
             if year_range[0]:
-                year_filter += " AND t.year >= %s"
+                year_filter += " AND COALESCE(ard.original_year, t.year) >= %s"
                 year_params.append(year_range[0])
             if year_range[1]:
-                year_filter += " AND t.year <= %s"
+                year_filter += " AND COALESCE(ard.original_year, t.year) <= %s"
                 year_params.append(year_range[1])
 
             emb = embedding_array.tolist()
@@ -373,7 +384,8 @@ def semantic_search(
                     COALESCE(al_leg.ma_review_count, 0) as ma_review_count,
                     ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
                     ra.genres as rym_genres, ra.descriptors as rym_descriptors,
-                    tal.album_id
+                    tal.album_id,
+                    ard.original_year
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -382,6 +394,7 @@ def semantic_search(
                 LEFT JOIN artists a ON ta.artist_id = a.id
                 LEFT JOIN track_albums tal ON tal.track_id = t.id
                 LEFT JOIN albums al ON tal.album_id = al.id
+                LEFT JOIN album_release_dates ard ON tal.album_id = ard.album_id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
                 LEFT JOIN track_genre_probabilities tgp ON t.id = tgp.track_id
@@ -430,6 +443,7 @@ def semantic_search(
             rym_genres=list(row[26]) if row[26] else [],
             rym_descriptors=list(row[27]) if row[27] else [],
             album_id=str(row[28]) if row[28] else None,
+            original_year=row[29],
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -563,7 +577,13 @@ def keyword_search(
                     taf.bpm_norm, taf.loudness_norm, taf.brightness_norm,
                     COALESCE(ls.playcount, 0), COALESCE(ls.listeners, 0),
                     tgp.genre_probs,
-                    tal.album_id
+                    COALESCE(tbf.banger_score, 0) as banger_score,
+                    COALESCE(al_leg.ma_rating, 0) as ma_rating,
+                    COALESCE(al_leg.ma_review_count, 0) as ma_review_count,
+                    ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
+                    ra.genres as rym_genres, ra.descriptors as rym_descriptors,
+                    tal.album_id,
+                    ard.original_year
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -576,6 +596,11 @@ def keyword_search(
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
                 LEFT JOIN track_genre_probabilities tgp ON t.id = tgp.track_id
+                LEFT JOIN track_banger_flags tbf ON t.id = tbf.track_id
+                LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
+                    AND al_leg.match_confidence >= 0.7
+                LEFT JOIN rym_albums ra ON tal.album_id = ra.album_id
+                LEFT JOIN album_release_dates ard ON tal.album_id = ard.album_id
                 WHERE t.search_vector @@ to_tsquery('simple', %s)
                 ORDER BY keyword_score DESC
                 LIMIT %s
@@ -606,7 +631,16 @@ def keyword_search(
             playcount=int(row[17] or 0),
             listeners=int(row[18] or 0),
             genre_probs=dict(row[19]) if row[19] else {},
-            album_id=str(row[20]) if row[20] else None,
+            banger_score=float(row[20] or 0),
+            album_legitimacy_score=0.0,
+            _raw_ma_rating=float(row[21] or 0),
+            _raw_ma_review_count=int(row[22] or 0),
+            rym_rating=float(row[23]) if row[23] is not None else None,
+            rym_votes=int(row[24] or 0),
+            rym_genres=list(row[25]) if row[25] else [],
+            rym_descriptors=list(row[26]) if row[26] else [],
+            album_id=str(row[27]) if row[27] else None,
+            original_year=row[28],
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
@@ -647,7 +681,8 @@ def _fetch_candidates_by_ids(
                     COALESCE(al_leg.ma_review_count, 0) as ma_review_count,
                     ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
                     ra.genres as rym_genres, ra.descriptors as rym_descriptors,
-                    tal.album_id
+                    tal.album_id,
+                    ard.original_year
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -657,6 +692,7 @@ def _fetch_candidates_by_ids(
                 LEFT JOIN artists a ON ta.artist_id = a.id
                 LEFT JOIN track_albums tal ON tal.track_id = t.id
                 LEFT JOIN albums al ON tal.album_id = al.id
+                LEFT JOIN album_release_dates ard ON tal.album_id = ard.album_id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
                 LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
                 LEFT JOIN track_genre_probabilities tgp ON t.id = tgp.track_id
@@ -699,6 +735,7 @@ def _fetch_candidates_by_ids(
             rym_genres=list(row[24]) if row[24] else [],
             rym_descriptors=list(row[25]) if row[25] else [],
             album_id=str(row[26]) if row[26] else None,
+            original_year=row[27],
             semantic_score=0.0,
         ))
 
@@ -778,13 +815,15 @@ def score_trajectory_match(
     track: CandidateTrack,
     target: TrajectoryPoint,
     weights: DimensionWeights,
+    year_range: tuple[int | None, int | None] = (None, None),
 ) -> float:
     """
     Score how well a track matches the trajectory target.
 
     Returns normalized score in [0, 1] where 1 = perfect match.
+    Includes era dimension when weights.era > 0 and year_range is set.
     """
-    # Compute weighted distance
+    # Compute weighted distance (4D core)
     track_profile = track.profile_array()
     target_profile = target.as_array()
     weight_array = np.array([weights.energy, weights.tempo, weights.darkness, weights.texture])
@@ -792,6 +831,15 @@ def score_trajectory_match(
     # Weighted absolute difference
     diff = np.abs(track_profile - target_profile)
     weighted_diff = np.sum(diff * weight_array)
+
+    # Era dimension: compare track's normalized year position against target era
+    if weights.era > 0 and year_range[0] and year_range[1]:
+        eff_year = track.effective_year
+        if eff_year:
+            yr_span = max(1, year_range[1] - year_range[0])
+            track_era = max(0.0, min(1.0, (eff_year - year_range[0]) / yr_span))
+            era_diff = abs(track_era - target.era)
+            weighted_diff += era_diff * weights.era
 
     # Convert to similarity (max possible diff is 1.0 with normalized weights)
     return max(0.0, 1.0 - weighted_diff)
@@ -1074,7 +1122,9 @@ def generate_position_pools(
                         FROM tracks t
                         JOIN track_genres tg ON tg.track_id = t.id
                         JOIN genres g ON tg.genre_id = g.id
-                        WHERE t.year BETWEEN %s AND %s
+                        LEFT JOIN track_albums tal ON tal.track_id = t.id
+                        LEFT JOIN album_release_dates ard ON tal.album_id = ard.album_id
+                        WHERE COALESCE(ard.original_year, t.year) BETWEEN %s AND %s
                           AND g.name ILIKE ANY(%s)
                         LIMIT %s
                     """, (yr0, yr1, patterns, genre_pool_limit))
@@ -1133,18 +1183,6 @@ def generate_position_pools(
     percentile_floor = float(np.percentile(semantic_values, 30)) if semantic_values else 0.0
     semantic_floor = min(0.40, max(base_semantic_floor, percentile_floor))
 
-    global_max_playcount = max((c.playcount for c in global_candidates), default=1)
-    global_max_listeners = max((c.listeners for c in global_candidates), default=1)
-    artist_maxima: dict[str, tuple[int, int]] = {}
-    for candidate in global_candidates:
-        if not candidate.artist_id:
-            continue
-        existing_playcount, existing_listeners = artist_maxima.get(candidate.artist_id, (0, 0))
-        artist_maxima[candidate.artist_id] = (
-            max(existing_playcount, candidate.playcount),
-            max(existing_listeners, candidate.listeners),
-        )
-
     # Pre-compute adjacent genres for probability-based scoring (BALANCED/EXPLORATORY)
     _adjacent_genres: dict[str, float] = {}
     if hint_set and intent.genre_mode != GenreMode.STRICT:
@@ -1159,9 +1197,14 @@ def generate_position_pools(
     staged_candidates: list[CandidateTrack] = []
     for track in global_candidates:
         year_score = 0.0
-        if year_midpoint is not None and track.year:
-            distance = abs(track.year - year_midpoint)
-            year_score = max(-0.12, 0.08 - distance * 0.01)
+        eff_year = track.effective_year
+        if year_midpoint is not None and eff_year:
+            distance = abs(eff_year - year_midpoint)
+            # Verified original dates get stronger scoring signal
+            if track.original_year:
+                year_score = max(-0.15, 0.12 - distance * 0.012)
+            else:
+                year_score = max(-0.12, 0.08 - distance * 0.01)
 
         # Use probabilistic genre score when manifold data available; Jaccard fallback
         if track.genre_probs and hint_set:
@@ -1273,7 +1316,7 @@ def generate_position_pools(
 
         for track in admissible_candidates:
             # Trajectory match
-            traj_score = score_trajectory_match(track, target, intent.dimension_weights)
+            traj_score = score_trajectory_match(track, target, intent.dimension_weights, intent.year_range)
 
             # Gravity penalty
             grav_penalty = compute_gravity_penalty(
