@@ -93,6 +93,8 @@ Note: Backend takes ~60 seconds to start on Pi 5 (sentence-transformers model lo
 
 5. **Environment variables**: Nuxt uses `NUXT_` prefix for runtime config (e.g., `NUXT_BACKEND_URL`)
 
+6. **Docker image bakes the source.** The running stack (`docker-compose.yml`, `unified` profile) builds `service/` into the `playlist-generator` image; only `/music` and `/playlists` are mounted. Algorithm changes are NOT live until you rebuild: `docker compose --profile unified up -d --build app`. The app serves on `127.0.0.1:8080`; the DB (`playlist-generator-db`) is published on `127.0.0.1:5432`. Point `eval_loop.py` at the running app with `BACKEND_URL=http://localhost:8080`.
+
 ## Testing Endpoints
 
 ```bash
