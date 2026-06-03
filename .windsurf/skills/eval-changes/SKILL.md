@@ -96,7 +96,33 @@ OpenAI evaluation has **±0.3–0.5 variance per prompt** across identical runs.
 | shoegaze_dreampop | 4.35 | 6.30 |
 | **Overall** | **5.41** | **5.99** |
 
-**Library coverage note:** `jazz_nocturnal` and `shoegaze_dreampop` are soft-capped around 4.5–5.5 due to sparse library coverage (library is ~95% metal/goth). Do not chase those scores with weight changes — they need more library tracks.
+> **⚠️ The absolute numbers above are stale (gpt-4o judge drift).** A clean A/B on 2026-06-03
+> measured `main` itself at **overall 4.86**, not 5.41 — so always compare a change against a
+> *fresh same-day run of `main`*, never against this table's absolutes. Treat |Δ| < 0.2 as noise.
+
+### A/B: 2026-06-03 — playlist-quality-fixes branch vs main (identical judge, single run)
+| Prompt | main | + fixes | Δ |
+|--------|------|---------|---|
+| ambient_doom_arc | 3.80 | **4.85** | **+1.05** (per-segment genre fix) |
+| thrash_energy | 5.70 | 4.50 | −1.20 (single-run variance) |
+| darkwave_steady | 5.80 | **6.25** | +0.45 (diversity fix) |
+| doom_journey | 4.65 | 4.65 | 0.00 |
+| black_metal_raw | 6.30 | 6.15 | −0.15 |
+| industrial_ritual | 6.30 | 6.30 | 0.00 |
+| post_punk_goth | 5.80 | 5.05 | −0.75 |
+| jazz_nocturnal | 1.50 | 1.25 | −0.25 (no jazz in library — broken on both) |
+| shoegaze_dreampop | 3.85 | 3.55 | −0.30 |
+| **Overall** | **4.86** | **4.73** | **−0.13 (within noise)** |
+
+The fixes are a clear win on the targeted failure modes — verified directly outside the judge:
+artist diversity ("coolest cold wave" 3→15 distinct artists), near-dup removal ("thrash workout"
+"Suck Your Bone" ×3 → 0), and multi-genre journeys ("ambient → crushing doom" went from 10/10
+one-artist prog-metal to a true Ambient→Doom arc across 10 artists). thrash/post_punk dipped on
+this single judged run and are candidates for follow-up tuning if they persist across runs.
+
+**Library coverage note:** `jazz_nocturnal` and `shoegaze_dreampop` are soft-capped (here ~1.3–3.9)
+by sparse library coverage (~95% metal/goth — e.g. only 11 shoegaze / 4 post-rock / ~0 jazz tracks).
+Do not chase those scores — they need more library tracks, not algorithm changes.
 
 ## Decision tree after seeing results
 
