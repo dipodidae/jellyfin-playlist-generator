@@ -20,6 +20,8 @@ from app.embeddings.generator import generate_embedding
 from app.trajectory.curves import TrajectoryPoint
 from app.trajectory.gravity import GravityAnchors, compute_gravity_penalty
 from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType, PromptType, GenreMode, _ALIAS_TO_FAMILY, _BROAD_GENRES
+from app.trajectory.admission import is_admissible
+from app.trajectory.textnorm import normalize_artist, normalize_title
 
 logger = logging.getLogger(__name__)
 
@@ -1252,11 +1254,19 @@ def generate_position_pools(
     admissibility_floor = 0.30 if intent.prompt_type == PromptType.ARC else 0.35
     neg_constraint_ceiling = 0.35 if intent.prompt_type == PromptType.ARC else 0.45
 
+    has_hints = bool(hint_set)
     admissible_candidates = [
         track for track in staged_candidates
-        if track.semantic_score >= semantic_floor
-        and track.admissibility_score >= admissibility_floor
-        and track.negative_constraint_penalty < neg_constraint_ceiling
+        if is_admissible(
+            semantic_score=track.semantic_score,
+            semantic_floor=semantic_floor,
+            genre_match_score=track.genre_match_score,
+            admissibility_score=track.admissibility_score,
+            admissibility_floor=admissibility_floor,
+            negative_constraint_penalty=track.negative_constraint_penalty,
+            neg_constraint_ceiling=neg_constraint_ceiling,
+            has_genre_hints=has_hints,
+        )
     ]
 
     # STRICT genre mode: hard filter on probability threshold
