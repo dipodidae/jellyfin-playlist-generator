@@ -10,7 +10,6 @@ Implements the v4 architecture:
 
 import logging
 import math
-import unicodedata
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
@@ -21,24 +20,16 @@ from app.database_pg import get_connection
 from app.trajectory.candidates import CandidateTrack
 from app.trajectory.gravity import compute_bridge_bonus
 from app.trajectory.intent import _ALIAS_TO_FAMILY, _RELATED_FAMILIES
+from app.trajectory.textnorm import normalize_artist as _norm_artist_impl
+from app.trajectory.textnorm import normalize_title
 
 logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=4096)
 def _normalize_artist(name: str | None) -> str | None:
-    """Normalize artist name for comparison (strip accents, lowercase).
-
-    This ensures variants like "Voivod" / "Voïvod" or "Znöwhite" / "Znowhite"
-    are treated as the same artist in distance/penalty constraints.
-    """
-    if not name:
-        return name
-    # NFKD decomposition splits e.g. 'ï' into 'i' + combining diaeresis
-    decomposed = unicodedata.normalize("NFKD", name)
-    # Strip combining characters (accents)
-    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
-    return stripped.lower()
+    """Normalize artist name for comparison (delegates to textnorm)."""
+    return _norm_artist_impl(name)
 
 
 @dataclass
@@ -47,6 +38,10 @@ class SequencerConfig:
     beam_width: int = 12
     min_artist_distance: int = 4
     max_artist_count: int = 4
+    max_album_count: int = 2
+    # Absolute ceilings the relaxation ladder may never exceed (None = no cap).
+    hard_max_artist_count: int | None = None
+    hard_max_album_count: int | None = None
     max_cluster_per_window: int = 8
     cluster_window_size: int = 10
     max_duration_ratio: float = 3.0
@@ -66,6 +61,8 @@ class BeamPath:
     artist_counts: dict[str, int] = field(default_factory=dict)     # norm_artist -> total appearances
     cluster_counts: dict[int, int] = field(default_factory=dict)  # cluster_id -> count in window
     track_ids: set = field(default_factory=set)  # track IDs for O(1) duplicate check
+    album_counts: dict[str, int] = field(default_factory=dict)  # album key -> count
+    signatures: set = field(default_factory=set)  # (norm_artist, norm_title) dedup keys
 
     # Genre Manifold System: running genre distribution for drift tracking
     cumulative_genre_dist: dict[str, float] = field(default_factory=dict)
@@ -79,6 +76,8 @@ class BeamPath:
             artist_counts=self.artist_counts.copy(),
             cluster_counts=self.cluster_counts.copy(),
             track_ids=self.track_ids.copy(),
+            album_counts=self.album_counts.copy(),
+            signatures=self.signatures.copy(),
             cumulative_genre_dist=self.cumulative_genre_dist.copy(),
         )
 
@@ -99,6 +98,38 @@ def cosine_similarity(a: list[float] | np.ndarray, b: list[float] | np.ndarray) 
         return 0.0
 
     return float(np.dot(a_arr, b_arr) / (norm_a * norm_b))
+
+
+def _album_key(candidate: CandidateTrack) -> str | None:
+    """Stable per-album key: album_id when present, else normalized name."""
+    if candidate.album_id:
+        return str(candidate.album_id)
+    if candidate.album_name:
+        return "name:" + (normalize_title(candidate.album_name) or "")
+    return None
+
+
+def _record_track(
+    new_path: BeamPath,
+    candidate: CandidateTrack,
+    norm_artist: str | None,
+    position: int,
+) -> None:
+    """Append a track to a path and update all constraint-tracking state."""
+    new_path.tracks.append(candidate)
+    new_path.track_ids.add(candidate.id)
+    new_path.signatures.add((norm_artist, normalize_title(candidate.title)))
+    if norm_artist:
+        new_path.artist_positions[norm_artist] = position
+        new_path.artist_counts[norm_artist] = \
+            new_path.artist_counts.get(norm_artist, 0) + 1
+    album_key = _album_key(candidate)
+    if album_key:
+        new_path.album_counts[album_key] = \
+            new_path.album_counts.get(album_key, 0) + 1
+    if candidate.cluster_id is not None:
+        new_path.cluster_counts[candidate.cluster_id] = \
+            new_path.cluster_counts.get(candidate.cluster_id, 0) + 1
 
 
 def is_valid_extension(
@@ -123,6 +154,11 @@ def is_valid_extension(
 
     # Artist distance constraint (use normalized name for accent-insensitive matching)
     norm_artist = _normalize_artist(candidate.artist_name)
+
+    # Near-duplicate backstop: reject another version of an already-used song.
+    if (norm_artist, normalize_title(candidate.title)) in path.signatures:
+        return False
+
     if norm_artist and norm_artist in path.artist_positions:
         last_pos = path.artist_positions[norm_artist]
         if position - last_pos < config.min_artist_distance:
@@ -130,6 +166,19 @@ def is_valid_extension(
 
     # Artist total count cap — prevents one artist dominating the playlist
     if norm_artist and path.artist_counts.get(norm_artist, 0) >= config.max_artist_count:
+        return False
+
+    # Album total count cap — prevents one album dominating the playlist.
+    album_key = _album_key(candidate)
+    if album_key and path.album_counts.get(album_key, 0) >= config.max_album_count:
+        return False
+
+    # Absolute hard ceilings (never relaxed by the fallback ladder).
+    if (config.hard_max_artist_count is not None and norm_artist
+            and path.artist_counts.get(norm_artist, 0) >= config.hard_max_artist_count):
+        return False
+    if (config.hard_max_album_count is not None and album_key
+            and path.album_counts.get(album_key, 0) >= config.hard_max_album_count):
         return False
 
     # Cluster repetition constraint (adaptive)
@@ -384,48 +433,62 @@ def select_diverse_beam(
 def _relaxed_config(base: SequencerConfig, level: int) -> SequencerConfig:
     """Return a progressively relaxed copy of *base* for constraint fallback.
 
-    Level 0 = normal (no relaxation).
-    Level 1 = moderate: halve artist distance, increase cluster limit.
-    Level 2 = aggressive: artist distance 1, cluster nearly unconstrained.
-    Level 3 = emergency: no artist distance, no cluster limit, no duration limit.
+    Artist/album caps are clamped to the absolute hard ceilings at every
+    level, so relaxation can loosen distance/cluster constraints but can
+    never dump one artist or album.
     """
     if level <= 0:
         return base
+
+    def _clamp_artist(val: int) -> int:
+        if base.hard_max_artist_count is not None:
+            return min(val, base.hard_max_artist_count)
+        return val
+
+    def _clamp_album(val: int) -> int:
+        if base.hard_max_album_count is not None:
+            return min(val, base.hard_max_album_count)
+        return val
+
+    common = dict(
+        beam_width=base.beam_width,
+        hard_max_artist_count=base.hard_max_artist_count,
+        hard_max_album_count=base.hard_max_album_count,
+        cluster_window_size=base.cluster_window_size,
+        lookahead_weight=base.lookahead_weight,
+        bridge_bonus_weight=base.bridge_bonus_weight,
+    )
+
     if level == 1:
         return SequencerConfig(
-            beam_width=base.beam_width,
             min_artist_distance=max(2, base.min_artist_distance // 2),
-            max_artist_count=max(4, base.max_artist_count + 1),
+            max_artist_count=_clamp_artist(max(4, base.max_artist_count + 1)),
+            max_album_count=_clamp_album(base.max_album_count),
             max_cluster_per_window=base.cluster_window_size - 1,
-            cluster_window_size=base.cluster_window_size,
             max_duration_ratio=5.0,
-            lookahead_weight=base.lookahead_weight,
-            bridge_bonus_weight=base.bridge_bonus_weight,
             diversity_threshold=base.diversity_threshold,
+            **common,
         )
     if level == 2:
         return SequencerConfig(
-            beam_width=base.beam_width,
             min_artist_distance=1,
-            max_artist_count=max(5, base.max_artist_count + 2),
+            max_artist_count=_clamp_artist(max(5, base.max_artist_count + 2)),
+            max_album_count=_clamp_album(base.max_album_count + 1),
             max_cluster_per_window=base.cluster_window_size,
-            cluster_window_size=base.cluster_window_size,
             max_duration_ratio=10.0,
-            lookahead_weight=base.lookahead_weight,
-            bridge_bonus_weight=base.bridge_bonus_weight,
-            diversity_threshold=1.0,  # disable diversity filter
+            diversity_threshold=1.0,
+            **common,
         )
-    # level >= 3: emergency — basically no constraints except no duplicates
+    # level >= 3: emergency — drop distance/cluster/duration limits, but keep
+    # artist/album ceilings (hard cap if set, else the prior relaxed value).
     return SequencerConfig(
-        beam_width=base.beam_width,
         min_artist_distance=0,
-        max_artist_count=999,
+        max_artist_count=_clamp_artist(max(6, base.max_artist_count + 2)),
+        max_album_count=_clamp_album(base.max_album_count + 1),
         max_cluster_per_window=999,
-        cluster_window_size=base.cluster_window_size,
         max_duration_ratio=999.0,
-        lookahead_weight=base.lookahead_weight,
-        bridge_bonus_weight=base.bridge_bonus_weight,
         diversity_threshold=1.0,
+        **common,
     )
 
 
@@ -619,21 +682,12 @@ def _extend_single_path(
             extension_score -= (recency_penalty + fatigue_penalty)
 
         new_path = path.copy()
-        new_path.tracks.append(candidate)
-        new_path.track_ids.add(candidate.id)
-        new_path.cumulative_score = path.cumulative_score + extension_score
-
-        if norm_artist:
-            new_path.artist_positions[norm_artist] = position
-            new_path.artist_counts[norm_artist] = \
-                new_path.artist_counts.get(norm_artist, 0) + 1
-        if candidate.cluster_id is not None:
-            new_path.cluster_counts[candidate.cluster_id] = \
-                new_path.cluster_counts.get(candidate.cluster_id, 0) + 1
         if candidate.genre_probs:
             new_path.cumulative_genre_dist = _update_cumulative_genre_dist(
                 path.cumulative_genre_dist, candidate.genre_probs, len(path.tracks)
             )
+        _record_track(new_path, candidate, norm_artist, position)
+        new_path.cumulative_score = path.cumulative_score + extension_score
 
         new_candidates.append((new_path, new_path.cumulative_score))
 
@@ -676,17 +730,8 @@ def _greedy_extend_path(
         return None
 
     new_path = path.copy()
-    new_path.tracks.append(best_candidate)
-    new_path.track_ids.add(best_candidate.id)
+    _record_track(new_path, best_candidate, best_norm_artist, position)
     new_path.cumulative_score = path.cumulative_score + best_score
-
-    if best_norm_artist:
-        new_path.artist_positions[best_norm_artist] = position
-        new_path.artist_counts[best_norm_artist] = \
-            new_path.artist_counts.get(best_norm_artist, 0) + 1
-    if best_candidate.cluster_id is not None:
-        new_path.cluster_counts[best_candidate.cluster_id] = \
-            new_path.cluster_counts.get(best_candidate.cluster_id, 0) + 1
 
     return new_path
 

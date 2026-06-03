@@ -107,6 +107,15 @@ def compose_playlist_v4(
     # 7. Sequence playlist using beam search
     if config is None:
         config = SequencerConfig()
+    # Derive absolute artist/album ceilings from playlist size so no single
+    # artist/album can dominate; relaxation can never exceed these.
+    ts = max(1, intent.target_size)
+    config = dc_replace(
+        config,
+        hard_max_artist_count=max(3, round(ts * 0.25)),
+        max_album_count=max(2, round(ts * 0.15)),
+        hard_max_album_count=max(2, round(ts * 0.15)) + 1,
+    )
 
     # Playlists with a non-STEADY arc need to traverse cluster boundaries;
     # GENRE prompts and STEADY arcs should stay cluster-tight for genre purity.
@@ -228,6 +237,15 @@ def compose_playlist_v4_streaming(
 
     if config is None:
         config = SequencerConfig()
+    # Derive absolute artist/album ceilings from playlist size so no single
+    # artist/album can dominate; relaxation can never exceed these.
+    ts = max(1, intent.target_size)
+    config = dc_replace(
+        config,
+        hard_max_artist_count=max(3, round(ts * 0.25)),
+        max_album_count=max(2, round(ts * 0.15)),
+        hard_max_album_count=max(2, round(ts * 0.15)) + 1,
+    )
 
     # Playlists with a non-STEADY arc need to traverse cluster boundaries;
     # GENRE prompts and STEADY arcs should stay cluster-tight for genre purity.
