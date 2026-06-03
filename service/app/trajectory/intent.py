@@ -64,6 +64,7 @@ class TrajectoryWaypoint:
     phase_label: str = ""  # intro/build/peak/resolve
     mood_embedding: list[float] | None = None
     description: str = ""
+    genres: list[str] = field(default_factory=list)  # per-phase genre hints
 
 
 @dataclass
@@ -163,6 +164,21 @@ class PlaylistIntent:
     # Genre Manifold System
     genre_mode: GenreMode = GenreMode.BALANCED
     genre_centroids: dict[str, list[float]] = field(default_factory=dict)
+
+    def segment_genres_at(self, t_norm: float) -> list[str]:
+        """Genres of the waypoint nearest to normalized position t_norm.
+
+        Returns [] when no waypoint carries per-segment genres (callers then
+        fall back to the global genre_hints).
+        """
+        wps = [w for w in self.waypoints if getattr(w, "genres", None)]
+        if not wps:
+            return []
+        nearest = min(wps, key=lambda w: abs(w.position - t_norm))
+        return list(nearest.genres)
+
+    def has_segment_genres(self) -> bool:
+        return any(getattr(w, "genres", None) for w in self.waypoints)
 
 
 _GENRE_MODE_STRICT_SIGNALS = [
@@ -1052,6 +1068,9 @@ trajectory shape (e.g., "start ambient, build to crushing, end with clean guitar
   - "texture": Float 0.0-1.0
   - "era": Float 0.0-1.0 (optional, only if temporal trajectory requested; 0=oldest, 1=newest)
   - "description": Short label for this phase
+  - "genres": Array of genre strings dominant in THIS phase (e.g. ["ambient","drone"] \
+for an opening, ["doom metal","sludge"] for a finale). Critical for multi-genre journeys: \
+set per-phase genres whenever the user names different styles for different stages.
   If null, the system will generate waypoints from arc_type and base dimensions.
 
 ## Important
@@ -1186,6 +1205,7 @@ def _validate_llm_intent(data: dict) -> None:
         for wp in wps:
             if isinstance(wp, dict):
                 try:
+                    _wp_genres = wp.get("genres")
                     validated.append({
                         "position": max(0.0, min(1.0, float(wp.get("position", 0.5)))),
                         "energy": max(0.0, min(1.0, float(wp.get("energy", 0.5)))),
@@ -1194,6 +1214,8 @@ def _validate_llm_intent(data: dict) -> None:
                         "texture": max(0.0, min(1.0, float(wp.get("texture", 0.5)))),
                         "era": max(0.0, min(1.0, float(wp.get("era", 0.5)))),
                         "description": str(wp.get("description", "")),
+                        "genres": [str(g).lower() for g in _wp_genres if g]
+                                  if isinstance(_wp_genres, list) else [],
                     })
                 except (TypeError, ValueError):
                     continue
@@ -1292,6 +1314,7 @@ def _build_intent_from_llm(
                 era=wp.get("era", 0.5),
                 phase_label=wp.get("description", ""),
                 description=wp.get("description", ""),
+                genres=wp.get("genres", []),
             )
             for wp in custom_wps
         ]

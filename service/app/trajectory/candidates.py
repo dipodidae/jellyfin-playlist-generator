@@ -754,6 +754,22 @@ def build_phase_queries(intent: PlaylistIntent) -> list[str]:
     prompt = intent.raw_prompt
     arc = intent.arc_type
 
+    if intent.has_segment_genres():
+        seg_queries: list[str] = [prompt]
+        for wp in intent.waypoints:
+            genres = getattr(wp, "genres", None)
+            if genres:
+                label = wp.description or ""
+                seg_queries.append(f"{' '.join(genres)} {label}".strip())
+        # De-duplicate while preserving order.
+        seen: set[str] = set()
+        out: list[str] = []
+        for q in seg_queries:
+            if q not in seen:
+                seen.add(q)
+                out.append(q)
+        return out
+
     phase_map: dict[ArcType, list[str]] = {
         ArcType.RISE: [
             f"{prompt} quiet gentle intro",
@@ -1080,8 +1096,12 @@ def generate_position_pools(
     # --- 3. Genre-based secondary pool (Fix 1) ---
     # Filter out broad umbrella genres from pool queries to avoid pulling
     # thousands of irrelevant tracks (e.g. "rock" would match half the library).
-    specific_genre_hints = [g for g in intent.genre_hints
-                           if g.lower() not in _BROAD_GENRES]
+    _all_hints = list(intent.genre_hints)
+    if intent.has_segment_genres():
+        for wp in intent.waypoints:
+            _all_hints.extend(getattr(wp, "genres", []) or [])
+    specific_genre_hints = [g for g in dict.fromkeys(h.lower() for h in _all_hints)
+                           if g not in _BROAD_GENRES]
     genre_pool_limit = max(500, min(2000, pool_size * 5))
     if specific_genre_hints:
         patterns = [f"%{g}%" for g in specific_genre_hints]
@@ -1339,14 +1359,28 @@ def generate_position_pools(
     last_target_vec: tuple[float, ...] | None = None
     POOL_REUSE_THRESHOLD = 0.01  # reuse if all dimensions within 1%
 
+    # When per-segment genres are active, genre scoring is position-dependent,
+    # so adjacent positions must not reuse a cached pool.
+    seg_genres_active = intent.has_segment_genres()
+
     for position in range(intent.target_size):
         # Get trajectory target at this position
         t_norm = position / (intent.target_size - 1) if intent.target_size > 1 else 0.5
         target = intent.trajectory_curve.evaluate(t_norm)
 
+        # Per-segment genre hints for this position (multi-genre journeys).
+        if seg_genres_active:
+            seg_hints = {g.lower() for g in intent.segment_genres_at(t_norm)}
+            for g in list(seg_hints):
+                fam = _ALIAS_TO_FAMILY.get(g)
+                if fam:
+                    seg_hints.add(fam)
+        else:
+            seg_hints = None
+
         # Check if we can reuse the last pool
         target_vec = (target.energy, target.tempo, target.darkness, target.texture)
-        if (last_target_vec is not None and last_pool is not None and
+        if (not seg_genres_active and last_target_vec is not None and last_pool is not None and
                 all(abs(a - b) < POOL_REUSE_THRESHOLD for a, b in zip(target_vec, last_target_vec))):
             position_pools.append(last_pool)
             continue
@@ -1368,11 +1402,19 @@ def generate_position_pools(
                 track.duration_ms, prev_duration
             )
 
+            # Position-aware genre match for multi-genre journeys; otherwise
+            # keep the global genre match computed during staging.
+            if seg_hints:
+                seg_genre_match = compute_genre_match_score(track, seg_hints, seg_hints)
+            else:
+                seg_genre_match = track.genre_match_score
+
             scored_track = replace(
                 track,
                 trajectory_score=traj_score,
                 gravity_penalty=grav_penalty,
                 duration_penalty=dur_penalty,
+                genre_match_score=seg_genre_match,
                 _w_semantic=w_semantic,
                 _w_trajectory=w_trajectory,
                 _w_genre=w_genre,
