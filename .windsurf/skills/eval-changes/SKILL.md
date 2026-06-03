@@ -96,7 +96,33 @@ OpenAI evaluation has **±0.3–0.5 variance per prompt** across identical runs.
 | shoegaze_dreampop | 4.35 | 6.30 |
 | **Overall** | **5.41** | **5.99** |
 
-**Library coverage note:** `jazz_nocturnal` and `shoegaze_dreampop` are soft-capped around 4.5–5.5 due to sparse library coverage (library is ~95% metal/goth). Do not chase those scores with weight changes — they need more library tracks.
+> **⚠️ The absolute numbers above are stale (gpt-4o judge drift).** A clean A/B on 2026-06-03
+> measured `main` itself at **overall 4.86**, not 5.41 — so always compare a change against a
+> *fresh same-day run of `main`*, never against this table's absolutes. Treat |Δ| < 0.2 as noise.
+
+### A/B: 2026-06-03 — playlist-quality-fixes branch vs main (identical judge, single run)
+| Prompt | main | + fixes | Δ |
+|--------|------|---------|---|
+| ambient_doom_arc | 3.80 | **4.85** | **+1.05** (per-segment genre fix) |
+| thrash_energy | 5.70 | 4.50 | −1.20 (single-run variance) |
+| darkwave_steady | 5.80 | **6.25** | +0.45 (diversity fix) |
+| doom_journey | 4.65 | 4.65 | 0.00 |
+| black_metal_raw | 6.30 | 6.15 | −0.15 |
+| industrial_ritual | 6.30 | 6.30 | 0.00 |
+| post_punk_goth | 5.80 | 5.05 | −0.75 |
+| jazz_nocturnal | 1.50 | 1.25 | −0.25 (no jazz in library — broken on both) |
+| shoegaze_dreampop | 3.85 | 3.55 | −0.30 |
+| **Overall** | **4.86** | **4.73** | **−0.13 (within noise)** |
+
+The fixes are a clear win on the targeted failure modes — verified directly outside the judge:
+artist diversity ("coolest cold wave" 3→15 distinct artists), near-dup removal ("thrash workout"
+"Suck Your Bone" ×3 → 0), and multi-genre journeys ("ambient → crushing doom" went from 10/10
+one-artist prog-metal to a true Ambient→Doom arc across 10 artists). thrash/post_punk dipped on
+this single judged run and are candidates for follow-up tuning if they persist across runs.
+
+**Library coverage note:** `jazz_nocturnal` and `shoegaze_dreampop` are soft-capped (here ~1.3–3.9)
+by sparse library coverage (~95% metal/goth — e.g. only 11 shoegaze / 4 post-rock / ~0 jazz tracks).
+Do not chase those scores — they need more library tracks, not algorithm changes.
 
 ## Decision tree after seeing results
 
@@ -175,7 +201,9 @@ if has_genre_hints and genre_match_score <= 0.0:
 | `service/app/trajectory/candidates.py` | `get_adaptive_weights()` | Per-PromptType scoring weights (semantic, trajectory, genre, gravity, duration) |
 | `service/app/trajectory/candidates.py` | `compute_tourist_match_penalty()` | Genre drift penalty for zero-match tracks |
 | `service/app/trajectory/candidates.py` | `generate_position_pools()` | STRICT mode GMS filter, admissibility gate, tourist penalty application |
-| `service/app/trajectory/sequencer.py` | `SequencerConfig` | `max_artist_count` (hard cap, default 4), `min_artist_distance` (default 4), beam width |
+| `service/app/trajectory/sequencer.py` | `SequencerConfig` | `max_artist_count` (soft, 4), `max_album_count` (soft, 2), `hard_max_artist_count`/`hard_max_album_count` (absolute, set by composer), `min_artist_distance` (4), beam width |
+| `service/app/trajectory/admission.py` | `is_admissible()` | Genre-aware admissibility gate (semantic floor OR strong genre match) |
+| `service/app/trajectory/textnorm.py` | `normalize_artist()` / `normalize_title()` | Dedup + accent-insensitive matching |
 | `service/app/trajectory/sequencer.py` | `_extend_single_path()` | Extension score formula: `total_score + trans_score*0.40 + lookahead*0.3 + bridge_bonus*0.05 - direction_penalty - genre_drift_penalty` |
 | `service/app/genre/manifold.py` | `compute_genre_probability_score()` | GMS-based genre score replacing Jaccard when `genre_probs` available |
 | `service/app/genre/manifold.py` | `compute_genre_drift_penalty()` | Beam-level genre drift penalty using running distribution |
@@ -194,8 +222,22 @@ if has_genre_hints and genre_match_score <= 0.0:
 {"semantic": 0.33, "trajectory": 0.26, "genre": 0.18, "gravity": 0.15, "duration": 0.10}
 
 # SequencerConfig defaults
-max_artist_count = 4      # hard cap per artist per playlist
+max_artist_count = 4      # soft cap per artist (relaxation may raise toward hard ceiling)
+max_album_count = 2       # soft cap per album
 min_artist_distance = 4   # tracks between same-artist appearances
+# Absolute ceilings (set by composer from target_size; relaxation NEVER exceeds):
+#   hard_max_artist_count = max(3, round(target_size * 0.25))
+#   hard_max_album_count  = max(2, round(target_size * 0.15)) + 1
+# The fallback ladder no longer relaxes the artist cap to 999.
+
+# Admissibility gate (admission.is_admissible): admit if semantic_score >= floor
+# OR (genre hints present AND genre_match_score >= 0.50). Lets genre/tag pools contribute.
+
+# Near-duplicate dedup: candidate pool collapsed by (normalize_artist, normalize_title);
+# beam search has a (artist,title) signature backstop.
+
+# Per-segment genre waypoints: multi-genre journeys score genre_match per position
+# against that segment's genres (intent.segment_genres_at).
 
 # Tourist penalty (zero genre-match tracks when genre hints present)
 return 0.50

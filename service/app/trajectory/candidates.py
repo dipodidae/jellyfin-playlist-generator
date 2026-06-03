@@ -20,6 +20,8 @@ from app.embeddings.generator import generate_embedding
 from app.trajectory.curves import TrajectoryPoint
 from app.trajectory.gravity import GravityAnchors, compute_gravity_penalty
 from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType, PromptType, GenreMode, _ALIAS_TO_FAMILY, _BROAD_GENRES
+from app.trajectory.admission import is_admissible
+from app.trajectory.textnorm import normalize_artist, normalize_title
 
 logger = logging.getLogger(__name__)
 
@@ -752,6 +754,22 @@ def build_phase_queries(intent: PlaylistIntent) -> list[str]:
     prompt = intent.raw_prompt
     arc = intent.arc_type
 
+    if intent.has_segment_genres():
+        seg_queries: list[str] = [prompt]
+        for wp in intent.waypoints:
+            genres = getattr(wp, "genres", None)
+            if genres:
+                label = wp.description or ""
+                seg_queries.append(f"{' '.join(genres)} {label}".strip())
+        # De-duplicate while preserving order.
+        seen: set[str] = set()
+        out: list[str] = []
+        for q in seg_queries:
+            if q not in seen:
+                seen.add(q)
+                out.append(q)
+        return out
+
     phase_map: dict[ArcType, list[str]] = {
         ArcType.RISE: [
             f"{prompt} quiet gentle intro",
@@ -937,6 +955,29 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
         }
 
 
+def _dedupe_near_duplicates(
+    candidates: list["CandidateTrack"],
+) -> list["CandidateTrack"]:
+    """Collapse (artist, normalized-title) duplicates, keeping one version.
+
+    Prefers the version whose raw title has no parenthetical/bracket
+    qualifier (i.e. the studio cut over a (live)/(demo)/(remix)); ties are
+    broken by higher semantic_score.
+    """
+    best: dict[tuple[str | None, str], "CandidateTrack"] = {}
+    for c in candidates:
+        sig = (normalize_artist(c.artist_name), normalize_title(c.title))
+        incumbent = best.get(sig)
+        if incumbent is None:
+            best[sig] = c
+            continue
+        c_clean = "(" not in c.title and "[" not in c.title
+        inc_clean = "(" not in incumbent.title and "[" not in incumbent.title
+        if (c_clean, c.semantic_score) > (inc_clean, incumbent.semantic_score):
+            best[sig] = c
+    return list(best.values())
+
+
 def generate_position_pools(
     intent: PlaylistIntent,
     anchors: GravityAnchors,
@@ -1055,8 +1096,12 @@ def generate_position_pools(
     # --- 3. Genre-based secondary pool (Fix 1) ---
     # Filter out broad umbrella genres from pool queries to avoid pulling
     # thousands of irrelevant tracks (e.g. "rock" would match half the library).
-    specific_genre_hints = [g for g in intent.genre_hints
-                           if g.lower() not in _BROAD_GENRES]
+    _all_hints = list(intent.genre_hints)
+    if intent.has_segment_genres():
+        for wp in intent.waypoints:
+            _all_hints.extend(getattr(wp, "genres", []) or [])
+    specific_genre_hints = [g for g in dict.fromkeys(h.lower() for h in _all_hints)
+                           if g not in _BROAD_GENRES]
     genre_pool_limit = max(500, min(2000, pool_size * 5))
     if specific_genre_hints:
         patterns = [f"%{g}%" for g in specific_genre_hints]
@@ -1144,6 +1189,13 @@ def generate_position_pools(
     if not global_candidates:
         logger.warning("No candidates found across all pool sources")
         return []
+
+    _pre_dedup = len(global_candidates)
+    global_candidates = _dedupe_near_duplicates(global_candidates)
+    if len(global_candidates) != _pre_dedup:
+        logger.info(
+            f"Near-duplicate dedup: {_pre_dedup} → {len(global_candidates)} candidates"
+        )
 
     # Percentile-normalize album legitimacy scores across the pool
     _normalize_album_legitimacy(global_candidates)
@@ -1252,11 +1304,19 @@ def generate_position_pools(
     admissibility_floor = 0.30 if intent.prompt_type == PromptType.ARC else 0.35
     neg_constraint_ceiling = 0.35 if intent.prompt_type == PromptType.ARC else 0.45
 
+    has_hints = bool(hint_set)
     admissible_candidates = [
         track for track in staged_candidates
-        if track.semantic_score >= semantic_floor
-        and track.admissibility_score >= admissibility_floor
-        and track.negative_constraint_penalty < neg_constraint_ceiling
+        if is_admissible(
+            semantic_score=track.semantic_score,
+            semantic_floor=semantic_floor,
+            genre_match_score=track.genre_match_score,
+            admissibility_score=track.admissibility_score,
+            admissibility_floor=admissibility_floor,
+            negative_constraint_penalty=track.negative_constraint_penalty,
+            neg_constraint_ceiling=neg_constraint_ceiling,
+            has_genre_hints=has_hints,
+        )
     ]
 
     # STRICT genre mode: hard filter on probability threshold
@@ -1299,14 +1359,28 @@ def generate_position_pools(
     last_target_vec: tuple[float, ...] | None = None
     POOL_REUSE_THRESHOLD = 0.01  # reuse if all dimensions within 1%
 
+    # When per-segment genres are active, genre scoring is position-dependent,
+    # so adjacent positions must not reuse a cached pool.
+    seg_genres_active = intent.has_segment_genres()
+
     for position in range(intent.target_size):
         # Get trajectory target at this position
         t_norm = position / (intent.target_size - 1) if intent.target_size > 1 else 0.5
         target = intent.trajectory_curve.evaluate(t_norm)
 
+        # Per-segment genre hints for this position (multi-genre journeys).
+        if seg_genres_active:
+            seg_hints = {g.lower() for g in intent.segment_genres_at(t_norm)}
+            for g in list(seg_hints):
+                fam = _ALIAS_TO_FAMILY.get(g)
+                if fam:
+                    seg_hints.add(fam)
+        else:
+            seg_hints = None
+
         # Check if we can reuse the last pool
         target_vec = (target.energy, target.tempo, target.darkness, target.texture)
-        if (last_target_vec is not None and last_pool is not None and
+        if (not seg_genres_active and last_target_vec is not None and last_pool is not None and
                 all(abs(a - b) < POOL_REUSE_THRESHOLD for a, b in zip(target_vec, last_target_vec))):
             position_pools.append(last_pool)
             continue
@@ -1328,11 +1402,19 @@ def generate_position_pools(
                 track.duration_ms, prev_duration
             )
 
+            # Position-aware genre match for multi-genre journeys; otherwise
+            # keep the global genre match computed during staging.
+            if seg_hints:
+                seg_genre_match = compute_genre_match_score(track, seg_hints, seg_hints)
+            else:
+                seg_genre_match = track.genre_match_score
+
             scored_track = replace(
                 track,
                 trajectory_score=traj_score,
                 gravity_penalty=grav_penalty,
                 duration_penalty=dur_penalty,
+                genre_match_score=seg_genre_match,
                 _w_semantic=w_semantic,
                 _w_trajectory=w_trajectory,
                 _w_genre=w_genre,
