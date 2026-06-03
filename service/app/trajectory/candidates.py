@@ -939,6 +939,29 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
         }
 
 
+def _dedupe_near_duplicates(
+    candidates: list["CandidateTrack"],
+) -> list["CandidateTrack"]:
+    """Collapse (artist, normalized-title) duplicates, keeping one version.
+
+    Prefers the version whose raw title has no parenthetical/bracket
+    qualifier (i.e. the studio cut over a (live)/(demo)/(remix)); ties are
+    broken by higher semantic_score.
+    """
+    best: dict[tuple[str | None, str], "CandidateTrack"] = {}
+    for c in candidates:
+        sig = (normalize_artist(c.artist_name), normalize_title(c.title))
+        incumbent = best.get(sig)
+        if incumbent is None:
+            best[sig] = c
+            continue
+        c_clean = "(" not in c.title and "[" not in c.title
+        inc_clean = "(" not in incumbent.title and "[" not in incumbent.title
+        if (c_clean, c.semantic_score) > (inc_clean, incumbent.semantic_score):
+            best[sig] = c
+    return list(best.values())
+
+
 def generate_position_pools(
     intent: PlaylistIntent,
     anchors: GravityAnchors,
@@ -1146,6 +1169,13 @@ def generate_position_pools(
     if not global_candidates:
         logger.warning("No candidates found across all pool sources")
         return []
+
+    _pre_dedup = len(global_candidates)
+    global_candidates = _dedupe_near_duplicates(global_candidates)
+    if len(global_candidates) != _pre_dedup:
+        logger.info(
+            f"Near-duplicate dedup: {_pre_dedup} → {len(global_candidates)} candidates"
+        )
 
     # Percentile-normalize album legitimacy scores across the pool
     _normalize_album_legitimacy(global_candidates)
