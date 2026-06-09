@@ -182,6 +182,18 @@ def cmd_analyze_audio(args):
     logger.info(f"Audio analysis complete: {json.dumps(stats, indent=2)}")
 
 
+def cmd_studio_scores(args):
+    """Classify studio/live/demo versions and backfill track_studio_scores."""
+    from app.ingestion.studio_scores import backfill_studio_scores
+
+    init_db()
+
+    logger.info("Classifying studio/live versions...")
+    stats = backfill_studio_scores()
+    print(stats)
+    logger.info(f"Studio scoring complete: {json.dumps(stats, indent=2)}")
+
+
 def cmd_generate_clusters(args):
     """Generate scene clusters."""
     from app.clustering.scenes import generate_clusters
@@ -295,6 +307,12 @@ def main():
     # analyze-audio
     subparsers.add_parser("analyze-audio", help="Analyze audio features (BPM, loudness, etc.)")
 
+    # studio-scores
+    subparsers.add_parser(
+        "studio-scores",
+        help="Classify studio/live/demo versions and backfill track_studio_scores",
+    )
+
     # generate-clusters
     subparsers.add_parser("generate-clusters", help="Generate scene clusters (UMAP + HDBSCAN)")
 
@@ -336,6 +354,8 @@ def main():
         asyncio.run(cmd_generate_profiles(args))
     elif args.command == "analyze-audio":
         cmd_analyze_audio(args)
+    elif args.command == "studio-scores":
+        cmd_studio_scores(args)
     elif args.command == "generate-clusters":
         cmd_generate_clusters(args)
     elif args.command == "stats":

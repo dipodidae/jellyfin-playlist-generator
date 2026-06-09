@@ -1225,6 +1225,16 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
             except Exception:
                 pass
 
+            # --- Stage 1c: studio/live version scoring (metadata only) ---
+            yield emit("studio", 15, "Classifying studio/live versions...")
+            try:
+                from app.ingestion.studio_scores import backfill_studio_scores
+                studio_stats = await asyncio.to_thread(backfill_studio_scores)
+                pipeline_stats["studio"] = studio_stats
+                yield emit("studio", 16, f"Studio scoring: {studio_stats.get('processed', 0)} tracks classified")
+            except Exception as exc:
+                yield emit("studio", 16, f"Studio scoring failed: {exc}")
+
         except Exception as exc:
             yield emit("error", 0, f"Scan failed: {exc}", error=str(exc), done=True)
             return

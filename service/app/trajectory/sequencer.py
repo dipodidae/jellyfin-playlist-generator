@@ -370,6 +370,10 @@ def score_transition(
         )
         if vj is not None:
             acoustic_parts.append((vj, 0.10))
+        aprev = getattr(prev_track, "acousticness", None)
+        acurr = getattr(curr_track, "acousticness", None)
+        if aprev is not None and acurr is not None:
+            acoustic_parts.append((1.0 - min(abs(aprev - acurr) * 2, 1.0), 0.05))
 
         wsum = sum(w for _, w in acoustic_parts)
         acoustic_score = sum(s * w for s, w in acoustic_parts) / wsum
