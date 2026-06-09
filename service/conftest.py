@@ -2,7 +2,12 @@
 Pytest conftest: stub heavy optional deps that are not installed in the test venv
 (sentence_transformers, scipy, psycopg2) so pure-logic tests can import the app
 modules without needing the full production environment.
+
+Each stub is installed ONLY when the real package cannot be imported. In CI /
+the container (where the real deps are installed) the genuine modules are used
+and these fakes never shadow them.
 """
+import importlib.util
 import sys
 import types
 
@@ -13,8 +18,16 @@ def _stub(name: str) -> types.ModuleType:
     return m
 
 
+def _real_available(name: str) -> bool:
+    """True if the real package is importable (so we must NOT stub it)."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError, ModuleNotFoundError):
+        return False
+
+
 # --- sentence_transformers ---
-if "sentence_transformers" not in sys.modules:
+if "sentence_transformers" not in sys.modules and not _real_available("sentence_transformers"):
     _st = _stub("sentence_transformers")
 
     class _FakeST:
@@ -28,7 +41,7 @@ if "sentence_transformers" not in sys.modules:
     _st.SentenceTransformer = _FakeST
 
 # --- scipy / scipy.interpolate ---
-if "scipy" not in sys.modules:
+if "scipy" not in sys.modules and not _real_available("scipy"):
     _sp = _stub("scipy")
     _spi = _stub("scipy.interpolate")
 
@@ -43,7 +56,7 @@ if "scipy" not in sys.modules:
     _sp.interpolate = _spi
 
 # --- psycopg2 ---
-if "psycopg2" not in sys.modules:
+if "psycopg2" not in sys.modules and not _real_available("psycopg2"):
     _pg = _stub("psycopg2")
     _pg_extras = _stub("psycopg2.extras")
     _pg_pool = _stub("psycopg2.pool")
