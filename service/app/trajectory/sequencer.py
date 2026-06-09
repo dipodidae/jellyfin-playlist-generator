@@ -100,6 +100,23 @@ def cosine_similarity(a: list[float] | np.ndarray, b: list[float] | np.ndarray) 
     return float(np.dot(a_arr, b_arr) / (norm_a * norm_b))
 
 
+def mfcc_continuity(prev_mfcc, curr_mfcc, scale: float = 60.0):
+    """0-1 timbre continuity from euclidean distance between 12-d MFCC means.
+    Returns None when either vector is missing."""
+    if not prev_mfcc or not curr_mfcc:
+        return None
+    import numpy as _np
+    d = float(_np.linalg.norm(_np.asarray(prev_mfcc, float) - _np.asarray(curr_mfcc, float)))
+    return max(0.0, 1.0 - min(d / scale, 1.0))
+
+
+def vocal_jump_score(prev_instr, curr_instr):
+    """0-1 score penalizing vocal↔instrumental whiplash. None if data missing."""
+    if prev_instr is None or curr_instr is None:
+        return None
+    return max(0.0, 1.0 - min(abs(prev_instr - curr_instr) * 1.5, 1.0))
+
+
 def _album_key(candidate: CandidateTrack) -> str | None:
     """Stable per-album key: album_id when present, else normalized name."""
     if candidate.album_id:
@@ -325,7 +342,7 @@ def score_transition(
         scores.append(genre_score)
         scores.append(genre_score)
 
-    # Acoustic continuity (only when both tracks have audio features)
+    # Acoustic continuity (only when both tracks have core audio features)
     if (
         prev_track.bpm_norm is not None and curr_track.bpm_norm is not None
         and prev_track.loudness_norm is not None and curr_track.loudness_norm is not None
@@ -334,7 +351,23 @@ def score_transition(
         bpm_score = 1.0 - min(abs(prev_track.bpm_norm - curr_track.bpm_norm) * 2, 1.0)
         loudness_score = 1.0 - min(abs(prev_track.loudness_norm - curr_track.loudness_norm) * 2, 1.0)
         brightness_score = 1.0 - min(abs(prev_track.brightness_norm - curr_track.brightness_norm) * 2, 1.0)
-        acoustic_score = bpm_score * 0.4 + loudness_score * 0.4 + brightness_score * 0.2
+        acoustic_parts = [(bpm_score, 0.35), (loudness_score, 0.30), (brightness_score, 0.15)]
+
+        dprev, dcurr = getattr(prev_track, "danceability", None), getattr(curr_track, "danceability", None)
+        if dprev is not None and dcurr is not None:
+            acoustic_parts.append((1.0 - min(abs(dprev - dcurr) * 2, 1.0), 0.10))
+        pprev, pcurr = getattr(prev_track, "pulse_clarity", None), getattr(curr_track, "pulse_clarity", None)
+        if pprev is not None and pcurr is not None:
+            acoustic_parts.append((1.0 - min(abs(pprev - pcurr) * 2, 1.0), 0.05))
+        mc = mfcc_continuity(getattr(prev_track, "mfcc", None), getattr(curr_track, "mfcc", None))
+        if mc is not None:
+            acoustic_parts.append((mc, 0.10))
+        vj = vocal_jump_score(getattr(prev_track, "instrumentalness", None), getattr(curr_track, "instrumentalness", None))
+        if vj is not None:
+            acoustic_parts.append((vj, 0.10))
+
+        wsum = sum(w for _, w in acoustic_parts)
+        acoustic_score = sum(s * w for s, w in acoustic_parts) / wsum
         scores.append(acoustic_score)
 
     # Era coherence: prefer tracks from similar time periods to avoid jarring
