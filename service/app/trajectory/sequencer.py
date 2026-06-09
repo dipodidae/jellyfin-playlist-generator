@@ -261,6 +261,10 @@ def score_transition(
         darkness_score = max(0.0, 1.0 - min(darkness_diff * 1.8, 1.0))
     scores.append(darkness_score)
 
+    # Valence continuity (mood smoothness)
+    valence_diff = abs(getattr(prev_track, "valence", 0.5) - getattr(curr_track, "valence", 0.5))
+    scores.append(max(0.0, 1.0 - min(valence_diff * 1.8, 1.0)))
+
     # Embedding similarity (if available)
     if prev_track.embedding and curr_track.embedding:
         sim = cosine_similarity(prev_track.embedding, curr_track.embedding)
