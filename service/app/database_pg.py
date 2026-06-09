@@ -1111,22 +1111,46 @@ def _compute_observatory_stats() -> dict:
                     {"key": r[0], "count": r[1]} for r in cur.fetchall()
                 ]
 
-                # Averages
+                # Averages (incl. more-metrics: valence/danceability/acousticness/instrumentalness)
                 cur.execute("""
-                    SELECT AVG(bpm), AVG(loudness_rms), AVG(spectral_centroid)
+                    SELECT AVG(bpm), AVG(loudness_rms), AVG(spectral_centroid),
+                           AVG(valence), AVG(danceability), AVG(acousticness),
+                           AVG(instrumentalness),
+                           COUNT(*) FILTER (WHERE valence IS NOT NULL)
                     FROM track_audio_features
                 """)
                 row = cur.fetchone()
+
+                def _avg(v):
+                    return round(float(v), 3) if v is not None else None
+
                 result["audio_averages"] = {
                     "avg_bpm": round(float(row[0] or 0), 1),
                     "avg_loudness_rms": round(float(row[1] or 0), 4),
                     "avg_spectral_centroid": round(float(row[2] or 0), 1),
+                    "avg_valence": _avg(row[3]),
+                    "avg_danceability": _avg(row[4]),
+                    "avg_acousticness": _avg(row[5]),
+                    "avg_instrumentalness": _avg(row[6]),
+                    "metrics_v2_count": int(row[7] or 0),
                     "analyzed_count": audio_count,
                 }
+
+                # Studio/live version breakdown
+                cur.execute("""
+                    SELECT version_type, COUNT(*)
+                    FROM track_studio_scores
+                    GROUP BY version_type
+                    ORDER BY COUNT(*) DESC
+                """)
+                result["version_distribution"] = [
+                    {"version_type": r[0], "count": r[1]} for r in cur.fetchall()
+                ]
             else:
                 result["bpm_distribution"] = []
                 result["key_distribution"] = []
                 result["audio_averages"] = None
+                result["version_distribution"] = []
 
             # ── 10. Generation stats ────────────────────────────────────
             cur.execute("SELECT COUNT(*) FROM generated_playlists")

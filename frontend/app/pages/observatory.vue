@@ -137,6 +137,7 @@ function formatTotalDuration(ms: number): string {
         :bpm-distribution="data.bpm_distribution"
         :key-distribution="data.key_distribution"
         :averages="data.audio_averages"
+        :version-distribution="data.version_distribution"
       />
 
       <!-- Generation Stats -->

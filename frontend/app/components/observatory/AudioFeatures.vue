@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BpmEntry, KeyEntry, AudioAverages } from '~/types/observatory'
+import type { BpmEntry, KeyEntry, AudioAverages, VersionEntry } from '~/types/observatory'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { BarChart, PieChart } from 'echarts/charts'
@@ -12,9 +12,15 @@ const props = defineProps<{
   bpmDistribution: BpmEntry[]
   keyDistribution: KeyEntry[]
   averages: AudioAverages | null
+  versionDistribution?: VersionEntry[]
 }>()
 
 const colorMode = useColorMode()
+
+// Render a 0-1 metric as a whole-number percentage; em dash when absent.
+function pct(v: number | null | undefined): string {
+  return (v === null || v === undefined) ? '—' : `${Math.round(v * 100)}%`
+}
 
 const hasData = computed(() => props.bpmDistribution.length > 0 || props.keyDistribution.length > 0)
 
@@ -123,6 +129,48 @@ const keyOption = computed(() => {
         <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
           <div class="text-2xl font-bold text-emerald-500 tabular-nums">{{ averages.analyzed_count.toLocaleString() }}</div>
           <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tracks Analyzed</div>
+        </div>
+      </div>
+
+      <!-- More-metrics averages (valence / danceability / acousticness / instrumentalness) -->
+      <div
+        v-if="averages && (averages.metrics_v2_count ?? 0) > 0"
+        class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4"
+      >
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
+          <div class="text-2xl font-bold text-pink-500 tabular-nums">{{ pct(averages.avg_valence) }}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Valence (mood)</div>
+        </div>
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
+          <div class="text-2xl font-bold text-violet-500 tabular-nums">{{ pct(averages.avg_danceability) }}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Danceability</div>
+        </div>
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
+          <div class="text-2xl font-bold text-teal-500 tabular-nums">{{ pct(averages.avg_acousticness) }}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Acousticness</div>
+        </div>
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
+          <div class="text-2xl font-bold text-indigo-500 tabular-nums">{{ pct(averages.avg_instrumentalness) }}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Instrumentalness</div>
+        </div>
+      </div>
+
+      <!-- Studio vs live/demo/bonus version breakdown -->
+      <div
+        v-if="versionDistribution && versionDistribution.length > 0"
+        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 mb-4"
+      >
+        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          Version Breakdown (studio / live / demo / …)
+        </h3>
+        <div class="flex flex-wrap gap-2">
+          <span
+            v-for="v in versionDistribution"
+            :key="v.version_type"
+            class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+          >
+            {{ v.version_type }}: <span class="tabular-nums font-bold">{{ v.count.toLocaleString() }}</span>
+          </span>
         </div>
       </div>
 

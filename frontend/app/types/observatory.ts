@@ -136,7 +136,17 @@ export interface AudioAverages {
   avg_bpm: number
   avg_loudness_rms: number
   avg_spectral_centroid: number
+  avg_valence: number | null
+  avg_danceability: number | null
+  avg_acousticness: number | null
+  avg_instrumentalness: number | null
+  metrics_v2_count: number
   analyzed_count: number
+}
+
+export interface VersionEntry {
+  version_type: string
+  count: number
 }
 
 export interface ArcTypeEntry {
@@ -358,6 +368,7 @@ export interface ObservatoryData {
   bpm_distribution: BpmEntry[]
   key_distribution: KeyEntry[]
   audio_averages: AudioAverages | null
+  version_distribution: VersionEntry[]
   total_playlists: number
   arc_type_breakdown: ArcTypeEntry[]
   most_used_tracks: UsedTrack[]
