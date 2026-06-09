@@ -94,6 +94,49 @@ def normalize_spectral_flatness(flatness: float) -> float:
     return float(max(0.0, min(1.0, flatness)))
 
 
+def clamp01(x: float) -> float:
+    """Clamp to [0, 1]."""
+    return float(max(0.0, min(1.0, x)))
+
+
+def normalize_onset_rate(onsets_per_sec: float, max_rate: float = 8.0) -> float:
+    """Normalize onset rate (onsets/sec) to 0-1 over [0, max_rate]."""
+    return clamp01(onsets_per_sec / max_rate)
+
+
+# Krumhansl-Schmuckler key profiles (major and minor), normalized.
+_KS_MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
+_KS_MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
+
+
+def majorness_from_chroma(chroma_mean: np.ndarray) -> float:
+    """Estimate major-vs-minor 'majorness' in [0,1] from a 12-bin mean chroma vector.
+
+    Correlates the (best-rotation) chroma against the major and minor KS profiles
+    and returns a softmaxed major share. Heuristic — not a key/mode classifier.
+    """
+    c = np.asarray(chroma_mean, dtype=float)
+    if c.shape[0] != 12 or float(np.sum(np.abs(c))) == 0.0:
+        return 0.5
+    c = c - c.mean()
+    best_major = max(
+        float(np.corrcoef(np.roll(c, -k), _KS_MAJOR - _KS_MAJOR.mean())[0, 1]) for k in range(12)
+    )
+    best_minor = max(
+        float(np.corrcoef(np.roll(c, -k), _KS_MINOR - _KS_MINOR.mean())[0, 1]) for k in range(12)
+    )
+    gap = best_major - best_minor
+    if not np.isfinite(gap):  # near-uniform/atonal chroma → corrcoef nan
+        return 0.5
+    # Map the (major - minor) correlation gap from [-1,1] to [0,1]
+    return clamp01(0.5 + 0.5 * gap)
+
+
+def valence_from_parts(majorness: float, bpm_norm: float, brightness_norm: float) -> float:
+    """Heuristic valence (0-1): 0.5*majorness + 0.3*bpm + 0.2*brightness."""
+    return clamp01(0.5 * majorness + 0.3 * bpm_norm + 0.2 * brightness_norm)
+
+
 def analyze_audio_file(
     file_path: str,
     duration_limit: float = 60.0,
