@@ -314,6 +314,14 @@ def init_database() -> None:
                     loudness_norm REAL,
                     brightness_norm REAL,
                     flatness_norm REAL,
+                    valence REAL,
+                    danceability REAL,
+                    pulse_clarity REAL,
+                    onset_rate REAL,
+                    onset_rate_norm REAL,
+                    instrumentalness REAL,
+                    acousticness REAL,
+                    mfcc REAL[],
                     analyzed_at TIMESTAMPTZ DEFAULT now()
                 )
             """)

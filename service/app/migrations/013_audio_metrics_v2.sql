@@ -1,0 +1,9 @@
+-- 013_audio_metrics_v2.sql — additional audio metrics (Phase A of more-metrics)
+ALTER TABLE track_audio_features ADD COLUMN IF NOT EXISTS valence REAL;
+ALTER TABLE track_audio_features ADD COLUMN IF NOT EXISTS danceability REAL;
+ALTER TABLE track_audio_features ADD COLUMN IF NOT EXISTS pulse_clarity REAL;
+ALTER TABLE track_audio_features ADD COLUMN IF NOT EXISTS onset_rate REAL;
+ALTER TABLE track_audio_features ADD COLUMN IF NOT EXISTS onset_rate_norm REAL;
+ALTER TABLE track_audio_features ADD COLUMN IF NOT EXISTS instrumentalness REAL;
+ALTER TABLE track_audio_features ADD COLUMN IF NOT EXISTS acousticness REAL;
+ALTER TABLE track_audio_features ADD COLUMN IF NOT EXISTS mfcc REAL[];
