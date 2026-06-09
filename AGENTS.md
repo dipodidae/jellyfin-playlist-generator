@@ -62,7 +62,8 @@ A prompt-driven playlist generation system that creates intelligent, curated pla
 │  track_audio_features, track_usage, playlist_generation_log,    │
 │  track_genre_probabilities, genre_manifold, track_banger_flags, │
 │  album_legitimacy, rym_albums, album_release_dates,             │
-│  lastfm_stats, musicbrainz_artists, musicbrainz_albums          │
+│  lastfm_stats, musicbrainz_artists, musicbrainz_albums,         │
+│  app_settings                                                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -167,6 +168,11 @@ playlist-generator/
 | `/export/m3u/download/{id}` | GET | Download playlist as M3U |
 | `/search` | GET | Semantic search tracks |
 | `/db/init` | POST | Initialize database schema |
+| `/settings` | GET | Return registry + current values (secrets masked) |
+| `/settings` | PUT | Update changed settings (masked/blank secrets ignored) |
+| `/settings/test/{group}` | POST | Credential reachability check — `group` ∈ `lastfm`, `openai`, `discogs`, `jellyfin`; returns `{ok, message}` |
+| `/settings/discogs/oauth/start` | POST | Begin Discogs 3-legged OAuth; returns `{authorize_url}` |
+| `/settings/discogs/oauth/callback` | GET | Complete Discogs OAuth, store permanent access token, redirect to `/settings` |
 
 ## V4 Trajectory Engine
 
@@ -266,6 +272,12 @@ OPENAI_API_KEY=your-api-key
 # Discogs (for original release date resolution)
 DISCOGS_TOKEN=your-discogs-personal-access-token
 ```
+
+### DB-backed settings (seed-only env vars)
+
+`DATABASE_URL` and `AUTH_*` credentials are the only purely env-driven settings. Every other app-level key listed above (`LASTFM_API_KEY`, `OPENAI_API_KEY`, `DISCOGS_TOKEN`, `MUSICBRAINZ_CONTACT`, `JELLYFIN_*`, scan/cluster params, etc.) is now stored in the `app_settings` Postgres table and managed in-app at `/settings`.
+
+On **first boot** the app seeds `app_settings` with any matching env var that is not already in the table (idempotent — it never overwrites an existing row). After that the DB is the source of truth; editing `.env` for these keys has no effect on a running instance. Use the `/settings` page to update them live.
 
 ## Documentation Freshness Policy
 

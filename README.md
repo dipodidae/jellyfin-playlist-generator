@@ -319,21 +319,38 @@ Each enrichment type has a fire-and-forget endpoint and an SSE streaming variant
 | POST | `/db/init` | Initialize database schema |
 | POST | `/rebuild-search-vectors` | Rebuild full-text search vectors (SSE) |
 
+### Settings
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/settings` | Return registry + current values (secrets masked) |
+| PUT | `/settings` | Persist changed values; masked or blank secrets are ignored |
+| POST | `/settings/test/{group}` | Credential reachability check — `group` ∈ `lastfm`, `openai`, `discogs`, `jellyfin`; returns `{ok, message}` |
+| POST | `/settings/discogs/oauth/start` | Begin Discogs 3-legged OAuth; returns `{authorize_url}` |
+| GET | `/settings/discogs/oauth/callback` | Complete Discogs OAuth, store permanent access token, redirect to `/settings` |
+
 ## Configuration
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string with pgvector |
-| `MUSIC_DIRECTORIES` | Yes | Comma-separated paths to music libraries |
-| `LASTFM_API_KEY` | Yes | Last.fm API key for tag enrichment |
-| `LASTFM_API_SECRET` | Yes | Last.fm API secret |
-| `OPENAI_API_KEY` | No | GPT-4o-mini for prompt parsing, titles, and track explanations |
-| `DISCOGS_TOKEN` | No | Discogs personal access token for release date resolution |
-| `M3U_OUTPUT_DIR` | No | Directory for exported M3U files |
-| `SCAN_THREADS` | No | Parallel scan threads (default: 8) |
-| `NUXT_AUTH_USERNAME` | No | Frontend login username |
-| `NUXT_AUTH_PASSWORD` | No | Frontend login password |
-| `NUXT_SESSION_PASSWORD` | No | Session encryption key (32+ chars) |
+Most settings are managed in-app at the `/settings` page. The `app_settings` Postgres table is the **source of truth** for all app-level configuration (API keys, enrichment toggles, Jellyfin connection, library paths, clustering parameters). On first boot the app seeds the table from the matching env vars listed below — after that, changes made in the UI take effect immediately without a restart.
+
+The only settings that remain strictly env-driven are `DATABASE_URL` (needed before the DB is accessible) and the frontend auth variables (`NUXT_AUTH_*`, `NUXT_SESSION_PASSWORD`).
+
+| Variable | Scope | Description |
+|----------|-------|-------------|
+| `DATABASE_URL` | **Env-only** | PostgreSQL connection string with pgvector |
+| `NUXT_AUTH_USERNAME` | **Env-only** | Frontend login username |
+| `NUXT_AUTH_PASSWORD` | **Env-only** | Frontend login password |
+| `NUXT_SESSION_PASSWORD` | **Env-only** | Session encryption key (32+ chars) |
+| `MUSIC_DIRECTORIES` | Seed → DB | Comma-separated paths to music libraries |
+| `SCAN_THREADS` | Seed → DB | Parallel scan threads (default: 8) |
+| `M3U_OUTPUT_DIR` | Seed → DB | Directory for exported M3U files |
+| `LASTFM_API_KEY` | Seed → DB | Last.fm API key for tag enrichment |
+| `LASTFM_API_SECRET` | Seed → DB | Last.fm API secret |
+| `OPENAI_API_KEY` | Seed → DB | GPT-4o-mini for prompt parsing, titles, and track explanations |
+| `DISCOGS_TOKEN` | Seed → DB | Discogs personal access token for release date resolution |
+| `MUSICBRAINZ_CONTACT` | Seed → DB | Contact email required by MusicBrainz API ToS |
+
+"Seed → DB" means the env var is read once on first boot to populate the `app_settings` table when that key is absent. Editing the env var later has no effect; use `/settings` instead.
 
 ## License
 

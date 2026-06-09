@@ -31,6 +31,10 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 
 ### Backend
 - `service/app/api/routes_v3.py` - All API endpoints (PostgreSQL)
+- `service/app/api/routes_settings.py` - Settings CRUD + test + Discogs OAuth endpoints
+- `service/app/settings_registry.py` - Declarative registry of all DB-backed settings (pure, no I/O)
+- `service/app/settings_store.py` - DB load/reload/save/seed; overlays values onto the `settings` singleton
+- `service/app/ingestion/discogs_oauth.py` - Discogs PLAINTEXT OAuth 1.0a header builder + token exchange
 - `service/app/trajectory/intent.py` - Prompt parsing, PromptType, GenreMode, 5D waypoints, era mode
 - `service/app/trajectory/composer_v4.py` - v4 playlist composition
 - `service/app/trajectory/candidates.py` - Candidate pools, curation scoring, adaptive weights
@@ -41,10 +45,13 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 - `service/app/ingestion/metal_archives.py` - Metal Archives album legitimacy
 - `service/app/enrichment/banger_detector.py` - Banger detection from Last.fm
 - `service/app/database_pg.py` - PostgreSQL + pgvector schema, queries, BM25 search vectors
-- `service/app/config.py` - Environment settings
+- `service/app/config.py` - Environment settings (base defaults; DB overlays these at runtime)
 
 ### Frontend
 - `frontend/app/pages/index.vue` - Main UI
+- `frontend/app/pages/settings.vue` - In-app settings page (registry-driven)
+- `frontend/app/composables/useSettings.ts` - fetch/save/test/OAuth composable
+- `frontend/app/types/settings.ts` - TypeScript types for the settings API
 - `frontend/server/api/` - Nuxt server routes (proxy to backend)
 - `frontend/nuxt.config.ts` - Nuxt configuration
 
@@ -91,17 +98,19 @@ which still points at the defunct native `:8000` backend.
 
 ## Gotchas
 
-1. **Nuxt auto-imports**: `defineEventHandler`, `useRuntimeConfig`, etc. are auto-imported - IDE may show errors but they work at runtime
+1. **DB-backed settings (singleton overlay)**: App-level settings (API keys, enrichment toggles, Jellyfin config, library paths, clustering params) live in the `app_settings` Postgres table. At startup and on every `/settings` save, `settings_store.reload_settings()` overlays the DB values onto the pydantic `settings` singleton via `setattr`. This works because the app runs as a **single uvicorn process** — no cache invalidation, TTL, or inter-process sync is needed. If you ever move to multi-worker mode this assumption breaks. `.env` values for these keys are **seed-only**: they are written to the DB on first boot (when the key is absent) and then ignored; editing `.env` after first boot has no effect on a live instance. Only `DATABASE_URL` and `NUXT_AUTH_*` / `NUXT_SESSION_PASSWORD` remain strictly env-driven.
 
-2. **PostgreSQL connections**: Use `psycopg2` connection pool in `database_pg.py`; always return connections to the pool
+2. **Nuxt auto-imports**: `defineEventHandler`, `useRuntimeConfig`, etc. are auto-imported - IDE may show errors but they work at runtime
 
-3. **Embedding model**: First load downloads ~90MB model, subsequent loads use cache (~60s startup on Pi 5)
+3. **PostgreSQL connections**: Use `psycopg2` connection pool in `database_pg.py`; always return connections to the pool
 
-4. **Backend port**: Production runs on `:8000` (systemd service). Do not hardcode `:8100`.
+4. **Embedding model**: First load downloads ~90MB model, subsequent loads use cache (~60s startup on Pi 5)
 
-5. **Environment variables**: Nuxt uses `NUXT_` prefix for runtime config (e.g., `NUXT_BACKEND_URL`)
+5. **Backend port**: Production runs on `:8000` (systemd service). Do not hardcode `:8100`.
 
-6. **Docker image bakes the source.** The running stack (`docker-compose.yml`, `unified` profile) builds `service/` into the `playlist-generator` image; only `/music` and `/playlists` are mounted. Algorithm changes are NOT live until you rebuild: `docker compose --profile unified up -d --build app`. The app serves on `127.0.0.1:8080`; the DB (`playlist-generator-db`) is published on `127.0.0.1:5432`. Point `eval_loop.py` at the running app with `BACKEND_URL=http://localhost:8080`.
+6. **Environment variables**: Nuxt uses `NUXT_` prefix for runtime config (e.g., `NUXT_BACKEND_URL`)
+
+7. **Docker image bakes the source.** The running stack (`docker-compose.yml`, `unified` profile) builds `service/` into the `playlist-generator` image; only `/music` and `/playlists` are mounted. Algorithm changes are NOT live until you rebuild: `docker compose --profile unified up -d --build app`. The app serves on `127.0.0.1:8080`; the DB (`playlist-generator-db`) is published on `127.0.0.1:5432`. Point `eval_loop.py` at the running app with `BACKEND_URL=http://localhost:8080`.
 
 ## Testing Endpoints
 
