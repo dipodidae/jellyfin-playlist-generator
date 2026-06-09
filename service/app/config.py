@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     # Export
     m3u_output_dir: str = "/playlists"
+    public_base_url: str = ""  # e.g. https://playlist-generator.4eva.me — used for OAuth callbacks
 
     # Embeddings
     embedding_model_version: int = 1

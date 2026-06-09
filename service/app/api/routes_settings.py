@@ -3,8 +3,11 @@
 import logging
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
+
+from app.ingestion import discogs_oauth
 
 from app.config import settings
 from app.settings_registry import (
@@ -113,3 +116,51 @@ async def test_credentials(group: str):
     except Exception as e:  # noqa: BLE001 — test endpoint never throws
         return {"ok": False, "message": str(e)}
     return {"ok": False, "message": f"Unknown group: {group}"}
+
+
+@router.post("/discogs/oauth/start")
+async def discogs_oauth_start(request: Request):
+    """Begin Discogs OAuth: return the authorize URL, stash the request-token secret."""
+    if not (settings.discogs_consumer_key and settings.discogs_consumer_secret):
+        raise HTTPException(status_code=400, detail="Set Discogs consumer key/secret first")
+    # The callback must be the PUBLIC URL (Discogs redirects the user's browser to it),
+    # not the backend's internal 127.0.0.1 host. Prefer the configured public_base_url;
+    # fall back to forwarded headers set by SWAG. The public path is /api/... because the
+    # frontend proxies /api/** to the backend (stripping /api).
+    base = (settings.public_base_url or "").rstrip("/")
+    if not base:
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+        base = f"{proto}://{host}"
+    callback = f"{base}/api/settings/discogs/oauth/callback"
+    try:
+        rt = await discogs_oauth.fetch_request_token(
+            settings.discogs_consumer_key, settings.discogs_consumer_secret, callback)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Discogs request token failed: {e}")
+    # Persist the temp request-token secret so the callback can complete the exchange.
+    save({"_discogs_rt_secret": rt["oauth_token_secret"],
+          "_discogs_rt_token": rt["oauth_token"]})
+    return {"authorize_url": rt["authorize_url"]}
+
+
+@router.get("/discogs/oauth/callback")
+async def discogs_oauth_callback(oauth_token: str, oauth_verifier: str):
+    """Complete Discogs OAuth and store the permanent access token."""
+    rows = load_rows()
+    rt_token = rows.get("_discogs_rt_token")
+    rt_secret = rows.get("_discogs_rt_secret")
+    if not rt_secret or oauth_token != rt_token:
+        return RedirectResponse(url="/settings?discogs=error", status_code=302)
+    try:
+        at = await discogs_oauth.fetch_access_token(
+            settings.discogs_consumer_key, settings.discogs_consumer_secret,
+            rt_token, rt_secret, oauth_verifier)
+    except Exception:  # noqa: BLE001
+        return RedirectResponse(url="/settings?discogs=error", status_code=302)
+    save({
+        "discogs_oauth_token": at["oauth_token"],
+        "discogs_oauth_token_secret": at["oauth_token_secret"],
+        "_discogs_rt_token": "", "_discogs_rt_secret": "",
+    })
+    return RedirectResponse(url="/settings?discogs=connected", status_code=302)
