@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
     init_database()
     logger.info("Database initialized")
     if USE_POSTGRES:
-        from app.settings_store import seed_from_env, reload_settings
+        from app.settings_store import reload_settings, seed_from_env
         seed_from_env()
         reload_settings()
         logger.info("Settings loaded from DB")
