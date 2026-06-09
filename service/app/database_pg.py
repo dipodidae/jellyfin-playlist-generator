@@ -326,6 +326,16 @@ def init_database() -> None:
                 )
             """)
 
+            # Studio-vs-live version scores (Phase D)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS track_studio_scores (
+                    track_id     UUID PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+                    version_type TEXT,
+                    studio_score REAL,
+                    computed_at  TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+
             # Playlist generation log (observability)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS playlist_generation_log (
