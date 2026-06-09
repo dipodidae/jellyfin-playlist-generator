@@ -23,7 +23,8 @@ def backfill_studio_scores() -> dict[str, int]:
             for track_id, title, album_title in rows:
                 vtype, score = classify_version(title or "", album_title or "", [])
                 cur.execute("""
-                    INSERT INTO track_studio_scores (track_id, version_type, studio_score, computed_at)
+                    INSERT INTO track_studio_scores
+                        (track_id, version_type, studio_score, computed_at)
                     VALUES (%s, %s, %s, now())
                     ON CONFLICT (track_id) DO UPDATE
                         SET version_type = EXCLUDED.version_type,

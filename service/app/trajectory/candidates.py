@@ -17,10 +17,18 @@ import numpy as np
 
 from app.database_pg import get_connection
 from app.embeddings.generator import generate_embedding
+from app.trajectory.admission import is_admissible
 from app.trajectory.curves import TrajectoryPoint
 from app.trajectory.gravity import GravityAnchors, compute_gravity_penalty
-from app.trajectory.intent import PlaylistIntent, DimensionWeights, ArcType, PromptType, GenreMode, _ALIAS_TO_FAMILY, _BROAD_GENRES
-from app.trajectory.admission import is_admissible
+from app.trajectory.intent import (
+    _ALIAS_TO_FAMILY,
+    _BROAD_GENRES,
+    ArcType,
+    DimensionWeights,
+    GenreMode,
+    PlaylistIntent,
+    PromptType,
+)
 from app.trajectory.textnorm import normalize_artist, normalize_title
 
 logger = logging.getLogger(__name__)
@@ -406,7 +414,8 @@ def semantic_search(
                     tal.album_id,
                     ard.original_year,
                     COALESCE(taf.valence, 0.5) as valence,
-                    taf.danceability, taf.pulse_clarity, taf.instrumentalness, taf.acousticness, taf.mfcc,
+                    taf.danceability, taf.pulse_clarity, taf.instrumentalness,
+                    taf.acousticness, taf.mfcc,
                     COALESCE(tss.studio_score, 1.0) as studio_score,
                     COALESCE(tss.version_type, 'studio') as version_type
                 FROM tracks t
@@ -617,7 +626,8 @@ def keyword_search(
                     tal.album_id,
                     ard.original_year,
                     COALESCE(taf.valence, 0.5) as valence,
-                    taf.danceability, taf.pulse_clarity, taf.instrumentalness, taf.acousticness, taf.mfcc,
+                    taf.danceability, taf.pulse_clarity, taf.instrumentalness,
+                    taf.acousticness, taf.mfcc,
                     COALESCE(tss.studio_score, 1.0) as studio_score,
                     COALESCE(tss.version_type, 'studio') as version_type
                 FROM tracks t
@@ -857,7 +867,7 @@ def multi_query_semantic_search(
     Tracks appearing in multiple queries retain the highest semantic score.
     """
     phase_queries = build_phase_queries(intent)
-    pool_map: dict[str, "CandidateTrack"] = {}
+    pool_map: dict[str, CandidateTrack] = {}
 
     for query in phase_queries:
         embedding = generate_embedding(query)
@@ -1016,7 +1026,7 @@ def _dedupe_near_duplicates(
        in which case lowest studio_score — i.e. live/acoustic — wins).
     3. Final tie: higher semantic_score.
     """
-    best: dict[tuple[str | None, str], "CandidateTrack"] = {}
+    best: dict[tuple[str | None, str], CandidateTrack] = {}
     for c in candidates:
         sig = (normalize_artist(c.artist_name), normalize_title(c.title))
         incumbent = best.get(sig)
@@ -1028,7 +1038,9 @@ def _dedupe_near_duplicates(
         # studio_score key: higher = more studio; invert when prefer_live
         c_studio_key = (1.0 - c.studio_score) if prefer_live else c.studio_score
         inc_studio_key = (1.0 - incumbent.studio_score) if prefer_live else incumbent.studio_score
-        if (c_clean, c_studio_key, c.semantic_score) > (inc_clean, inc_studio_key, incumbent.semantic_score):
+        c_key = (c_clean, c_studio_key, c.semantic_score)
+        inc_key = (inc_clean, inc_studio_key, incumbent.semantic_score)
+        if c_key > inc_key:
             best[sig] = c
     return list(best.values())
 

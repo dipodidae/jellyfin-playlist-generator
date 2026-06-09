@@ -18,7 +18,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from app.config import settings
 
@@ -79,7 +79,7 @@ class DimensionWeights:
     era: float = 0.0  # default zero — no temporal preference unless detected
     valence: float = 0.0  # default zero — no mood influence unless mood word detected
 
-    def normalize(self) -> "DimensionWeights":
+    def normalize(self) -> DimensionWeights:
         """Normalize weights to sum to 1, with min/max clamping."""
         total = self.energy + self.tempo + self.darkness + self.texture + self.era + self.valence
         if total == 0:
@@ -950,7 +950,12 @@ def extract_dimension_weights(prompt: str, mood_keywords: list[str]) -> Dimensio
 
 def extract_base_dimensions(mood_keywords: list[str], genre_hints: list[str]) -> dict[str, float]:
     """Extract base dimension values from mood and genre keywords."""
-    from app.profiles.generator import ENERGY_KEYWORDS, DARKNESS_KEYWORDS, TEMPO_KEYWORDS, TEXTURE_KEYWORDS
+    from app.profiles.generator import (
+        DARKNESS_KEYWORDS,
+        ENERGY_KEYWORDS,
+        TEMPO_KEYWORDS,
+        TEXTURE_KEYWORDS,
+    )
 
     all_tags = mood_keywords + genre_hints
 
@@ -1339,7 +1344,10 @@ def _build_intent_from_llm(
     if valence_target != 0.5:
         dimension_weights.valence = 0.10
         dimension_weights = dimension_weights.normalize()
-        logger.info(f"Valence target detected: valence={valence_target:.2f}, weight={dimension_weights.valence:.2f}")
+        logger.info(
+            f"Valence target detected: valence={valence_target:.2f}, "
+            f"weight={dimension_weights.valence:.2f}"
+        )
 
     # Detect studio preference (prefer_live inverts the studio penalty in scoring)
     prefer_live = detect_prefer_live(prompt)
@@ -1494,7 +1502,10 @@ def _build_intent_from_keywords(
     if valence_target != 0.5:
         dimension_weights.valence = 0.10
         dimension_weights = dimension_weights.normalize()
-        logger.info(f"Valence target detected: valence={valence_target:.2f}, weight={dimension_weights.valence:.2f}")
+        logger.info(
+            f"Valence target detected: valence={valence_target:.2f}, "
+            f"weight={dimension_weights.valence:.2f}"
+        )
 
     # Detect studio preference (prefer_live inverts the studio penalty in scoring)
     prefer_live = detect_prefer_live(prompt)

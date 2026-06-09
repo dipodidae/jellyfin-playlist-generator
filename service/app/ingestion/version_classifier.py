@@ -21,7 +21,9 @@ _MB_TYPE_MAP = {
 }
 
 
-def classify_version(track_title: str, album_title: str, mb_secondary_types: list[str] | None = None):
+def classify_version(
+    track_title: str, album_title: str, mb_secondary_types: list[str] | None = None
+):
     """Return (version_type, studio_score in [0,1]); 1.0 = clean studio.
 
     Title cues take priority, then MusicBrainz release-group secondary types.

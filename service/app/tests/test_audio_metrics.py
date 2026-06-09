@@ -1,10 +1,10 @@
 import numpy as np
 
 from app.audio.analyzer import (
-    normalize_onset_rate,
-    majorness_from_chroma,
-    valence_from_parts,
     clamp01,
+    majorness_from_chroma,
+    normalize_onset_rate,
+    valence_from_parts,
 )
 
 
@@ -33,8 +33,10 @@ def test_valence_from_parts_blend():
 
 def test_majorness_from_chroma_major_vs_minor():
     # A clearly C-major-ish chroma (strong C,E,G) should score higher than a minor-ish one (C,Eb,G)
-    major = np.zeros(12); major[[0, 4, 7]] = 1.0          # C E G
-    minor = np.zeros(12); minor[[0, 3, 7]] = 1.0          # C Eb G
+    major = np.zeros(12)
+    major[[0, 4, 7]] = 1.0  # C E G
+    minor = np.zeros(12)
+    minor[[0, 3, 7]] = 1.0  # C Eb G
     assert majorness_from_chroma(major) > majorness_from_chroma(minor)
     # output is in [0,1]
     assert 0.0 <= majorness_from_chroma(major) <= 1.0

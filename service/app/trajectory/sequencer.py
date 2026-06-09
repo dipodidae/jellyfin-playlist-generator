@@ -353,16 +353,21 @@ def score_transition(
         brightness_score = 1.0 - min(abs(prev_track.brightness_norm - curr_track.brightness_norm) * 2, 1.0)
         acoustic_parts = [(bpm_score, 0.35), (loudness_score, 0.30), (brightness_score, 0.15)]
 
-        dprev, dcurr = getattr(prev_track, "danceability", None), getattr(curr_track, "danceability", None)
+        dprev = getattr(prev_track, "danceability", None)
+        dcurr = getattr(curr_track, "danceability", None)
         if dprev is not None and dcurr is not None:
             acoustic_parts.append((1.0 - min(abs(dprev - dcurr) * 2, 1.0), 0.10))
-        pprev, pcurr = getattr(prev_track, "pulse_clarity", None), getattr(curr_track, "pulse_clarity", None)
+        pprev = getattr(prev_track, "pulse_clarity", None)
+        pcurr = getattr(curr_track, "pulse_clarity", None)
         if pprev is not None and pcurr is not None:
             acoustic_parts.append((1.0 - min(abs(pprev - pcurr) * 2, 1.0), 0.05))
         mc = mfcc_continuity(getattr(prev_track, "mfcc", None), getattr(curr_track, "mfcc", None))
         if mc is not None:
             acoustic_parts.append((mc, 0.10))
-        vj = vocal_jump_score(getattr(prev_track, "instrumentalness", None), getattr(curr_track, "instrumentalness", None))
+        vj = vocal_jump_score(
+            getattr(prev_track, "instrumentalness", None),
+            getattr(curr_track, "instrumentalness", None),
+        )
         if vj is not None:
             acoustic_parts.append((vj, 0.10))
 

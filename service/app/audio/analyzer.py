@@ -227,7 +227,10 @@ def analyze_audio_file(
             pulse_clarity = clamp01(float(np.max(ac[1:])) if ac.size > 1 else 0.0)
         else:
             pulse_clarity = 0.0
-        beat_strength = clamp01(float(np.mean(onset_env)) / (float(np.max(onset_env)) + 1e-9)) if onset_env.size else 0.0
+        if onset_env.size:
+            beat_strength = clamp01(float(np.mean(onset_env)) / (float(np.max(onset_env)) + 1e-9))
+        else:
+            beat_strength = 0.0
         danceability = clamp01(0.6 * pulse_clarity + 0.4 * beat_strength)
 
         # HPSS → instrumentalness / acousticness proxies
@@ -243,7 +246,9 @@ def analyze_audio_file(
             total_energy = float(np.sum(S)) + 1e-9
             vocal_band_ratio = clamp01(band_energy / total_energy)
             instrumentalness = clamp01(1.0 - vocal_band_ratio)
-            acousticness = clamp01(0.5 * harmonic_ratio + 0.3 * (1 - brightness_n) + 0.2 * (1 - flatness_n))
+            acousticness = clamp01(
+                0.5 * harmonic_ratio + 0.3 * (1 - brightness_n) + 0.2 * (1 - flatness_n)
+            )
         except Exception:
             instrumentalness = None
             acousticness = None
@@ -305,7 +310,8 @@ def save_audio_features(features: AudioFeatures) -> None:
                     key_estimate, bpm_norm, loudness_norm, brightness_norm, flatness_norm,
                     valence, danceability, pulse_clarity, onset_rate, onset_rate_norm,
                     instrumentalness, acousticness, mfcc
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (track_id) DO UPDATE SET
                     bpm = EXCLUDED.bpm,
                     loudness_rms = EXCLUDED.loudness_rms,
