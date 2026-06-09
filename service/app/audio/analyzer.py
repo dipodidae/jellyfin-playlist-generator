@@ -444,7 +444,7 @@ def analyze_library(
                 FROM tracks t
                 JOIN track_files tf ON t.id = tf.track_id
                 LEFT JOIN track_audio_features taf ON t.id = taf.track_id
-                WHERE taf.track_id IS NULL
+                WHERE (taf.track_id IS NULL OR taf.valence IS NULL OR taf.mfcc IS NULL)
                 AND tf.path IS NOT NULL
                 AND tf.missing_since IS NULL
             """)
