@@ -54,6 +54,16 @@ class AudioFeatures:
     brightness_norm: float | None = None
     flatness_norm: float | None = None
 
+    # Phase-A metrics (more-metrics)
+    valence: float | None = None
+    danceability: float | None = None
+    pulse_clarity: float | None = None
+    onset_rate: float | None = None
+    onset_rate_norm: float | None = None
+    instrumentalness: float | None = None
+    acousticness: float | None = None
+    mfcc: list | None = None  # 12 floats
+
     def as_vector(self) -> np.ndarray | None:
         """Return normalized features as vector for scoring."""
         if any(v is None for v in [self.bpm_norm, self.loudness_norm,
@@ -189,6 +199,7 @@ def analyze_audio_file(
 
         # Key estimation (optional, can be unreliable)
         key_estimate = None
+        chroma = None
         try:
             chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
             key_idx = int(np.argmax(np.mean(chroma, axis=1)))
@@ -196,6 +207,61 @@ def analyze_audio_file(
             key_estimate = key_names[key_idx]
         except Exception:
             pass  # Key estimation is optional
+
+        # --- Phase-A metrics (heuristic proxies; see spec) ---
+        bpm_n = normalize_bpm(bpm)
+        brightness_n = normalize_spectral_centroid(avg_centroid)
+        flatness_n = normalize_spectral_flatness(avg_flatness)
+
+        # Onset envelope → rhythmic feel
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+        onsets = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr)
+        duration_sec = float(len(y) / sr) if sr else 0.0
+        onset_rate = float(len(onsets) / duration_sec) if duration_sec > 0 else 0.0
+        onset_rate_n = normalize_onset_rate(onset_rate)
+
+        # Pulse clarity: prominence of the dominant autocorrelation lag of the onset envelope
+        if onset_env.size > 1 and float(np.max(onset_env)) > 0:
+            ac = librosa.autocorrelate(onset_env)
+            ac = ac / (ac[0] + 1e-9)
+            pulse_clarity = clamp01(float(np.max(ac[1:])) if ac.size > 1 else 0.0)
+        else:
+            pulse_clarity = 0.0
+        beat_strength = clamp01(float(np.mean(onset_env)) / (float(np.max(onset_env)) + 1e-9)) if onset_env.size else 0.0
+        danceability = clamp01(0.6 * pulse_clarity + 0.4 * beat_strength)
+
+        # HPSS → instrumentalness / acousticness proxies
+        try:
+            y_harm, y_perc = librosa.effects.hpss(y)
+            harm_energy = float(np.sum(y_harm ** 2))
+            perc_energy = float(np.sum(y_perc ** 2))
+            harmonic_ratio = clamp01(harm_energy / (harm_energy + perc_energy + 1e-9))
+            S = np.abs(librosa.stft(y_harm))
+            freqs = librosa.fft_frequencies(sr=sr)
+            vocal_band = (freqs >= 200) & (freqs <= 4000)
+            band_energy = float(np.sum(S[vocal_band, :]))
+            total_energy = float(np.sum(S)) + 1e-9
+            vocal_band_ratio = clamp01(band_energy / total_energy)
+            instrumentalness = clamp01(1.0 - vocal_band_ratio)
+            acousticness = clamp01(0.5 * harmonic_ratio + 0.3 * (1 - brightness_n) + 0.2 * (1 - flatness_n))
+        except Exception:
+            instrumentalness = None
+            acousticness = None
+
+        # MFCC timbre vector (coeffs 1..12, drop coeff 0 = energy)
+        try:
+            mfcc_full = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+            mfcc_vec = [float(x) for x in np.mean(mfcc_full, axis=1)[1:13]]
+        except Exception:
+            mfcc_vec = None
+
+        # Valence (heuristic): majorness + tempo + brightness
+        try:
+            chroma_mean = np.mean(chroma, axis=1)  # `chroma` computed in the key block above
+            majorness = majorness_from_chroma(chroma_mean)
+        except Exception:
+            majorness = 0.5
+        valence = valence_from_parts(majorness, bpm_n, brightness_n)
 
         # Create features with normalized values
         features = AudioFeatures(
@@ -211,6 +277,14 @@ def analyze_audio_file(
             loudness_norm=normalize_loudness(rms),
             brightness_norm=normalize_spectral_centroid(avg_centroid),
             flatness_norm=normalize_spectral_flatness(avg_flatness),
+            valence=valence,
+            danceability=danceability,
+            pulse_clarity=pulse_clarity,
+            onset_rate=onset_rate,
+            onset_rate_norm=onset_rate_n,
+            instrumentalness=instrumentalness,
+            acousticness=acousticness,
+            mfcc=mfcc_vec,
         )
 
         return features
@@ -228,8 +302,10 @@ def save_audio_features(features: AudioFeatures) -> None:
                 INSERT INTO track_audio_features (
                     track_id, bpm, loudness_rms, loudness_lufs,
                     spectral_centroid, spectral_flatness, dynamic_range,
-                    key_estimate, bpm_norm, loudness_norm, brightness_norm, flatness_norm
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    key_estimate, bpm_norm, loudness_norm, brightness_norm, flatness_norm,
+                    valence, danceability, pulse_clarity, onset_rate, onset_rate_norm,
+                    instrumentalness, acousticness, mfcc
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (track_id) DO UPDATE SET
                     bpm = EXCLUDED.bpm,
                     loudness_rms = EXCLUDED.loudness_rms,
@@ -242,6 +318,14 @@ def save_audio_features(features: AudioFeatures) -> None:
                     loudness_norm = EXCLUDED.loudness_norm,
                     brightness_norm = EXCLUDED.brightness_norm,
                     flatness_norm = EXCLUDED.flatness_norm,
+                    valence = EXCLUDED.valence,
+                    danceability = EXCLUDED.danceability,
+                    pulse_clarity = EXCLUDED.pulse_clarity,
+                    onset_rate = EXCLUDED.onset_rate,
+                    onset_rate_norm = EXCLUDED.onset_rate_norm,
+                    instrumentalness = EXCLUDED.instrumentalness,
+                    acousticness = EXCLUDED.acousticness,
+                    mfcc = EXCLUDED.mfcc,
                     analyzed_at = now()
             """, (
                 features.track_id,
@@ -256,6 +340,14 @@ def save_audio_features(features: AudioFeatures) -> None:
                 to_python_float(features.loudness_norm),
                 to_python_float(features.brightness_norm),
                 to_python_float(features.flatness_norm),
+                to_python_float(features.valence),
+                to_python_float(features.danceability),
+                to_python_float(features.pulse_clarity),
+                to_python_float(features.onset_rate),
+                to_python_float(features.onset_rate_norm),
+                to_python_float(features.instrumentalness),
+                to_python_float(features.acousticness),
+                features.mfcc,
             ))
             conn.commit()
 
@@ -267,7 +359,9 @@ def get_audio_features(track_id: str) -> AudioFeatures | None:
             cur.execute("""
                 SELECT bpm, loudness_rms, loudness_lufs, spectral_centroid,
                        spectral_flatness, dynamic_range, key_estimate,
-                       bpm_norm, loudness_norm, brightness_norm, flatness_norm
+                       bpm_norm, loudness_norm, brightness_norm, flatness_norm,
+                       valence, danceability, pulse_clarity, onset_rate, onset_rate_norm,
+                       instrumentalness, acousticness, mfcc
                 FROM track_audio_features
                 WHERE track_id = %s
             """, (track_id,))
@@ -289,6 +383,14 @@ def get_audio_features(track_id: str) -> AudioFeatures | None:
                 loudness_norm=row[8],
                 brightness_norm=row[9],
                 flatness_norm=row[10],
+                valence=row[11],
+                danceability=row[12],
+                pulse_clarity=row[13],
+                onset_rate=row[14],
+                onset_rate_norm=row[15],
+                instrumentalness=row[16],
+                acousticness=row[17],
+                mfcc=row[18],
             )
 
 
