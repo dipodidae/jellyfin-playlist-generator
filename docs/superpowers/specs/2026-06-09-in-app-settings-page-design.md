@@ -52,6 +52,54 @@ key+secret / OAuth access token+secret), MusicBrainz contact (+ app name/version
 enable + delays, scan threads, music dirs, M3U output dir, Jellyfin URL/key/user/path
 prefixes, embedding model version, and the clustering/UMAP/HDBSCAN params.
 
+## Complete settable inventory
+
+Every field in `config.py` is mapped below. The registry MUST cover all "DB-settable" rows;
+the implementation is not complete until each appears in the settings page.
+
+| `config.py` field | group | type | notes |
+|---|---|---|---|
+| `lastfm_api_key` | credentials | secret | |
+| `lastfm_api_secret` | credentials | secret | |
+| `openai_api_key` | credentials | secret | |
+| `discogs_token` | credentials | secret | personal access token |
+| `discogs_consumer_key` | credentials | secret | |
+| `discogs_consumer_secret` | credentials | secret | |
+| `discogs_oauth_token` | credentials | secret | **new** — set by OAuth callback |
+| `discogs_oauth_token_secret` | credentials | secret | **new** — set by OAuth callback |
+| `musicbrainz_contact` | credentials | str | email, MB ToS |
+| `musicbrainz_app_name` | advanced | str | |
+| `musicbrainz_app_version` | advanced | str | |
+| `rym_scrape_enabled` | enrichment | bool | |
+| `rym_scrape_delay_min` | enrichment | float | |
+| `rym_scrape_delay_max` | enrichment | float | |
+| `jellyfin_url` | jellyfin | str | |
+| `jellyfin_api_key` | jellyfin | secret | |
+| `jellyfin_user_id` | jellyfin | str | |
+| `jellyfin_path_prefix` | jellyfin | str | |
+| `local_path_prefix` | jellyfin | str | |
+| `music_directories` | library | csv | |
+| `scan_threads` | library | int | |
+| `m3u_output_dir` | library | str | |
+| `embedding_model_version` | advanced | int | |
+| `cluster_min_tracks` | advanced | int | |
+| `cluster_secondary_weight_threshold` | advanced | float | |
+| `cluster_max_per_artist` | advanced | int | |
+| `cluster_random_state` | advanced | int | |
+| `cluster_min_cluster_size` | advanced | int | |
+| `cluster_min_samples` | advanced | int | |
+| `cluster_umap_n_components` | advanced | int | |
+| `cluster_umap_n_neighbors` | advanced | int | |
+| `cluster_umap_min_dist` | advanced | float | |
+| `cluster_merge_threshold` | advanced | float | |
+| `cluster_noise_weight` | advanced | float | |
+| `cluster_tag_weight` | advanced | float | |
+
+**Not in the registry (intentional):**
+- `database_url` — env-only bootstrap (chicken-and-egg).
+- `database_path` — deprecated legacy DuckDB path; dropped from the page entirely.
+- `AUTH_USER` / `AUTH_PASS` / `TZ` — infra, baked at container start (not `config.py` fields).
+
 ## Data Layer
 
 ### Migration `012_app_settings.sql`
