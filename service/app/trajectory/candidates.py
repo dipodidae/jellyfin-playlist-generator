@@ -82,6 +82,11 @@ class CandidateTrack:
     bpm_norm: float | None = None
     loudness_norm: float | None = None
     brightness_norm: float | None = None
+    danceability: float | None = None
+    pulse_clarity: float | None = None
+    instrumentalness: float | None = None
+    acousticness: float | None = None
+    mfcc: list | None = None  # 12 floats
     playcount: int = 0
     listeners: int = 0
 
@@ -389,7 +394,8 @@ def semantic_search(
                     ra.genres as rym_genres, ra.descriptors as rym_descriptors,
                     tal.album_id,
                     ard.original_year,
-                    COALESCE(taf.valence, 0.5) as valence
+                    COALESCE(taf.valence, 0.5) as valence,
+                    taf.danceability, taf.pulse_clarity, taf.instrumentalness, taf.acousticness, taf.mfcc
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -449,6 +455,11 @@ def semantic_search(
             album_id=str(row[28]) if row[28] else None,
             original_year=row[29],
             valence=float(row[30]) if row[30] is not None else 0.5,
+            danceability=row[31],
+            pulse_clarity=row[32],
+            instrumentalness=row[33],
+            acousticness=row[34],
+            mfcc=list(row[35]) if row[35] is not None else None,
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -589,7 +600,8 @@ def keyword_search(
                     ra.genres as rym_genres, ra.descriptors as rym_descriptors,
                     tal.album_id,
                     ard.original_year,
-                    COALESCE(taf.valence, 0.5) as valence
+                    COALESCE(taf.valence, 0.5) as valence,
+                    taf.danceability, taf.pulse_clarity, taf.instrumentalness, taf.acousticness, taf.mfcc
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -648,6 +660,11 @@ def keyword_search(
             album_id=str(row[27]) if row[27] else None,
             original_year=row[28],
             valence=float(row[29]) if row[29] is not None else 0.5,
+            danceability=row[30],
+            pulse_clarity=row[31],
+            instrumentalness=row[32],
+            acousticness=row[33],
+            mfcc=list(row[34]) if row[34] is not None else None,
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
