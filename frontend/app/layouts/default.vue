@@ -4,6 +4,7 @@ const route = useRoute()
 const activeNav = computed(() => {
   if (route.path === '/observatory') return 'observatory'
   if (route.path === '/eval') return 'eval'
+  if (route.path === '/settings') return 'settings'
   return 'generator'
 })
 
@@ -11,6 +12,7 @@ const navItems = [
   { to: '/', key: 'generator', label: 'Generator' },
   { to: '/observatory', key: 'observatory', label: 'Observatory' },
   { to: '/eval', key: 'eval', label: 'Eval' },
+  { to: '/settings', key: 'settings', label: 'Settings' },
 ]
 
 const widePages = computed(() => activeNav.value === 'observatory' || activeNav.value === 'eval')
