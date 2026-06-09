@@ -11,18 +11,19 @@ Parses user prompts into structured intent objects that define:
 Supports LLM-powered parsing (gpt-4o-mini) with fallback to keyword-based parsing.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
-
-import openai
+from typing import TYPE_CHECKING, Any
 
 from app.config import settings
-from app.embeddings.generator import generate_embedding
-from app.trajectory.curves import TrajectoryCurve, TrajectoryPoint, generate_trajectory_curve
+
+if TYPE_CHECKING:
+    from app.trajectory.curves import TrajectoryCurve
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +55,14 @@ class ArcType(str, Enum):
 
 @dataclass
 class TrajectoryWaypoint:
-    """A point along the playlist trajectory (5D)."""
+    """A point along the playlist trajectory (6D)."""
     position: float  # 0.0 to 1.0 (start to end)
     energy: float    # 0.0 to 1.0
     tempo: float = 0.5
     darkness: float = 0.5
     texture: float = 0.5
     era: float = 0.5  # normalized temporal position (0=earliest, 1=latest)
+    valence: float = 0.5  # mood: 0=melancholic, 1=uplifting
     phase_label: str = ""  # intro/build/peak/resolve
     mood_embedding: list[float] | None = None
     description: str = ""
@@ -75,10 +77,11 @@ class DimensionWeights:
     darkness: float = 0.25
     texture: float = 0.25
     era: float = 0.0  # default zero — no temporal preference unless detected
+    valence: float = 0.0  # default zero — no mood influence unless mood word detected
 
     def normalize(self) -> "DimensionWeights":
         """Normalize weights to sum to 1, with min/max clamping."""
-        total = self.energy + self.tempo + self.darkness + self.texture + self.era
+        total = self.energy + self.tempo + self.darkness + self.texture + self.era + self.valence
         if total == 0:
             return DimensionWeights()
 
@@ -88,22 +91,25 @@ class DimensionWeights:
         d = self.darkness / total
         x = self.texture / total
         er = self.era / total
+        v = self.valence / total
 
-        # Clamp core dims to [0.10, 0.45], era to [0.0, 0.20]
+        # Clamp core dims to [0.10, 0.45], era to [0.0, 0.20], valence to [0.0, 0.20]
         e = max(0.10, min(0.45, e))
         t = max(0.10, min(0.45, t))
         d = max(0.10, min(0.45, d))
         x = max(0.10, min(0.45, x))
         er = max(0.0, min(0.20, er))
+        v = max(0.0, min(0.20, v))
 
         # Re-normalize after clamping
-        total = e + t + d + x + er
+        total = e + t + d + x + er + v
         return DimensionWeights(
             energy=e / total,
             tempo=t / total,
             darkness=d / total,
             texture=x / total,
             era=er / total,
+            valence=v / total,
         )
 
     def as_dict(self) -> dict[str, float]:
@@ -115,6 +121,8 @@ class DimensionWeights:
         }
         if self.era > 0:
             d["era"] = self.era
+        if self.valence > 0:
+            d["valence"] = self.valence
         return d
 
 
@@ -726,6 +734,27 @@ _ERA_LOCKED_SIGNALS = [
     "only from", "strictly from", "nothing outside",
 ]
 
+_VALENCE_HIGH = (
+    "uplifting", "euphoric", "joyful", "happy", "triumphant", "anthemic",
+    "feel good", "feel-good", "sunny", "celebratory", "ecstatic",
+)
+_VALENCE_LOW = (
+    "melancholic", "melancholy", "bleak", "sad", "depressive", "somber",
+    "mournful", "gloomy", "desolate", "miserable", "dark and sad",
+)
+
+
+def parse_valence_target(prompt: str) -> float:
+    """Map mood words in the prompt to a valence target in [0,1]; 0.5 = neutral."""
+    p = prompt.lower()
+    high = any(w in p for w in _VALENCE_HIGH)
+    low = any(w in p for w in _VALENCE_LOW)
+    if high and not low:
+        return 0.85
+    if low and not high:
+        return 0.15
+    return 0.5
+
 
 def detect_era_mode(
     prompt: str,
@@ -961,6 +990,7 @@ def generate_waypoints_from_curve(
 
 def generate_waypoints(arc_type: ArcType, num_waypoints: int = 5) -> list[TrajectoryWaypoint]:
     """Generate trajectory waypoints based on arc type (legacy compatibility)."""
+    from app.trajectory.curves import generate_trajectory_curve  # lazy: scipy not always installed
     curve = generate_trajectory_curve(arc_type.value, num_waypoints)
     return generate_waypoints_from_curve(curve, num_waypoints)
 
@@ -1095,6 +1125,7 @@ def _parse_prompt_with_llm(prompt: str) -> dict | None:
         return None
 
     try:
+        import openai
         client = openai.OpenAI(api_key=settings.openai_api_key)
 
         response = client.chat.completions.create(
@@ -1233,6 +1264,7 @@ def parse_prompt(prompt: str, target_size: int = 20) -> PlaylistIntent:
     logger.info(f"Parsing prompt: {prompt[:100]}...")
 
     # Generate embedding for the full prompt (always needed)
+    from app.embeddings.generator import generate_embedding  # lazy: sentence-transformers heavy
     prompt_embedding = generate_embedding(prompt)
 
     # Try LLM-powered parsing first
@@ -1289,6 +1321,7 @@ def _build_intent_from_llm(
         logger.info(f"Temporal mode detected: era_mode={era_mode}, era_weight={dimension_weights.era:.2f}")
 
     # Generate trajectory curve from LLM's base dimensions and arc type
+    from app.trajectory.curves import generate_trajectory_curve  # lazy: scipy not always installed
     trajectory_curve = generate_trajectory_curve(
         arc_type=arc_type.value,
         playlist_length=target_size,
@@ -1428,6 +1461,7 @@ def _build_intent_from_keywords(
         logger.info(f"Temporal mode detected: era_mode={era_mode}, era_weight={dimension_weights.era:.2f}")
 
     # Generate 5D trajectory curve
+    from app.trajectory.curves import generate_trajectory_curve  # lazy: scipy not always installed
     trajectory_curve = generate_trajectory_curve(
         arc_type=arc_type.value,
         playlist_length=target_size,
