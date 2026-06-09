@@ -30,6 +30,11 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing database...")
     init_database()
     logger.info("Database initialized")
+    if USE_POSTGRES:
+        from app.settings_store import seed_from_env, reload_settings
+        seed_from_env()
+        reload_settings()
+        logger.info("Settings loaded from DB")
     yield
     logger.info("Shutting down...")
     close_pool()
