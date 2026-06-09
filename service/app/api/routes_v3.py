@@ -655,6 +655,21 @@ async def get_scan_job_detail(job_id: str):
 # Enrichment Operations
 # ============================================================================
 
+def _json_default(o):
+    """json.dumps fallback for non-native types in SSE payloads.
+
+    Clustering/enrichment stats come back carrying numpy scalars (int64,
+    float64) and arrays. Without this the final SSE event raises
+    "Object of type int64 is not JSON serializable" *after* the 200 headers
+    are sent, which truncates the stream and surfaces in the browser as
+    ERR_HTTP2_PROTOCOL_ERROR.
+    """
+    tolist = getattr(o, "tolist", None)  # numpy scalars and arrays both expose this
+    if callable(tolist):
+        return tolist()
+    raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
+
+
 def _make_enrichment_stream(label: str, coro_factory):
     """
     Return a StreamingResponse that runs an async enrichment coroutine and
@@ -721,7 +736,7 @@ def _make_enrichment_stream(label: str, coro_factory):
             item = await queue.get()
             if item is sentinel:
                 break
-            yield f"data: {json.dumps(item)}"
+            yield f"data: {json.dumps(item, default=_json_default)}"
             yield "\n\n"
 
         await task
@@ -730,7 +745,7 @@ def _make_enrichment_stream(label: str, coro_factory):
             yield f"data: {json.dumps({'progress': 0, 'message': result_holder['error'], 'error': result_holder['error'], 'done': True})}"
         else:
             stats = result_holder.get("stats", {})
-            yield f"data: {json.dumps({'progress': 100, 'message': format_completion_message(stats), 'stats': stats, 'done': True})}"
+            yield f"data: {json.dumps({'progress': 100, 'message': format_completion_message(stats), 'stats': stats, 'done': True}, default=_json_default)}"
         yield "\n\n"
 
     return StreamingResponse(
