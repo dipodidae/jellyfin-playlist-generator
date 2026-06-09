@@ -166,6 +166,9 @@ class PlaylistIntent:
     # Temporal trajectory (era dimension)
     era_mode: str = "none"  # none, chronological, reverse, locked, arc
 
+    # Studio preference (prefer_live inverts the studio penalty)
+    prefer_live: bool = False
+
     # Abstract concepts for semantic matching
     abstract_concepts: list[str] = field(default_factory=list)
 
@@ -756,6 +759,15 @@ def parse_valence_target(prompt: str) -> float:
     return 0.5
 
 
+_PREFER_LIVE = ("live", "concert", "unplugged", "acoustic session", "in concert", "live album")
+
+
+def detect_prefer_live(prompt: str) -> bool:
+    """Return True when the prompt signals a preference for live/unplugged recordings."""
+    p = prompt.lower()
+    return any(w in p for w in _PREFER_LIVE)
+
+
 def detect_era_mode(
     prompt: str,
     year_range: tuple[int | None, int | None],
@@ -1329,6 +1341,11 @@ def _build_intent_from_llm(
         dimension_weights = dimension_weights.normalize()
         logger.info(f"Valence target detected: valence={valence_target:.2f}, weight={dimension_weights.valence:.2f}")
 
+    # Detect studio preference (prefer_live inverts the studio penalty in scoring)
+    prefer_live = detect_prefer_live(prompt)
+    if prefer_live:
+        logger.info("prefer_live detected: studio penalty will be inverted")
+
     # Generate trajectory curve from LLM's base dimensions and arc type
     from app.trajectory.curves import generate_trajectory_curve  # lazy: scipy not always installed
     trajectory_curve = generate_trajectory_curve(
@@ -1422,6 +1439,7 @@ def _build_intent_from_llm(
         abstract_concepts=abstract_concepts,
         genre_mode=genre_mode,
         genre_centroids=genre_centroids,
+        prefer_live=prefer_live,
     )
 
     logger.info(f"LLM-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
@@ -1477,6 +1495,11 @@ def _build_intent_from_keywords(
         dimension_weights.valence = 0.10
         dimension_weights = dimension_weights.normalize()
         logger.info(f"Valence target detected: valence={valence_target:.2f}, weight={dimension_weights.valence:.2f}")
+
+    # Detect studio preference (prefer_live inverts the studio penalty in scoring)
+    prefer_live = detect_prefer_live(prompt)
+    if prefer_live:
+        logger.info("prefer_live detected: studio penalty will be inverted")
 
     # Generate 5D trajectory curve
     from app.trajectory.curves import generate_trajectory_curve  # lazy: scipy not always installed
@@ -1540,6 +1563,7 @@ def _build_intent_from_keywords(
         abstract_concepts=abstract_concepts,
         genre_mode=genre_mode,
         genre_centroids=genre_centroids,
+        prefer_live=prefer_live,
     )
 
     logger.info(f"Keyword-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "

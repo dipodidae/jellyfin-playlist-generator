@@ -116,6 +116,10 @@ class CandidateTrack:
     negative_constraint_penalty: float = 0.0
     tourist_match_penalty: float = 0.0
 
+    # Studio preference (from track_studio_scores table)
+    studio_score: float = 1.0   # 1.0 = clean studio, < 1.0 = live/demo/remix/etc.
+    version_type: str = "studio"  # "studio", "live", "demo", "remix", "acoustic", etc.
+
     # Adaptive scoring weights (set per-prompt by generate_position_pools)
     _w_semantic: float = 0.25
     _w_trajectory: float = 0.35
@@ -124,6 +128,12 @@ class CandidateTrack:
     _w_duration: float = 0.10
     _w_impact: float = 0.0
     _w_curation: float = 0.0
+    _w_studio: float = 0.08
+
+    # Studio penalty computed in generate_position_pools once intent is known.
+    # prefer_live=False  → penalize (1.0 - studio_score) * _w_studio
+    # prefer_live=True   → penalize studio_score * _w_studio (live floats up)
+    _studio_penalty: float = 0.0
 
     @property
     def effective_year(self) -> int | None:
@@ -162,7 +172,8 @@ class CandidateTrack:
             self.duration_penalty * self._w_duration -
             self.negative_constraint_penalty -
             self.tourist_match_penalty -
-            self.usage_penalty
+            self.usage_penalty -
+            self._studio_penalty
         )
 
     def profile_array(self) -> np.ndarray:
@@ -395,7 +406,9 @@ def semantic_search(
                     tal.album_id,
                     ard.original_year,
                     COALESCE(taf.valence, 0.5) as valence,
-                    taf.danceability, taf.pulse_clarity, taf.instrumentalness, taf.acousticness, taf.mfcc
+                    taf.danceability, taf.pulse_clarity, taf.instrumentalness, taf.acousticness, taf.mfcc,
+                    COALESCE(tss.studio_score, 1.0) as studio_score,
+                    COALESCE(tss.version_type, 'studio') as version_type
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -412,6 +425,7 @@ def semantic_search(
                 LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
                     AND al_leg.match_confidence >= 0.7
                 LEFT JOIN rym_albums ra ON tal.album_id = ra.album_id
+                LEFT JOIN track_studio_scores tss ON tss.track_id = t.id
                 WHERE te.embedding IS NOT NULL
                 {year_filter}
                 ORDER BY te.embedding <=> %s::vector
@@ -460,6 +474,8 @@ def semantic_search(
             instrumentalness=row[33],
             acousticness=row[34],
             mfcc=list(row[35]) if row[35] is not None else None,
+            studio_score=float(row[36]) if row[36] is not None else 1.0,
+            version_type=str(row[37]) if row[37] is not None else "studio",
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -601,7 +617,9 @@ def keyword_search(
                     tal.album_id,
                     ard.original_year,
                     COALESCE(taf.valence, 0.5) as valence,
-                    taf.danceability, taf.pulse_clarity, taf.instrumentalness, taf.acousticness, taf.mfcc
+                    taf.danceability, taf.pulse_clarity, taf.instrumentalness, taf.acousticness, taf.mfcc,
+                    COALESCE(tss.studio_score, 1.0) as studio_score,
+                    COALESCE(tss.version_type, 'studio') as version_type
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -619,6 +637,7 @@ def keyword_search(
                     AND al_leg.match_confidence >= 0.7
                 LEFT JOIN rym_albums ra ON tal.album_id = ra.album_id
                 LEFT JOIN album_release_dates ard ON tal.album_id = ard.album_id
+                LEFT JOIN track_studio_scores tss ON tss.track_id = t.id
                 WHERE t.search_vector @@ to_tsquery('simple', %s)
                 ORDER BY keyword_score DESC
                 LIMIT %s
@@ -665,6 +684,8 @@ def keyword_search(
             instrumentalness=row[32],
             acousticness=row[33],
             mfcc=list(row[34]) if row[34] is not None else None,
+            studio_score=float(row[35]) if row[35] is not None else 1.0,
+            version_type=str(row[36]) if row[36] is not None else "studio",
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
@@ -984,12 +1005,16 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
 
 def _dedupe_near_duplicates(
     candidates: list["CandidateTrack"],
+    prefer_live: bool = False,
 ) -> list["CandidateTrack"]:
     """Collapse (artist, normalized-title) duplicates, keeping one version.
 
-    Prefers the version whose raw title has no parenthetical/bracket
-    qualifier (i.e. the studio cut over a (live)/(demo)/(remix)); ties are
-    broken by higher semantic_score.
+    Selection priority:
+    1. Prefer the version whose raw title has no parenthetical/bracket
+       qualifier (i.e. the studio cut over a (live)/(demo)/(remix)).
+    2. studio_score tie-breaker: highest studio_score wins (unless prefer_live,
+       in which case lowest studio_score — i.e. live/acoustic — wins).
+    3. Final tie: higher semantic_score.
     """
     best: dict[tuple[str | None, str], "CandidateTrack"] = {}
     for c in candidates:
@@ -1000,7 +1025,10 @@ def _dedupe_near_duplicates(
             continue
         c_clean = "(" not in c.title and "[" not in c.title
         inc_clean = "(" not in incumbent.title and "[" not in incumbent.title
-        if (c_clean, c.semantic_score) > (inc_clean, incumbent.semantic_score):
+        # studio_score key: higher = more studio; invert when prefer_live
+        c_studio_key = (1.0 - c.studio_score) if prefer_live else c.studio_score
+        inc_studio_key = (1.0 - incumbent.studio_score) if prefer_live else incumbent.studio_score
+        if (c_clean, c_studio_key, c.semantic_score) > (inc_clean, inc_studio_key, incumbent.semantic_score):
             best[sig] = c
     return list(best.values())
 
@@ -1218,7 +1246,7 @@ def generate_position_pools(
         return []
 
     _pre_dedup = len(global_candidates)
-    global_candidates = _dedupe_near_duplicates(global_candidates)
+    global_candidates = _dedupe_near_duplicates(global_candidates, prefer_live=intent.prefer_live)
     if len(global_candidates) != _pre_dedup:
         logger.info(
             f"Near-duplicate dedup: {_pre_dedup} → {len(global_candidates)} candidates"
@@ -1306,6 +1334,17 @@ def generate_position_pools(
         )
         usage_penalty = usage_penalties.get(track.id, 0.0)
 
+        # Studio penalty: prefer studio over live/demo unless prefer_live is set.
+        # _studio_penalty is computed here where intent is known, stored on the track,
+        # and subtracted in total_score (which has no access to intent).
+        _w_studio = 0.08
+        if intent.prefer_live:
+            # Invert: penalize studio-ness so live/acoustic/unplugged float up
+            studio_pen = track.studio_score * _w_studio
+        else:
+            # Default: penalize non-studio-ness (live, demo, remix, etc.)
+            studio_pen = (1.0 - track.studio_score) * _w_studio
+
         staged_track = replace(
             track,
             year_score=year_score,
@@ -1319,6 +1358,8 @@ def generate_position_pools(
             _w_gravity=w_gravity,
             _w_duration=w_duration,
             _w_curation=w_curation,
+            _w_studio=_w_studio,
+            _studio_penalty=studio_pen,
         )
         staged_track = replace(
             staged_track,

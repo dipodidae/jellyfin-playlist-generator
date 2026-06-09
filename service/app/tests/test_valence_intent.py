@@ -1,4 +1,4 @@
-from app.trajectory.intent import parse_valence_target
+from app.trajectory.intent import parse_valence_target, detect_prefer_live
 
 
 def test_uplifting_is_high():
@@ -11,3 +11,12 @@ def test_melancholic_is_low():
 
 def test_neutral_default():
     assert parse_valence_target("instrumental focus music") == 0.5
+
+
+def test_prefer_live_detected():
+    assert detect_prefer_live("the best live concert recordings") is True
+    assert detect_prefer_live("acoustic unplugged sessions") is True
+
+
+def test_prefer_live_default_false():
+    assert detect_prefer_live("dark ambient studio focus") is False
