@@ -15,13 +15,14 @@ from scipy.interpolate import CubicSpline
 
 @dataclass
 class TrajectoryPoint:
-    """A point on the 5D trajectory curve (energy, tempo, darkness, texture, era)."""
+    """A point on the 6D trajectory curve (energy, tempo, darkness, texture, era, valence)."""
     position: float  # 0.0 to 1.0
     energy: float
     tempo: float
     darkness: float
     texture: float
     era: float = 0.5  # normalized temporal position (0=earliest, 1=latest)
+    valence: float = 0.5  # mood: 0=melancholic, 1=uplifting
     phase_label: str = ""  # metadata only: intro/build/peak/resolve
 
     def as_array(self) -> np.ndarray:
@@ -53,6 +54,7 @@ class TrajectoryCurve:
         darkness: list[float],
         texture: list[float],
         era: list[float] | None = None,
+        valence: list[float] | None = None,
         phase_labels: list[str] | None = None,
     ):
         """
@@ -65,6 +67,7 @@ class TrajectoryCurve:
             darkness: Darkness values at each waypoint
             texture: Texture values at each waypoint
             era: Optional era values at each waypoint (0=earliest, 1=latest)
+            valence: Optional valence values at each waypoint (0=melancholic, 1=uplifting)
             phase_labels: Optional phase labels for each waypoint
         """
         self.positions = np.array(positions)
@@ -73,8 +76,10 @@ class TrajectoryCurve:
         self._darkness = np.array(darkness)
         self._texture = np.array(texture)
         self._era = np.array(era) if era else np.full(len(positions), 0.5)
+        self._valence = np.array(valence) if valence else np.full(len(positions), 0.5)
         self._phase_labels = phase_labels or [""] * len(positions)
         self.has_era = era is not None
+        self.has_valence = valence is not None
 
         # Create spline interpolators for each dimension
         # Use 'clamped' boundary condition for natural endpoints
@@ -87,6 +92,10 @@ class TrajectoryCurve:
                 self._spline_era = CubicSpline(positions, era, bc_type='clamped')
             else:
                 self._spline_era = lambda x: 0.5
+            if valence:
+                self._spline_valence = CubicSpline(positions, valence, bc_type='clamped')
+            else:
+                self._spline_valence = lambda x: 0.5
         else:
             # Fall back to linear interpolation for small waypoint counts
             self._spline_energy = lambda x: np.interp(x, positions, energy)
@@ -97,6 +106,10 @@ class TrajectoryCurve:
                 self._spline_era = lambda x: np.interp(x, positions, era)
             else:
                 self._spline_era = lambda x: 0.5
+            if valence:
+                self._spline_valence = lambda x: np.interp(x, positions, valence)
+            else:
+                self._spline_valence = lambda x: 0.5
 
     def evaluate(self, t: float) -> TrajectoryPoint:
         """
@@ -120,6 +133,7 @@ class TrajectoryCurve:
         phase_label = self._get_phase_label(t)
 
         era_val = float(np.clip(self._spline_era(t), 0.0, 1.0))
+        valence_val = float(np.clip(self._spline_valence(t), 0.0, 1.0))
 
         return TrajectoryPoint(
             position=t,
@@ -128,6 +142,7 @@ class TrajectoryCurve:
             darkness=darkness,
             texture=texture,
             era=era_val,
+            valence=valence_val,
             phase_label=phase_label,
         )
 
@@ -254,6 +269,7 @@ def generate_trajectory_curve(
     era_mode: str = "none",
     era_start: float = 0.5,
     era_end: float = 0.5,
+    base_valence: float = 0.5,
 ) -> TrajectoryCurve:
     """
     Generate a trajectory curve for the given arc type.
@@ -273,6 +289,8 @@ def generate_trajectory_curve(
             - "arc": era follows the main arc shape
         era_start: Starting era value (0=earliest in range, 1=latest)
         era_end: Ending era value
+        base_valence: Target valence for all positions (0=melancholic, 1=uplifting);
+            0.5 = neutral (no influence when valence weight is 0.0)
 
     Returns:
         TrajectoryCurve instance
@@ -288,6 +306,7 @@ def generate_trajectory_curve(
     darkness_vals = []
     texture_vals = []
     era_vals = []
+    valence_vals = []
     phase_labels = []
 
     for i in range(n_waypoints):
@@ -327,6 +346,9 @@ def generate_trajectory_curve(
         else:
             era_vals.append(0.5)  # neutral — no temporal preference
 
+        # Valence: steady target derived from prompt; 0.5 = neutral (no influence)
+        valence_vals.append(base_valence)
+
         # Assign phase labels
         if t < 0.15:
             phase_labels.append("intro")
@@ -344,5 +366,6 @@ def generate_trajectory_curve(
         darkness=darkness_vals,
         texture=texture_vals,
         era=era_vals if era_mode != "none" else None,
+        valence=valence_vals if base_valence != 0.5 else None,
         phase_labels=phase_labels,
     )

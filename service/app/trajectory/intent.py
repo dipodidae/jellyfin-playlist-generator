@@ -982,6 +982,8 @@ def generate_waypoints_from_curve(
             tempo=p.tempo,
             darkness=p.darkness,
             texture=p.texture,
+            era=p.era,
+            valence=p.valence,
             phase_label=p.phase_label,
         )
         for p in points
@@ -1320,6 +1322,13 @@ def _build_intent_from_llm(
     if era_mode != "none":
         logger.info(f"Temporal mode detected: era_mode={era_mode}, era_weight={dimension_weights.era:.2f}")
 
+    # Detect valence target from mood words in the prompt
+    valence_target = parse_valence_target(prompt)
+    if valence_target != 0.5:
+        dimension_weights.valence = 0.10
+        dimension_weights = dimension_weights.normalize()
+        logger.info(f"Valence target detected: valence={valence_target:.2f}, weight={dimension_weights.valence:.2f}")
+
     # Generate trajectory curve from LLM's base dimensions and arc type
     from app.trajectory.curves import generate_trajectory_curve  # lazy: scipy not always installed
     trajectory_curve = generate_trajectory_curve(
@@ -1332,6 +1341,7 @@ def _build_intent_from_llm(
         era_mode=era_mode,
         era_start=0.0 if era_mode in ("chronological", "arc") else 0.5,
         era_end=1.0 if era_mode in ("chronological", "arc") else 0.5,
+        base_valence=valence_target,
     )
 
     # If LLM provided custom waypoints, use them to override the curve waypoints
@@ -1345,6 +1355,7 @@ def _build_intent_from_llm(
                 tempo=wp["tempo"],
                 texture=wp["texture"],
                 era=wp.get("era", 0.5),
+                valence=valence_target,
                 phase_label=wp.get("description", ""),
                 description=wp.get("description", ""),
                 genres=wp.get("genres", []),
@@ -1460,6 +1471,13 @@ def _build_intent_from_keywords(
         dimension_weights = dimension_weights.normalize()
         logger.info(f"Temporal mode detected: era_mode={era_mode}, era_weight={dimension_weights.era:.2f}")
 
+    # Detect valence target from mood words in the prompt
+    valence_target = parse_valence_target(prompt)
+    if valence_target != 0.5:
+        dimension_weights.valence = 0.10
+        dimension_weights = dimension_weights.normalize()
+        logger.info(f"Valence target detected: valence={valence_target:.2f}, weight={dimension_weights.valence:.2f}")
+
     # Generate 5D trajectory curve
     from app.trajectory.curves import generate_trajectory_curve  # lazy: scipy not always installed
     trajectory_curve = generate_trajectory_curve(
@@ -1472,6 +1490,7 @@ def _build_intent_from_keywords(
         era_mode=era_mode,
         era_start=0.0 if era_mode in ("chronological", "arc") else 0.5,
         era_end=1.0 if era_mode in ("chronological", "arc") else 0.5,
+        base_valence=valence_target,
     )
 
     # Sample waypoints from curve
