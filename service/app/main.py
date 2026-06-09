@@ -56,3 +56,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+if USE_POSTGRES:
+    from app.api.routes_settings import router as settings_router
+    app.include_router(settings_router)
