@@ -422,6 +422,14 @@ def init_database() -> None:
                 )
             """)
 
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key        TEXT PRIMARY KEY,
+                    value      TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+
             # MusicBrainz lookup cache
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS mb_release_groups (
