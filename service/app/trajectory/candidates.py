@@ -61,11 +61,12 @@ class CandidateTrack:
     # Embeddings
     embedding: list[float] | None = None
 
-    # Profile (4D)
+    # Profile (4D + valence)
     energy: float = 0.5
     tempo: float = 0.5
     darkness: float = 0.5
     texture: float = 0.5
+    valence: float = 0.5  # audio-derived mood (track_audio_features.valence), 0.5 = neutral
 
     # Cluster info
     cluster_id: int | None = None
@@ -387,7 +388,8 @@ def semantic_search(
                     ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
                     ra.genres as rym_genres, ra.descriptors as rym_descriptors,
                     tal.album_id,
-                    ard.original_year
+                    ard.original_year,
+                    COALESCE(taf.valence, 0.5) as valence
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -446,6 +448,7 @@ def semantic_search(
             rym_descriptors=list(row[27]) if row[27] else [],
             album_id=str(row[28]) if row[28] else None,
             original_year=row[29],
+            valence=float(row[30]) if row[30] is not None else 0.5,
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -585,7 +588,8 @@ def keyword_search(
                     ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
                     ra.genres as rym_genres, ra.descriptors as rym_descriptors,
                     tal.album_id,
-                    ard.original_year
+                    ard.original_year,
+                    COALESCE(taf.valence, 0.5) as valence
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -643,6 +647,7 @@ def keyword_search(
             rym_descriptors=list(row[26]) if row[26] else [],
             album_id=str(row[27]) if row[27] else None,
             original_year=row[28],
+            valence=float(row[29]) if row[29] is not None else 0.5,
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
@@ -859,6 +864,11 @@ def score_trajectory_match(
             era_diff = abs(track_era - target.era)
             weighted_diff += era_diff * weights.era
 
+    # Valence dimension: compare track's audio-derived valence against target valence
+    if weights.valence > 0:
+        valence_diff = abs(track.valence - target.valence)
+        weighted_diff += valence_diff * weights.valence
+
     # Convert to similarity (max possible diff is 1.0 with normalized weights)
     return max(0.0, 1.0 - weighted_diff)
 
@@ -928,30 +938,33 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
     """
     if prompt_type == PromptType.GENRE:
         return {
-            "semantic": 0.29,
+            "semantic": 0.27,
             "trajectory": 0.15,
             "genre": 0.23,
             "gravity": 0.15,
             "duration": 0.10,
             "curation": 0.08,
+            "valence": 0.02,
         }
     elif prompt_type == PromptType.ARC:
         return {
-            "semantic": 0.10,
+            "semantic": 0.08,
             "trajectory": 0.45,
             "genre": 0.16,
             "gravity": 0.15,
             "duration": 0.10,
             "curation": 0.04,
+            "valence": 0.02,
         }
     else:  # MIXED
         return {
-            "semantic": 0.28,
+            "semantic": 0.26,
             "trajectory": 0.26,
             "genre": 0.15,
             "gravity": 0.15,
             "duration": 0.10,
             "curation": 0.06,
+            "valence": 0.02,
         }
 
 
