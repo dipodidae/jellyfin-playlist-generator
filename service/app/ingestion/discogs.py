@@ -1,8 +1,12 @@
 """Discogs API client for original release date resolution.
 
-Uses the Discogs REST API (token auth, 60 req/min) to find master releases
+Uses the Discogs REST API (authenticated, 60 req/min) to find master releases
 and extract the true original release year. Master releases in Discogs
 represent the canonical "first pressing" concept — exactly what we need.
+
+Auth: a personal access token (`Discogs token=...`) OR a consumer key/secret
+pair (`Discogs key=..., secret=...`). Both authenticate the non-user endpoints
+we hit (search, masters, versions) and lift the rate limit to 60 req/min.
 
 Priority: physical chronology anchor (most reliable for first pressings).
 """
@@ -21,6 +25,27 @@ logger = logging.getLogger(__name__)
 
 _DISCOGS_BASE = "https://api.discogs.com"
 _UA = "playlist-generator/1.0"
+
+
+def _auth_header() -> str | None:
+    """Build the Discogs Authorization header value from configured credentials.
+
+    Prefers a personal access token; falls back to a consumer key/secret pair.
+    Returns None when no usable credentials are configured.
+    """
+    if settings.discogs_token:
+        return f"Discogs token={settings.discogs_token}"
+    if settings.discogs_consumer_key and settings.discogs_consumer_secret:
+        return (
+            f"Discogs key={settings.discogs_consumer_key}, "
+            f"secret={settings.discogs_consumer_secret}"
+        )
+    return None
+
+
+def discogs_configured() -> bool:
+    """True when usable Discogs credentials (token or key/secret) are set."""
+    return _auth_header() is not None
 
 # Reissue indicators to filter out from title matching
 _REISSUE_PATTERNS = re.compile(
@@ -53,12 +78,13 @@ async def _discogs_get(
     params: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Make a Discogs API request with auth and rate limiting."""
-    if not settings.discogs_token:
+    auth = _auth_header()
+    if not auth:
         return None
 
     url = f"{_DISCOGS_BASE}{path}"
     headers = {
-        "Authorization": f"Discogs token={settings.discogs_token}",
+        "Authorization": auth,
         "User-Agent": _UA,
     }
 

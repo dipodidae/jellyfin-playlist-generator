@@ -25,7 +25,7 @@ import httpx
 from app.config import settings
 from app.database_pg import get_connection
 from app.ingestion.musicbrainz import extract_release_date_from_mb
-from app.ingestion.discogs import resolve_discogs_release_date
+from app.ingestion.discogs import discogs_configured, resolve_discogs_release_date
 
 logger = logging.getLogger(__name__)
 
@@ -276,8 +276,8 @@ async def resolve_album_release_date(
         except Exception as e:
             logger.debug(f"MB release date failed for '{album_title}': {e}")
 
-    # Source 2: Discogs (if client available and token configured)
-    if discogs_client and settings.discogs_token:
+    # Source 2: Discogs (if client available and credentials configured)
+    if discogs_client and discogs_configured():
         try:
             discogs_result = await resolve_discogs_release_date(
                 discogs_client, artist_name, album_title, year_hint
@@ -375,11 +375,11 @@ async def resolve_release_dates(
 
     # Create Discogs client if token is configured
     discogs_client = None
-    if settings.discogs_token:
+    if discogs_configured():
         discogs_client = httpx.AsyncClient(timeout=30.0)
         logger.info("Discogs API enabled for release date resolution")
     else:
-        logger.info("Discogs API disabled (no DISCOGS_TOKEN configured)")
+        logger.info("Discogs API disabled (no Discogs credentials configured)")
 
     try:
         for i, (album_id, title, year, artist_name, mbid) in enumerate(albums):

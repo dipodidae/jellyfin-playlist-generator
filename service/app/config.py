@@ -51,8 +51,12 @@ class Settings(BaseSettings):
     musicbrainz_app_version: str = "1.0"
     musicbrainz_contact: str = ""  # email, required by MB API ToS
 
-    # Discogs (release date resolution)
+    # Discogs (release date resolution). Either a personal access token OR a
+    # consumer key/secret pair authenticates the non-user endpoints we use
+    # (search, masters, versions). Token takes precedence if both are set.
     discogs_token: str = ""  # personal access token from discogs.com/settings/developers
+    discogs_consumer_key: str = ""    # app consumer key (discogs.com/settings/developers)
+    discogs_consumer_secret: str = ""  # app consumer secret
 
     # RateYourMusic (scraping)
     rym_scrape_delay_min: float = 2.0
