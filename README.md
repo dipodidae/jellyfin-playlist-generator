@@ -5,12 +5,13 @@ Turn a vibe into a playlist. Describe what you want to hear in plain English and
 ## How It Works
 
 ```
-prompt --> LLM intent parsing --> 5D trajectory curves --> semantic+BM25 search
+prompt --> LLM intent parsing --> 6D trajectory curves --> semantic+BM25 search
                 |                        |                        |
           GPT-4o-mini             energy / tempo /         sentence-transformers
           extracts arc,           darkness / texture /      + keyword retrieval
-          dimensions,             era (temporal)             find candidates per
-          genres, moods           spline interpolation       trajectory position
+          dimensions,             era (temporal) /           find candidates per
+          genres, moods           valence (mood)             trajectory position
+                                  spline interpolation
                 |                        |                        |
           (keyword fallback              v                        v
            if no API key)        beam search sequencing --> curation scoring
@@ -25,11 +26,11 @@ A user prompt like *"start ambient and dreamy, build through post-rock, end with
 
 1. **Prompt interpretation** -- GPT-4o-mini parses the prompt into structured parameters: arc type, base dimensions (energy, darkness, tempo, texture), era mode, genre hints, artist seeds, mood keywords, avoidances, year range, target duration, dimension weights, and custom trajectory waypoints. Falls back to keyword/regex extraction if no OpenAI key is configured.
 
-2. **Trajectory generation** -- The extracted intent is converted into a 5D trajectory curve (energy, tempo, darkness, texture, era) using spline interpolation across the playlist length. Seven arc types shape the curve: `rise`, `fall`, `peak`, `steady`, `journey`, `wave`, and `valley`. The era dimension enables temporal trajectories (chronological, reverse, locked).
+2. **Trajectory generation** -- The extracted intent is converted into a 6D trajectory curve (energy, tempo, darkness, texture, era, valence) using spline interpolation across the playlist length. Seven arc types shape the curve: `rise`, `fall`, `peak`, `steady`, `journey`, `wave`, and `valley`. The era dimension enables temporal trajectories (chronological, reverse, locked). The valence dimension is opt-in and activates when mood words like "uplifting" or "melancholic" appear in the prompt.
 
 3. **Candidate selection** -- Semantic search (pgvector) + BM25 keyword search produce a global candidate pool. Candidates are enriched with curation signals (banger score from Last.fm popularity, Metal Archives album legitimacy, RYM ratings/genres/descriptors, verified original release dates). They're then re-scored per trajectory position using the 5D target at each point.
 
-4. **Sequencing** -- Beam search with lookahead optimizes the track order. Dual-anchor gravity wells (prompt centroid + weighted scene centroid) prevent stylistic drift. Auto-bridge scoring rewards tracks that smooth transitions between distant clusters. Acoustic continuity scoring uses BPM, loudness, and brightness. Era coherence penalizes jarring temporal jumps.
+4. **Sequencing** -- Beam search with lookahead optimizes the track order. Dual-anchor gravity wells (prompt centroid + weighted scene centroid) prevent stylistic drift. Auto-bridge scoring rewards tracks that smooth transitions between distant clusters. Acoustic continuity scoring uses BPM, loudness, brightness, danceability, pulse clarity, MFCC timbre distance, and an instrumental-vs-vocal jump penalty (all terms degrade gracefully to no-op when data is absent). Era coherence penalizes jarring temporal jumps.
 
 5. **Finishing** -- GPT-4o-mini generates a short evocative title and per-track explanations describing why each track was selected and how it fits its position in the arc.
 
@@ -63,7 +64,7 @@ Frontend (Nuxt 4, SSR)  -->  Backend (FastAPI)  -->  PostgreSQL 16 + pgvector
 - **Backend**: FastAPI, Python 3.12, uvicorn
 - **Database**: PostgreSQL 16 + pgvector (vector similarity search)
 - **Embeddings**: sentence-transformers (all-MiniLM-L6-v2)
-- **Audio analysis**: librosa (BPM, loudness, spectral brightness)
+- **Audio analysis**: librosa (BPM, loudness, brightness, valence, danceability, pulse clarity, onset rate, instrumentalness, acousticness, MFCC timbre)
 - **Tag extraction**: mutagen (audio file metadata)
 - **AI**: OpenAI GPT-4o-mini (prompt parsing, titles, explanations)
 - **External APIs**: Last.fm (artist tags, similarity, play stats), Discogs (release dates), MusicBrainz (IDs, release dates), Metal Archives (album legitimacy)
@@ -95,15 +96,20 @@ See `AGENTS.md` for detailed architecture documentation including scoring formul
 
 ### Trajectory Engine
 
-The v4 composer sequences playlists along 5D trajectory curves:
+The v4 composer sequences playlists along 6D trajectory curves:
 
 - **Energy** -- Intensity and loudness (0-1)
 - **Tempo** -- Speed and BPM correlation (0-1)
 - **Darkness** -- Mood valence, 1 = darkest (0-1)
 - **Texture** -- Density and sonic complexity (0-1)
 - **Era** -- Temporal position (0-1), active for chronological/reverse/locked prompts
+- **Valence** -- Perceived positivity/mood brightness (0-1, 1=most uplifting); opt-in, activates when mood words like "uplifting" or "melancholic" appear in the prompt. Sourced from librosa-derived audio features (heuristic proxy).
 
 Seven arc types control the shape: **rise** (building energy), **fall** (winding down), **peak** (build-climax-resolve), **steady** (consistent mood), **journey** (narrative arc with intro/build/climax/denouement), **wave** (oscillating), **valley** (dip and recover).
+
+### Studio/Live Preference
+
+Every track is classified as `studio` (score 1.0), `live` (0.35), `demo` (0.50), `session` (0.55), `acoustic` (0.65), `remix` (0.70), or `bonus` (0.75) from title and album metadata. By default, non-studio cuts receive a soft scoring penalty (`_w_studio=0.08`) so studio recordings are preferred. Prompts containing live/acoustic/unplugged cues invert the penalty so live and acoustic recordings float up instead. The studio score also serves as a near-duplicate tie-breaker.
 
 ### Streaming Progress
 

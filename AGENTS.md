@@ -59,7 +59,11 @@ A prompt-driven playlist generation system that creates intelligent, curated pla
 │                   PostgreSQL + pgvector                         │
 │  tracks, track_files, artists, albums, track_embeddings,        │
 │  track_profiles (4D), scene_clusters, artist_clusters,          │
-│  track_audio_features, track_usage, playlist_generation_log,    │
+│  track_audio_features (BPM/loudness/brightness + valence/       │
+│    danceability/pulse_clarity/onset_rate/instrumentalness/      │
+│    acousticness/mfcc — migration 013),                          │
+│  track_studio_scores (version_type, studio_score — mig. 014),  │
+│  track_usage, playlist_generation_log,                          │
 │  track_genre_probabilities, genre_manifold, track_banger_flags, │
 │  album_legitimacy, rym_albums, album_release_dates,             │
 │  lastfm_stats, musicbrainz_artists, musicbrainz_albums,         │
@@ -107,7 +111,9 @@ playlist-generator/
 │   │   │   ├── musicbrainz.py # MusicBrainz ID resolution + release dates
 │   │   │   ├── metal_archives.py # Metal Archives album legitimacy
 │   │   │   ├── discogs.py   # Discogs release date resolution
-│   │   │   └── release_dates.py  # Multi-source original release date resolver
+│   │   │   ├── release_dates.py  # Multi-source original release date resolver
+│   │   │   ├── version_classifier.py # Pure studio/live/demo/remix classifier → (version_type, studio_score)
+│   │   │   └── studio_scores.py  # Backfill track_studio_scores from title/album metadata
 │   │   ├── enrichment/
 │   │   │   └── banger_detector.py # Banger detection from Last.fm popularity
 │   │   ├── profiles/
@@ -186,12 +192,13 @@ The v4 system uses a sophisticated multi-stage pipeline:
 - **journey**: Narrative arc with intro/build/climax/denouement
 - **wave**: Oscillating energy pattern
 
-### 5D Trajectory Dimensions
+### 6D Trajectory Dimensions
 - **Energy**: Intensity/loudness (0-1)
 - **Tempo**: Speed/BPM correlation (0-1)
 - **Darkness**: Mood valence (0-1, 1=darkest)
 - **Texture**: Density + complexity (0-1)
 - **Era**: Temporal position (0-1), active only when `era_mode` ≠ "none"
+- **Valence**: Perceived positivity/mood brightness (0-1, 1=most uplifting); opt-in like era — steered by mood words in the prompt (e.g. "uplifting", "melancholic"). Sourced from `track_audio_features.valence` (heuristic proxy: 0.5×majorness + 0.3×bpm_norm + 0.2×brightness_norm). Its `DimensionWeights.valence` is 0.0 by default and raised to ~0.25 when `parse_valence_target` detects relevant mood words.
 
 ### Era Modes (Temporal Trajectory)
 - **none**: No temporal trajectory (default)
@@ -215,7 +222,12 @@ total_score = (
     - tourist_match_penalty            # 0.50 when genre hint present + zero genre match
     - negative_constraint_penalty      # avoid_keywords violations (checks genres + RYM data)
     - usage_penalty                    # time-decayed track reuse penalty
+    - studio_penalty * _w_studio       # _w_studio=0.08; penalizes (1-studio_score) by default,
+                                       # or studio_score when prefer_live (inverted for live/acoustic prompts)
 )
+
+# trajectory_score also includes a valence term when DimensionWeights.valence > 0
+# (opt-in: parse_valence_target raises it to ~0.25 when mood words are detected in the prompt)
 
 # curation_score = banger_score * w1 + album_legitimacy * w2 + rym_signal * w3
 # (graceful degradation when data sources are partially available)
@@ -229,6 +241,15 @@ extension_score = (
     direction_penalty -
     genre_drift_penalty               # GMS beam-level drift (when genre_probs available)
 )
+
+# transition_score (acoustic continuity) — graceful degradation when fields are NULL
+# base terms (require bpm_norm/loudness_norm/brightness_norm):
+#   bpm_score (w=0.35), loudness_score (w=0.30), brightness_score (w=0.15)
+# added when available:
+#   danceability delta (w=0.10), pulse_clarity delta (w=0.05),
+#   mfcc_continuity — euclidean distance of 12-d MFCC timbre vectors (w=0.10),
+#   vocal_jump_score — instrumentalness jump penalty (w=0.10)
+# all weights renormalized to sum=1 so missing terms don't deflate the score
 ```
 
 ### Key V4 Features
@@ -241,7 +262,8 @@ extension_score = (
 - **Adaptive weights**: Per-`PromptType` scoring weights (GENRE / ARC / MIXED)
 - **Genre-aware admissibility**: The candidate gate (`is_admissible()` in `admission.py`) admits a track when it clears the semantic floor **OR** is a strong primary-genre match (`genre_match_score ≥ 0.50`). This lets the genre/tag secondary pools (which carry a low baseline `semantic_score`) actually contribute, widening artist diversity on genre and sparse-genre prompts.
 - **Artist + album caps**: `max_artist_count=4` and `max_album_count=2` per playlist, plus **absolute** `hard_max_artist_count`/`hard_max_album_count` ceilings derived from playlist size (artist ≈ 25%, album ≈ 15%, set by the composer) that the relaxation ladder can **never** exceed. The fallback ladder no longer relaxes the artist cap to unbounded (`999`); when diversity is exhausted the playlist returns short rather than dumping one artist/album.
-- **Near-duplicate dedup**: Candidate pool is collapsed by `(normalize_artist, normalize_title)` (`textnorm.py`), so re-imports and `(live)`/`(demo)`/`(remix)`/`(... session)`/`(single version)` variants count as one song (studio cut preferred). A signature backstop in the beam search (`BeamPath.signatures`) guards against any that slip through.
+- **Near-duplicate dedup**: Candidate pool is collapsed by `(normalize_artist, normalize_title)` (`textnorm.py`), so re-imports and `(live)`/`(demo)`/`(remix)`/`(... session)`/`(single version)` variants count as one song. The tie-breaking order is: (1) highest `studio_score` (studio cut preferred), or lowest when `prefer_live` is active; (2) highest `total_score`. A signature backstop in the beam search (`BeamPath.signatures`) guards against any that slip through.
+- **Studio/live preference**: `version_classifier.py` classifies each track as `studio` (score 1.0), `live` (0.35), `demo` (0.50), `session` (0.55), `acoustic` (0.65), `remix` (0.70), or `bonus` (0.75), stored in `track_studio_scores`. By default a soft penalty (`_w_studio=0.08`) down-ranks non-studio cuts; `detect_prefer_live()` inverts it for prompts containing live/acoustic/unplugged cues.
 - **Per-segment genre waypoints**: For multi-genre journeys, the LLM emits per-waypoint `genres`; `build_phase_queries()` retrieves each segment's genre, a DB genre pool guarantees those styles are present, and `generate_position_pools()` scores `genre_match` per position against that position's segment genres (`PlaylistIntent.segment_genres_at()`) — so "ambient → doom" actually opens ambient and closes doom.
 - **Genre Manifold System (GMS)**: Probabilistic genre identity vectors (`genre_probs`) loaded from `track_genre_probabilities` table; used for `compute_genre_probability_score()` (replaces Jaccard when available), `compute_genre_drift_penalty()` in beam search, STRICT mode hard filter, and hybrid query embedding construction
 - **Curation scoring**: Combined signal from banger detection (Last.fm popularity), Metal Archives album legitimacy (percentile-normalized), and RYM album ratings; weighted by `impact_preference`
@@ -427,7 +449,9 @@ css: ['~/assets/css/main.css'],
 9. **Banger Detection**: Last.fm playcount/listeners → within-artist rank + global percentile → track_banger_flags
 10. **Genre Manifold**: kNN voting → track_genre_probabilities + genre centroids
 11. **Search Vectors**: BM25 tsvector (title/artist/genres + Last.fm tags + RYM genres/descriptors)
-12. **Generate (v4)**: prompt → 5D trajectory → semantic+BM25 search → curation scoring → position pools → beam search → M3U export
+12. **Audio Analysis** (`/enrich/audio`): librosa → BPM, loudness, brightness + valence, danceability, pulse_clarity, onset_rate, instrumentalness, acousticness, MFCC timbre → track_audio_features (migration 013; re-runs for rows missing new metrics)
+13. **Studio Scores** (`ingestion/studio_scores.py backfill_studio_scores()`): title + album cues → (version_type, studio_score) → track_studio_scores (migration 014; fast — pure metadata, no I/O)
+14. **Generate (v4)**: prompt → 6D trajectory → semantic+BM25 search → curation + studio scoring → position pools → beam search → M3U export
 
 ### Quick Sync: Add & Analyze New Tracks
 

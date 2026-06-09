@@ -4,10 +4,11 @@
 
 This is a playlist generator that creates intelligent playlists from a Jellyfin music library using:
 - Semantic embeddings for understanding prompts
-- 5D trajectory-based composition (energy, tempo, darkness, texture, era)
+- 6D trajectory-based composition (energy, tempo, darkness, texture, era, valence)
 - Multi-source enrichment: Last.fm (tags, similarity, play stats), MusicBrainz (IDs), Metal Archives (legitimacy), Discogs (release dates), RYM (ratings, genres, descriptors)
-- Curation scoring: banger detection + album legitimacy + RYM cultural signal
+- Curation scoring: banger detection + album legitimacy + RYM cultural signal + studio/live preference
 - Genre Manifold System (GMS): probabilistic genre identity vectors
+- Extended audio features: BPM, loudness, brightness, valence, danceability, pulse clarity, onset rate, instrumentalness, acousticness, MFCC timbre (heuristic proxies via librosa)
 - OpenAI for creative playlist titles
 
 ## Code Style
@@ -43,6 +44,8 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 - `service/app/ingestion/release_dates.py` - Multi-source original release date resolver
 - `service/app/ingestion/musicbrainz.py` - MusicBrainz ID resolution
 - `service/app/ingestion/metal_archives.py` - Metal Archives album legitimacy
+- `service/app/ingestion/version_classifier.py` - Pure studio/live/demo/remix/bonus classifier → (version_type, studio_score); no I/O
+- `service/app/ingestion/studio_scores.py` - Backfill `track_studio_scores` from track + album title metadata
 - `service/app/enrichment/banger_detector.py` - Banger detection from Last.fm
 - `service/app/database_pg.py` - PostgreSQL + pgvector schema, queries, BM25 search vectors
 - `service/app/config.py` - Environment settings (base defaults; DB overlays these at runtime)
@@ -111,6 +114,10 @@ which still points at the defunct native `:8000` backend.
 6. **Environment variables**: Nuxt uses `NUXT_` prefix for runtime config (e.g., `NUXT_BACKEND_URL`)
 
 7. **Docker image bakes the source.** The running stack (`docker-compose.yml`, `unified` profile) builds `service/` into the `playlist-generator` image; only `/music` and `/playlists` are mounted. Algorithm changes are NOT live until you rebuild: `docker compose --profile unified up -d --build app`. The app serves on `127.0.0.1:8080`; the DB (`playlist-generator-db`) is published on `127.0.0.1:5432`. Point `eval_loop.py` at the running app with `BACKEND_URL=http://localhost:8080`.
+
+8. **Valence, instrumentalness, and acousticness are heuristic proxies, not ground-truth.** They are computed from raw audio signal via librosa (valence = 0.5×majorness + 0.3×bpm_norm + 0.2×brightness_norm; instrumentalness ≈ 1 − vocal-band-energy fraction; acousticness ≈ weighted harmonic ratio + low-brightness + low-flatness). They correlate with the intended qualities on average but are not reliable for individual tracks. Do not treat them as authoritative mood/genre labels.
+
+9. **Adding audio metrics requires a full library re-analysis before B/C scoring is meaningful.** The `analyze_library()` function (`audio/analyzer.py`) re-analyzes any track where `valence IS NULL OR mfcc IS NULL`. On a large library (35k+ tracks) this takes several hours. Until the re-analysis is complete, valence trajectory scoring (Phase B) and the expanded acoustic continuity terms in the sequencer (Phase C) silently degrade to no-op for un-analyzed tracks — results will be correct but the new scoring only applies to the analyzed subset. Run `POST /enrich/audio` (or let `cron-sync.sh` handle it) and monitor progress before evaluating Phase B/C behavior.
 
 ## Testing Endpoints
 
