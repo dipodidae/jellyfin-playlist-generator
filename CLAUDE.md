@@ -81,6 +81,14 @@ cd frontend && pnpm build && pm2 restart playlist-generator-frontend
 ```
 Note: Backend takes ~60 seconds to start on Pi 5 (sentence-transformers model load).
 
+### Scheduled library sync
+`cron-sync.sh` runs the full incremental enrichment pipeline (audio included) via
+`docker exec playlist-generator curl … /sync/full-pipeline?skip_audio=false`,
+gated on a `find -newer` new-file check. Installed in the NAS crontab: `10 */6`
+(gated) and `45 3 * * 0 --catch-up` (unconditional), `flock`-guarded, logging to
+`~/nas/logs/playlist_sync.log`. It supersedes the manual `sync-new-tracks.sh`,
+which still points at the defunct native `:8000` backend.
+
 ## Gotchas
 
 1. **Nuxt auto-imports**: `defineEventHandler`, `useRuntimeConfig`, etc. are auto-imported - IDE may show errors but they work at runtime

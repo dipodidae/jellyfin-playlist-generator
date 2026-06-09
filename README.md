@@ -209,6 +209,32 @@ The pipeline runs 13 steps: **flush** (truncate tables), **scan** (read music fi
 
 Safe to interrupt and re-run -- it picks up where it left off via checkpoint files in `~/.local/state/playlist-generator/rebuild/`.
 
+## Scheduled Sync (cron)
+
+`cron-sync.sh` keeps the library current automatically. It detects new or
+changed audio files and, only when some exist, runs the full incremental
+enrichment pipeline (scan through search-vectors, **audio included**) against
+the live Docker container via `docker exec` -- so it works with the
+no-host-port `unified` deployment and bypasses nginx auth.
+
+```bash
+# Run now: sync only if new files arrived since last success
+./cron-sync.sh
+
+# Run the full pipeline unconditionally (clears backlog from a failed run)
+./cron-sync.sh --catch-up
+```
+
+The new-file gate is a cheap `find -newer` walk against a stamp at
+`~/.local/state/playlist-generator/cron-sync.stamp`; the stamp only advances on
+a clean completion, so failed runs and files that arrive mid-run are retried
+next cycle. Installed in the NAS crontab as: every 6h (`10 */6`) gated, plus a
+weekly unconditional catch-up (`45 3 * * 0`), both `flock`-guarded against
+overlap. Logs append to `~/nas/logs/playlist_sync.log`.
+
+`cron-sync.sh` supersedes the manual `sync-new-tracks.sh` for the live Docker
+setup (that older script targets a now-defunct native `:8000` backend).
+
 ## Development
 
 ```bash
