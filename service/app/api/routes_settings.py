@@ -7,9 +7,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
-from app.ingestion import discogs_oauth
-
 from app.config import settings
+from app.ingestion import discogs_oauth
 from app.settings_registry import (
     REGISTRY,
     coerce_value,
