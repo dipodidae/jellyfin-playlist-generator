@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     discogs_token: str = ""  # personal access token from discogs.com/settings/developers
     discogs_consumer_key: str = ""    # app consumer key (discogs.com/settings/developers)
     discogs_consumer_secret: str = ""  # app consumer secret
+    discogs_oauth_token: str = ""          # set by the in-app OAuth flow
+    discogs_oauth_token_secret: str = ""   # set by the in-app OAuth flow
 
     # RateYourMusic (scraping)
     rym_scrape_delay_min: float = 2.0

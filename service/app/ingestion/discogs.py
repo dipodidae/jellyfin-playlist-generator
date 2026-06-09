@@ -30,9 +30,23 @@ _UA = "playlist-generator/1.0"
 def _auth_header() -> str | None:
     """Build the Discogs Authorization header value from configured credentials.
 
-    Prefers a personal access token; falls back to a consumer key/secret pair.
+    Priority: OAuth access token (PLAINTEXT-signed) > consumer key/secret > personal token.
     Returns None when no usable credentials are configured.
     """
+    if (settings.discogs_oauth_token and settings.discogs_oauth_token_secret
+            and settings.discogs_consumer_key and settings.discogs_consumer_secret):
+        import time
+        import uuid
+
+        from app.ingestion.discogs_oauth import build_oauth_header
+        nonce, ts = uuid.uuid4().hex, str(int(time.time()))
+        return build_oauth_header(
+            consumer_key=settings.discogs_consumer_key,
+            consumer_secret=settings.discogs_consumer_secret,
+            token=settings.discogs_oauth_token,
+            token_secret=settings.discogs_oauth_token_secret,
+            callback=None, verifier=None, nonce=nonce, timestamp=ts,
+        )
     if settings.discogs_token:
         return f"Discogs token={settings.discogs_token}"
     if settings.discogs_consumer_key and settings.discogs_consumer_secret:
