@@ -938,33 +938,30 @@ def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
     """
     if prompt_type == PromptType.GENRE:
         return {
-            "semantic": 0.27,
+            "semantic": 0.29,
             "trajectory": 0.15,
             "genre": 0.23,
             "gravity": 0.15,
             "duration": 0.10,
             "curation": 0.08,
-            "valence": 0.02,
         }
     elif prompt_type == PromptType.ARC:
         return {
-            "semantic": 0.08,
+            "semantic": 0.10,
             "trajectory": 0.45,
             "genre": 0.16,
             "gravity": 0.15,
             "duration": 0.10,
             "curation": 0.04,
-            "valence": 0.02,
         }
     else:  # MIXED
         return {
-            "semantic": 0.26,
+            "semantic": 0.28,
             "trajectory": 0.26,
             "genre": 0.15,
             "gravity": 0.15,
             "duration": 0.10,
             "curation": 0.06,
-            "valence": 0.02,
         }
 
 
