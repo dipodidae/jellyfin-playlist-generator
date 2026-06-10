@@ -58,11 +58,19 @@ def resolve_album_id_map(app_albums, jellyfin_audio_items, local_prefix, jellyfi
 
 
 def match_by_name(app_album_name, app_artist, jellyfin_albums) -> str | None:
-    """Normalized AlbumArtist+Name fallback match. Returns Jellyfin album Id or None."""
+    """Normalized AlbumArtist+Name fallback match. Returns Jellyfin album Id or None.
+
+    Returns None when the name+artist is AMBIGUOUS (matches more than one Jellyfin
+    album) — libraries with duplicate songs spread across multiple albums often have
+    several albums sharing a name/artist (studio vs compilation), and guessing one
+    would stamp the wrong album. Path matching is the reliable route; name fallback
+    only fires for a single unambiguous hit.
+    """
     want_title = normalize_title(app_album_name or "")
     want_artist = normalize_artist(app_artist or "")
-    for alb in jellyfin_albums:
-        if (normalize_title(alb.get("Name") or "") == want_title
-                and normalize_artist(alb.get("AlbumArtist") or "") == want_artist):
-            return alb.get("Id")
-    return None
+    matches = [
+        alb.get("Id") for alb in jellyfin_albums
+        if normalize_title(alb.get("Name") or "") == want_title
+        and normalize_artist(alb.get("AlbumArtist") or "") == want_artist
+    ]
+    return matches[0] if len(matches) == 1 else None

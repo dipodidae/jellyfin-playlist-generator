@@ -57,3 +57,13 @@ def test_match_by_name_normalized():
     jf_albums = [{"Id": "JF1", "Name": "Holy Diver", "AlbumArtist": "Dio"}]
     assert match_by_name("holy  diver", "DIO", jf_albums) == "JF1"
     assert match_by_name("Unknown", "Dio", jf_albums) is None
+
+
+def test_match_by_name_ambiguous_returns_none():
+    # Duplicate songs across albums → two Jellyfin albums share name+artist.
+    # Refuse to guess rather than stamp the wrong one.
+    jf_albums = [
+        {"Id": "JF1", "Name": "Greatest Hits", "AlbumArtist": "Queen"},
+        {"Id": "JF2", "Name": "Greatest Hits", "AlbumArtist": "Queen"},
+    ]
+    assert match_by_name("Greatest Hits", "Queen", jf_albums) is None
