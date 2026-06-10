@@ -43,7 +43,7 @@ const arcOption = computed(() => {
       orient: 'vertical' as const,
       right: 10,
       top: 'center',
-      textStyle: { color: isDark ? '#9ca3af' : '#4b5563' },
+      textStyle: { color: isDark ? '#9a9aa3' : '#4b5563' },
     },
     series: [
       {
@@ -53,7 +53,7 @@ const arcOption = computed(() => {
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 6,
-          borderColor: isDark ? '#111827' : '#ffffff',
+          borderColor: isDark ? '#0f0f11' : '#ffffff',
           borderWidth: 2,
         },
         label: { show: false },
@@ -79,51 +79,47 @@ const arcOption = computed(() => {
 
 <template>
   <ObservatorySection title="Generation Stats" description="Playlist creation history and patterns">
-    <div v-if="totalPlaylists === 0" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+    <div
+      v-if="totalPlaylists === 0"
+      class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-6 text-center text-muted"
+    >
       No playlists generated yet. Create your first playlist to see generation stats.
     </div>
 
     <template v-else>
-      <!-- Total playlists -->
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 mb-4 flex items-center gap-3">
-        <div class="text-3xl font-bold text-indigo-500 tabular-nums">{{ totalPlaylists }}</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">playlists generated</div>
+      <!-- Total playlists hero -->
+      <div class="bg-(--ui-bg-accented) border border-acid-400/20 rounded-xl px-5 py-4 mb-4 flex items-center gap-4">
+        <UIcon name="i-lucide-list-music" class="size-7 text-acid-400/60 shrink-0" />
+        <div>
+          <div class="text-3xl font-bold font-display tabular text-acid-300">{{ totalPlaylists }}</div>
+          <div class="text-sm text-muted">playlists generated</div>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- Arc type donut -->
-        <div v-if="arcOption" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-            Arc Types
-          </h3>
+        <div v-if="arcOption" class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+          <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Arc Types</h3>
           <VChart :option="arcOption" style="height: 260px" autoresize />
         </div>
 
         <!-- Most used tracks -->
-        <div v-if="mostUsedTracks.length > 0" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-            Most Used Tracks
-          </h3>
+        <div v-if="mostUsedTracks.length > 0" class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+          <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Most Used Tracks</h3>
           <div class="space-y-2">
             <div
               v-for="(track, idx) in mostUsedTracks.slice(0, 10)"
               :key="`${track.title}-${track.artist}`"
-              class="flex items-center gap-3"
+              class="flex items-center gap-3 py-1 border-b border-(--ui-border-muted) last:border-0"
             >
-              <span class="text-xs font-bold text-gray-400 dark:text-gray-500 w-5 text-right tabular-nums">
-                {{ idx + 1 }}
-              </span>
+              <span class="text-xs font-bold text-dimmed w-5 text-right tabular shrink-0">{{ idx + 1 }}</span>
               <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {{ track.title }}
-                </div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {{ track.artist }}
-                </div>
+                <div class="text-sm font-medium text-highlighted truncate">{{ track.title }}</div>
+                <div class="text-xs text-muted truncate">{{ track.artist }}</div>
               </div>
-              <span class="text-sm font-semibold text-indigo-500 tabular-nums shrink-0">
-                {{ track.usage_count }}x
-              </span>
+              <UBadge variant="soft" color="primary" size="xs" class="tabular shrink-0">
+                {{ track.usage_count }}×
+              </UBadge>
             </div>
           </div>
         </div>

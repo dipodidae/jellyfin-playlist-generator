@@ -46,8 +46,8 @@ function buildBarOption(names: string[], values: number[], tooltipFormatter: (v:
     grid: { left: 160, right: 30, top: 10, bottom: 20 },
     xAxis: {
       type: 'value' as const,
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280' },
-      splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#f3f4f6' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280' },
+      splitLine: { lineStyle: { color: isDark ? '#1d1d21' : '#f3f4f6' } },
     },
     yAxis: {
       type: 'category' as const,
@@ -80,7 +80,7 @@ const trackOption = computed(() =>
     props.byTracks.map(a => a.name),
     props.byTracks.map(a => a.count),
     v => `${v.toLocaleString()} tracks`,
-    '#3b82f6',
+    '#59c1ff',
   ),
 )
 
@@ -89,7 +89,7 @@ const playtimeOption = computed(() =>
     props.byPlaytime.map(a => a.name),
     props.byPlaytime.map(a => a.duration_ms),
     v => formatHours(v),
-    '#8b5cf6',
+    '#7a3df0',
   ),
 )
 
@@ -98,7 +98,7 @@ const albumOption = computed(() =>
     props.byAlbums.map(a => a.name),
     props.byAlbums.map(a => a.count),
     v => `${v.toLocaleString()} albums`,
-    '#10b981',
+    '#6fe3c0',
   ),
 )
 
@@ -111,15 +111,16 @@ const currentOption = computed(() => {
 
 <template>
   <ObservatorySection title="Artist Intelligence" description="Who dominates your collection?">
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-      <div class="flex items-center gap-2 mb-4">
+    <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+      <!-- View switcher -->
+      <div class="flex items-center gap-1.5 mb-4">
         <button
           v-for="mode in (['tracks', 'playtime', 'albums'] as ArtistView[])"
           :key="mode"
-          class="px-3 py-1 text-sm font-medium rounded-md transition-colors capitalize"
+          class="px-3 py-1 text-sm font-medium rounded-lg transition-colors capitalize"
           :class="viewMode === mode
-            ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            ? 'bg-acid-400/10 text-acid-300 ring-1 ring-acid-400/30'
+            : 'text-muted hover:text-highlighted'"
           @click="viewMode = mode"
         >
           By {{ mode }}
@@ -129,11 +130,11 @@ const currentOption = computed(() => {
     </div>
 
     <!-- One-track artists callout -->
-    <div class="mt-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3">
-      <span class="text-sm text-amber-700 dark:text-amber-300">
-        <span class="font-bold">{{ oneTrackArtists.count.toLocaleString() }}</span> artists
-        ({{ oneTrackArtists.percentage }}%) have only a single track in your library &mdash;
-        compilation leftovers, forgotten discoveries, or one-off features.
+    <div class="mt-3 bg-acid-400/5 border border-acid-400/20 rounded-xl px-4 py-3">
+      <span class="text-sm text-muted">
+        <span class="font-bold text-acid-300 tabular">{{ oneTrackArtists.count.toLocaleString() }}</span>
+        <span> artists ({{ oneTrackArtists.percentage }}%) have only a single track in your library &mdash;</span>
+        <span class="text-dimmed"> compilation leftovers, forgotten discoveries, or one-off features.</span>
       </span>
     </div>
   </ObservatorySection>

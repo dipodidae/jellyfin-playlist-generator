@@ -32,10 +32,10 @@ const radarOption = computed(() => {
         fontWeight: 'bold' as const,
       },
       splitArea: {
-        areaStyle: { color: isDark ? ['#111827', '#1f2937'] : ['#f9fafb', '#f3f4f6'] },
+        areaStyle: { color: isDark ? ['#161619', '#1d1d21'] : ['#f9fafb', '#f3f4f6'] },
       },
-      splitLine: { lineStyle: { color: isDark ? '#374151' : '#e5e7eb' } },
-      axisLine: { lineStyle: { color: isDark ? '#374151' : '#e5e7eb' } },
+      splitLine: { lineStyle: { color: isDark ? '#232327' : '#e5e7eb' } },
+      axisLine: { lineStyle: { color: isDark ? '#232327' : '#e5e7eb' } },
     },
     series: [
       {
@@ -49,9 +49,9 @@ const radarOption = computed(() => {
               props.averages.texture,
             ],
             name: 'Collection Average',
-            areaStyle: { color: 'rgba(139, 92, 246, 0.25)' },
-            lineStyle: { color: '#8b5cf6', width: 2 },
-            itemStyle: { color: '#8b5cf6' },
+            areaStyle: { color: 'rgba(200, 255, 77, 0.15)' },
+            lineStyle: { color: '#c8ff4d', width: 2 },
+            itemStyle: { color: '#c8ff4d' },
           },
         ],
       },
@@ -61,9 +61,9 @@ const radarOption = computed(() => {
 
 const dimColors: Record<string, string> = {
   energy: '#ef4444',
-  darkness: '#6d28d9',
-  tempo: '#f59e0b',
-  texture: '#10b981',
+  darkness: '#7a3df0',
+  tempo: '#c8ff4d',
+  texture: '#6fe3c0',
 }
 
 function buildHistogramOption(dimension: string) {
@@ -83,13 +83,13 @@ function buildHistogramOption(dimension: string) {
     xAxis: {
       type: 'category' as const,
       data: bins.map(b => b.label),
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280', fontSize: 10 },
-      axisLine: { lineStyle: { color: isDark ? '#374151' : '#e5e7eb' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280', fontSize: 10 },
+      axisLine: { lineStyle: { color: isDark ? '#232327' : '#e5e7eb' } },
     },
     yAxis: {
       type: 'value' as const,
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280', fontSize: 10 },
-      splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#f3f4f6' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280', fontSize: 10 },
+      splitLine: { lineStyle: { color: isDark ? '#1d1d21' : '#f3f4f6' } },
     },
     series: [
       {
@@ -128,14 +128,10 @@ const tasteInsight = computed(() => {
   <ObservatorySection title="Taste Fingerprint" :description="`4D profile analysis across ${averages.count.toLocaleString()} profiled tracks`">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <!-- Radar chart -->
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Collection Fingerprint
-        </h3>
+      <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Collection Fingerprint</h3>
         <VChart :option="radarOption" style="height: 300px" autoresize />
-        <p class="text-sm text-gray-600 dark:text-gray-400 text-center mt-2">
-          {{ tasteInsight }}
-        </p>
+        <p class="text-sm text-muted text-center mt-2 italic">{{ tasteInsight }}</p>
       </div>
 
       <!-- Dimension distributions -->
@@ -143,13 +139,13 @@ const tasteInsight = computed(() => {
         <div
           v-for="dim in ['energy', 'darkness', 'tempo', 'texture']"
           :key="dim"
-          class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-3"
+          class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-3"
         >
           <div class="flex items-center justify-between mb-1">
             <h4 class="text-xs font-semibold uppercase tracking-wider capitalize" :style="{ color: dimColors[dim] }">
               {{ dim }}
             </h4>
-            <span class="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+            <span class="text-xs text-dimmed tabular">
               avg: {{ averages[dim as keyof typeof averages] }}
             </span>
           </div>

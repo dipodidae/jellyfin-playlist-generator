@@ -30,16 +30,16 @@ function formatNumber(n: number): string {
 }
 
 const statCards = computed(() => [
-  { label: 'Total Tracks', value: formatNumber(props.stats.total_tracks), icon: 'i-heroicons-musical-note' },
-  { label: 'Total Artists', value: formatNumber(props.stats.total_artists), icon: 'i-heroicons-user-group' },
-  { label: 'Total Albums', value: formatNumber(props.stats.total_albums), icon: 'i-heroicons-square-3-stack-3d' },
-  { label: 'Total Playtime', value: formatPlaytime(props.stats.total_duration_ms), icon: 'i-heroicons-clock' },
-  { label: 'Avg Track Length', value: formatDuration(props.stats.avg_duration_ms), icon: 'i-heroicons-bars-3-bottom-left' },
-  { label: 'Median Track Length', value: formatDuration(props.stats.median_duration_ms), icon: 'i-heroicons-bars-3-center-left' },
-  { label: 'Avg Tracks / Artist', value: String(props.stats.avg_tracks_per_artist), icon: 'i-heroicons-chart-bar' },
-  { label: 'Avg Tracks / Album', value: String(props.stats.avg_tracks_per_album), icon: 'i-heroicons-rectangle-stack' },
-  { label: 'Library Size', value: formatBytes(props.stats.total_file_size_bytes), icon: 'i-heroicons-circle-stack' },
-  { label: 'Total Files', value: formatNumber(props.stats.total_files), icon: 'i-heroicons-document' },
+  { label: 'Total Tracks', value: formatNumber(props.stats.total_tracks), icon: 'i-lucide-music' },
+  { label: 'Total Artists', value: formatNumber(props.stats.total_artists), icon: 'i-lucide-users' },
+  { label: 'Total Albums', value: formatNumber(props.stats.total_albums), icon: 'i-lucide-disc-3' },
+  { label: 'Total Playtime', value: formatPlaytime(props.stats.total_duration_ms), icon: 'i-lucide-clock' },
+  { label: 'Avg Track Length', value: formatDuration(props.stats.avg_duration_ms), icon: 'i-lucide-align-left' },
+  { label: 'Median Track Length', value: formatDuration(props.stats.median_duration_ms), icon: 'i-lucide-align-center' },
+  { label: 'Avg Tracks / Artist', value: String(props.stats.avg_tracks_per_artist), icon: 'i-lucide-bar-chart-2' },
+  { label: 'Avg Tracks / Album', value: String(props.stats.avg_tracks_per_album), icon: 'i-lucide-layers' },
+  { label: 'Library Size', value: formatBytes(props.stats.total_file_size_bytes), icon: 'i-lucide-database' },
+  { label: 'Total Files', value: formatNumber(props.stats.total_files), icon: 'i-lucide-file-audio' },
 ])
 </script>
 
@@ -49,13 +49,13 @@ const statCards = computed(() => [
       <div
         v-for="card in statCards"
         :key="card.label"
-        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+        class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4 hover:border-acid-400/30 transition-colors"
       >
-        <div class="flex items-center gap-2 mb-2">
-          <UIcon :name="card.icon" class="size-4 text-gray-400" />
-          <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ card.label }}</span>
+        <div class="flex items-center gap-1.5 mb-2">
+          <UIcon :name="card.icon" class="size-3.5 text-acid-400/70 shrink-0" />
+          <span class="text-[10px] font-medium text-dimmed uppercase tracking-widest truncate">{{ card.label }}</span>
         </div>
-        <div class="text-xl font-bold text-gray-900 dark:text-white">
+        <div class="text-xl font-bold font-display tabular text-highlighted">
           {{ card.value }}
         </div>
       </div>
@@ -65,18 +65,19 @@ const statCards = computed(() => [
     <div class="mt-4 flex flex-wrap gap-3">
       <div
         v-if="props.dominantDecade"
-        class="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 text-sm"
+        class="bg-acid-400/8 border border-acid-400/20 rounded-lg px-4 py-2 text-sm"
       >
-        <span class="text-blue-700 dark:text-blue-300">
-          {{ props.dominantDecade.percentage }}% of your library is from the {{ props.dominantDecade.decade }}s
+        <span class="text-acid-300">
+          <span class="font-semibold">{{ props.dominantDecade.percentage }}%</span> of your library is from the {{ props.dominantDecade.decade }}s
         </span>
       </div>
       <div
         v-if="props.oldestYear && props.newestYear"
-        class="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg px-4 py-2 text-sm"
+        class="bg-[#7a3df0]/8 border border-[#7a3df0]/25 rounded-lg px-4 py-2 text-sm"
       >
-        <span class="text-purple-700 dark:text-purple-300">
-          Your collection spans {{ props.newestYear - props.oldestYear }} years ({{ props.oldestYear }}&ndash;{{ props.newestYear }})
+        <span class="text-[#a78bfa]">
+          Your collection spans <span class="font-semibold">{{ props.newestYear - props.oldestYear }} years</span>
+          ({{ props.oldestYear }}&ndash;{{ props.newestYear }})
         </span>
       </div>
     </div>

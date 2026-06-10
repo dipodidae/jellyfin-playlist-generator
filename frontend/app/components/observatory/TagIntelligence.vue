@@ -53,14 +53,14 @@ const treemapOption = computed(() => {
         },
         breadcrumb: { show: false },
         itemStyle: {
-          borderColor: isDark ? '#111827' : '#ffffff',
+          borderColor: isDark ? '#0f0f11' : '#ffffff',
           borderWidth: 2,
           gapWidth: 2,
         },
         levels: [
           {
             itemStyle: {
-              borderColor: isDark ? '#111827' : '#ffffff',
+              borderColor: isDark ? '#0f0f11' : '#ffffff',
               borderWidth: 3,
               gapWidth: 3,
             },
@@ -75,10 +75,8 @@ const treemapOption = computed(() => {
 <template>
   <ObservatorySection title="Tag Intelligence" description="Last.fm tag analysis across your collection">
     <!-- Treemap -->
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-      <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-        Top 50 Tags
-      </h3>
+    <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+      <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Top 50 Tags</h3>
       <VChart :option="treemapOption" style="height: 400px" autoresize />
     </div>
 
@@ -86,23 +84,21 @@ const treemapOption = computed(() => {
       <!-- Tag co-occurrence -->
       <div
         v-if="tagPairs.length"
-        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+        class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
       >
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Tag Co-occurrence
-        </h3>
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Tag Co-occurrence</h3>
         <div class="space-y-1.5 max-h-80 overflow-y-auto">
           <div
             v-for="pair in tagPairs"
             :key="pair.tag1 + pair.tag2"
-            class="flex items-center justify-between text-sm py-1"
+            class="flex items-center justify-between text-sm py-1 border-b border-(--ui-border-muted) last:border-0"
           >
-            <span class="text-gray-900 dark:text-white">
+            <span class="text-highlighted">
               <span class="font-medium">{{ pair.tag1 }}</span>
-              <span class="text-gray-400 mx-1">+</span>
+              <span class="text-acid-400/60 mx-1.5">+</span>
               <span class="font-medium">{{ pair.tag2 }}</span>
             </span>
-            <span class="text-gray-500 dark:text-gray-400 text-xs tabular-nums ml-3 shrink-0">{{ pair.shared_artists }} artists</span>
+            <span class="text-dimmed text-xs tabular ml-3 shrink-0">{{ pair.shared_artists }} artists</span>
           </div>
         </div>
       </div>
@@ -110,21 +106,21 @@ const treemapOption = computed(() => {
       <!-- Rare tags -->
       <div
         v-if="rareTags.length"
-        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+        class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
       >
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Rare Finds
-        </h3>
-        <p class="text-xs text-gray-400 mb-3">Tags used by only 1&ndash;3 artists</p>
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-1">Rare Finds</h3>
+        <p class="text-xs text-dimmed mb-3">Tags used by only 1&ndash;3 artists</p>
         <div class="flex flex-wrap gap-2">
-          <span
+          <UBadge
             v-for="tag in rareTags"
             :key="tag.name"
-            class="inline-block bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs px-2.5 py-1 rounded-full"
+            variant="soft"
+            color="neutral"
+            size="sm"
           >
             {{ tag.name }}
-            <span class="text-gray-400 dark:text-gray-500 ml-0.5">({{ tag.artist_count }})</span>
-          </span>
+            <span class="opacity-60 ml-1">({{ tag.artist_count }})</span>
+          </UBadge>
         </div>
       </div>
     </div>

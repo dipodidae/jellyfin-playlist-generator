@@ -38,19 +38,19 @@ const bpmOption = computed(() => {
     xAxis: {
       type: 'category' as const,
       data: props.bpmDistribution.map(b => b.bpm),
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280', fontSize: 10 },
-      axisLine: { lineStyle: { color: isDark ? '#374151' : '#e5e7eb' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280', fontSize: 10 },
+      axisLine: { lineStyle: { color: isDark ? '#232327' : '#e5e7eb' } },
     },
     yAxis: {
       type: 'value' as const,
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280', fontSize: 10 },
-      splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#f3f4f6' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280', fontSize: 10 },
+      splitLine: { lineStyle: { color: isDark ? '#1d1d21' : '#f3f4f6' } },
     },
     series: [
       {
         type: 'bar',
         data: props.bpmDistribution.map(b => b.count),
-        itemStyle: { color: '#f59e0b', borderRadius: [3, 3, 0, 0] },
+        itemStyle: { color: '#c8ff4d', borderRadius: [3, 3, 0, 0] },
         barMaxWidth: 20,
       },
     ],
@@ -76,7 +76,7 @@ const keyOption = computed(() => {
       orient: 'vertical' as const,
       right: 5,
       top: 'center',
-      textStyle: { color: isDark ? '#9ca3af' : '#4b5563', fontSize: 11 },
+      textStyle: { color: isDark ? '#9a9aa3' : '#4b5563', fontSize: 11 },
     },
     series: [
       {
@@ -86,7 +86,7 @@ const keyOption = computed(() => {
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 4,
-          borderColor: isDark ? '#111827' : '#ffffff',
+          borderColor: isDark ? '#0f0f11' : '#ffffff',
           borderWidth: 2,
         },
         label: { show: false },
@@ -107,85 +107,97 @@ const keyOption = computed(() => {
     ],
   }
 })
+
+const avgTiles = computed(() => {
+  if (!props.averages) return []
+  return [
+    { label: 'Avg BPM', value: String(Math.round(props.averages.avg_bpm)), color: 'text-acid-300' },
+    { label: 'Avg Brightness', value: `${props.averages.avg_spectral_centroid.toFixed(0)} Hz`, color: 'text-[#59c1ff]' },
+    { label: 'Tracks Analyzed', value: props.averages.analyzed_count.toLocaleString(), color: 'text-[#6fe3c0]' },
+  ]
+})
+
+const v2Tiles = computed(() => {
+  if (!props.averages || (props.averages.metrics_v2_count ?? 0) === 0) return []
+  return [
+    { label: 'Avg Valence (mood)', value: pct(props.averages.avg_valence), color: 'text-pink-400' },
+    { label: 'Avg Danceability', value: pct(props.averages.avg_danceability), color: 'text-[#a78bfa]' },
+    { label: 'Avg Acousticness', value: pct(props.averages.avg_acousticness), color: 'text-[#6fe3c0]' },
+    { label: 'Avg Instrumentalness', value: pct(props.averages.avg_instrumentalness), color: 'text-[#59c1ff]' },
+  ]
+})
 </script>
 
 <template>
   <ObservatorySection title="Audio Features" description="BPM and key analysis from audio fingerprinting">
-    <div v-if="!hasData" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+    <div
+      v-if="!hasData"
+      class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-6 text-center text-muted"
+    >
       No audio analysis data available yet. Run the audio analyzer to populate this section.
     </div>
 
     <template v-else>
       <!-- Averages summary -->
       <div v-if="averages" class="grid grid-cols-3 gap-3 mb-4">
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
-          <div class="text-2xl font-bold text-amber-500 tabular-nums">{{ Math.round(averages.avg_bpm) }}</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg BPM</div>
-        </div>
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
-          <div class="text-2xl font-bold text-cyan-500 tabular-nums">{{ averages.avg_spectral_centroid.toFixed(0) }} Hz</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Brightness</div>
-        </div>
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
-          <div class="text-2xl font-bold text-emerald-500 tabular-nums">{{ averages.analyzed_count.toLocaleString() }}</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tracks Analyzed</div>
+        <div
+          v-for="tile in avgTiles"
+          :key="tile.label"
+          class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl px-4 py-3 text-center"
+        >
+          <div class="text-2xl font-bold font-display tabular" :class="tile.color">{{ tile.value }}</div>
+          <div class="text-[10px] text-dimmed mt-0.5 uppercase tracking-widest">{{ tile.label }}</div>
         </div>
       </div>
 
       <!-- More-metrics averages (valence / danceability / acousticness / instrumentalness) -->
       <div
-        v-if="averages && (averages.metrics_v2_count ?? 0) > 0"
+        v-if="v2Tiles.length > 0"
         class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4"
       >
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
-          <div class="text-2xl font-bold text-pink-500 tabular-nums">{{ pct(averages.avg_valence) }}</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Valence (mood)</div>
-        </div>
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
-          <div class="text-2xl font-bold text-violet-500 tabular-nums">{{ pct(averages.avg_danceability) }}</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Danceability</div>
-        </div>
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
-          <div class="text-2xl font-bold text-teal-500 tabular-nums">{{ pct(averages.avg_acousticness) }}</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Acousticness</div>
-        </div>
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 text-center">
-          <div class="text-2xl font-bold text-indigo-500 tabular-nums">{{ pct(averages.avg_instrumentalness) }}</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Instrumentalness</div>
+        <div
+          v-for="tile in v2Tiles"
+          :key="tile.label"
+          class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl px-4 py-3 text-center"
+        >
+          <div class="text-2xl font-bold font-display tabular" :class="tile.color">{{ tile.value }}</div>
+          <div class="text-[10px] text-dimmed mt-0.5 uppercase tracking-widest">{{ tile.label }}</div>
         </div>
       </div>
 
       <!-- Studio vs live/demo/bonus version breakdown -->
       <div
         v-if="versionDistribution && versionDistribution.length > 0"
-        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 mb-4"
+        class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4 mb-4"
       >
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">
           Version Breakdown (studio / live / demo / …)
         </h3>
         <div class="flex flex-wrap gap-2">
-          <span
+          <UBadge
             v-for="v in versionDistribution"
             :key="v.version_type"
-            class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+            variant="soft"
+            color="neutral"
+            size="sm"
           >
-            {{ v.version_type }}: <span class="tabular-nums font-bold">{{ v.count.toLocaleString() }}</span>
-          </span>
+            {{ v.version_type }}: <span class="tabular font-bold ml-1">{{ v.count.toLocaleString() }}</span>
+          </UBadge>
         </div>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- BPM distribution -->
-        <div v-if="bpmDistribution.length > 0" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+        <div v-if="bpmDistribution.length > 0" class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+          <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">
             BPM Distribution
           </h3>
           <VChart :option="bpmOption" style="height: 260px" autoresize />
         </div>
 
         <!-- Key distribution -->
-        <div v-if="keyDistribution.length > 0" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+        <div v-if="keyDistribution.length > 0" class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+          <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">
             Key Distribution
           </h3>
           <VChart :option="keyOption" style="height: 260px" autoresize />

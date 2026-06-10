@@ -33,15 +33,15 @@ const decadeOption = computed(() => {
       type: 'category' as const,
       data: props.decades.map(d => String(d.decade)),
       axisLabel: {
-        color: isDark ? '#9ca3af' : '#6b7280',
+        color: isDark ? '#9a9aa3' : '#6b7280',
         formatter: (v: string) => `${v}s`,
       },
-      axisLine: { lineStyle: { color: isDark ? '#374151' : '#e5e7eb' } },
+      axisLine: { lineStyle: { color: isDark ? '#232327' : '#e5e7eb' } },
     },
     yAxis: {
       type: 'value' as const,
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280' },
-      splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#f3f4f6' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280' },
+      splitLine: { lineStyle: { color: isDark ? '#1d1d21' : '#f3f4f6' } },
     },
     series: [
       {
@@ -52,8 +52,8 @@ const decadeOption = computed(() => {
             type: 'linear' as const,
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: '#8b5cf6' },
-              { offset: 1, color: '#6d28d9' },
+              { offset: 0, color: '#c8ff4d' },
+              { offset: 1, color: '#7a3df0' },
             ],
           },
           borderRadius: [4, 4, 0, 0],
@@ -79,23 +79,23 @@ const yearOption = computed(() => {
       type: 'category' as const,
       data: props.years.map(y => String(y.year)),
       axisLabel: {
-        color: isDark ? '#9ca3af' : '#6b7280',
+        color: isDark ? '#9a9aa3' : '#6b7280',
         interval: 'auto' as const,
         rotate: 45,
       },
-      axisLine: { lineStyle: { color: isDark ? '#374151' : '#e5e7eb' } },
+      axisLine: { lineStyle: { color: isDark ? '#232327' : '#e5e7eb' } },
     },
     yAxis: {
       type: 'value' as const,
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280' },
-      splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#f3f4f6' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280' },
+      splitLine: { lineStyle: { color: isDark ? '#1d1d21' : '#f3f4f6' } },
     },
     series: [
       {
         type: 'bar',
         data: props.years.map(y => y.count),
         itemStyle: {
-          color: '#8b5cf6',
+          color: '#c8ff4d',
           borderRadius: [2, 2, 0, 0],
         },
         barMaxWidth: 12,
@@ -107,22 +107,23 @@ const yearOption = computed(() => {
 
 <template>
   <ObservatorySection title="Release Timeline" description="When was your music recorded?">
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-      <div class="flex items-center gap-2 mb-4">
+    <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+      <!-- View switcher -->
+      <div class="flex items-center gap-1.5 mb-4">
         <button
-          class="px-3 py-1 text-sm font-medium rounded-md transition-colors"
+          class="px-3 py-1 text-sm font-medium rounded-lg transition-colors"
           :class="viewMode === 'decades'
-            ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            ? 'bg-acid-400/10 text-acid-300 ring-1 ring-acid-400/30'
+            : 'text-muted hover:text-highlighted'"
           @click="viewMode = 'decades'"
         >
           By Decade
         </button>
         <button
-          class="px-3 py-1 text-sm font-medium rounded-md transition-colors"
+          class="px-3 py-1 text-sm font-medium rounded-lg transition-colors"
           :class="viewMode === 'years'
-            ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            ? 'bg-acid-400/10 text-acid-300 ring-1 ring-acid-400/30'
+            : 'text-muted hover:text-highlighted'"
           @click="viewMode = 'years'"
         >
           By Year
@@ -140,26 +141,24 @@ const yearOption = computed(() => {
     <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div
         v-if="oldestTracks.length"
-        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+        class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
       >
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Oldest Recordings
-        </h3>
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Oldest Recordings</h3>
         <div v-for="track in oldestTracks" :key="track.title + track.artist" class="text-sm mb-1.5">
-          <span class="text-gray-900 dark:text-white font-medium">{{ track.title }}</span>
-          <span class="text-gray-500 dark:text-gray-400"> &mdash; {{ track.artist }} ({{ track.year }})</span>
+          <span class="text-highlighted font-medium">{{ track.title }}</span>
+          <span class="text-muted"> &mdash; {{ track.artist }}</span>
+          <span class="text-acid-400/60 tabular"> ({{ track.year }})</span>
         </div>
       </div>
       <div
         v-if="newestTracks.length"
-        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+        class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
       >
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Newest Recordings
-        </h3>
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Newest Recordings</h3>
         <div v-for="track in newestTracks" :key="track.title + track.artist" class="text-sm mb-1.5">
-          <span class="text-gray-900 dark:text-white font-medium">{{ track.title }}</span>
-          <span class="text-gray-500 dark:text-gray-400"> &mdash; {{ track.artist }} ({{ track.year }})</span>
+          <span class="text-highlighted font-medium">{{ track.title }}</span>
+          <span class="text-muted"> &mdash; {{ track.artist }}</span>
+          <span class="text-acid-400/60 tabular"> ({{ track.year }})</span>
         </div>
       </div>
     </div>

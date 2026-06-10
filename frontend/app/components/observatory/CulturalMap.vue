@@ -31,8 +31,8 @@ const gravityOption = computed(() => {
     grid: { left: 160, right: 30, top: 10, bottom: 20 },
     xAxis: {
       type: 'value' as const,
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280' },
-      splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#f3f4f6' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280' },
+      splitLine: { lineStyle: { color: isDark ? '#1d1d21' : '#f3f4f6' } },
     },
     yAxis: {
       type: 'category' as const,
@@ -51,7 +51,7 @@ const gravityOption = computed(() => {
         type: 'bar',
         data: [...tags].reverse().map(t => t.artist_count),
         itemStyle: {
-          color: '#8b5cf6',
+          color: '#7a3df0',
           borderRadius: [0, 4, 4, 0],
         },
         barMaxWidth: 16,
@@ -76,7 +76,7 @@ const purityOption = computed(() => {
       orient: 'vertical' as const,
       right: 10,
       top: 'center',
-      textStyle: { color: isDark ? '#9ca3af' : '#4b5563' },
+      textStyle: { color: isDark ? '#9a9aa3' : '#4b5563' },
     },
     series: [
       {
@@ -86,7 +86,7 @@ const purityOption = computed(() => {
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 6,
-          borderColor: isDark ? '#111827' : '#ffffff',
+          borderColor: isDark ? '#0f0f11' : '#ffffff',
           borderWidth: 2,
         },
         label: { show: false },
@@ -99,9 +99,9 @@ const purityOption = computed(() => {
           },
         },
         data: [
-          { value: p.pure, name: 'Pure genre (1 tag)', itemStyle: { color: '#10b981' } },
-          { value: p.hybrid, name: 'Hybrid (2-3 tags)', itemStyle: { color: '#3b82f6' } },
-          { value: p.highly_hybrid, name: 'Highly hybrid (4+)', itemStyle: { color: '#f59e0b' } },
+          { value: p.pure, name: 'Pure genre (1 tag)', itemStyle: { color: '#6fe3c0' } },
+          { value: p.hybrid, name: 'Hybrid (2-3 tags)', itemStyle: { color: '#59c1ff' } },
+          { value: p.highly_hybrid, name: 'Highly hybrid (4+)', itemStyle: { color: '#c8ff4d' } },
         ],
       },
     ],
@@ -115,14 +115,14 @@ const purityOption = computed(() => {
     description="Genre gravity, tag evolution, and artistic hybridization"
   >
     <!-- Tab buttons -->
-    <div class="flex items-center gap-2 mb-4">
+    <div class="flex items-center gap-1.5 mb-4">
       <button
         v-for="tab in (['gravity', 'evolution', 'purity'] as TabView[])"
         :key="tab"
-        class="px-3 py-1 text-sm font-medium rounded-md transition-colors capitalize"
+        class="px-3 py-1 text-sm font-medium rounded-lg transition-colors"
         :class="activeTab === tab
-          ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
-          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+          ? 'bg-acid-400/10 text-acid-300 ring-1 ring-acid-400/30'
+          : 'text-muted hover:text-highlighted'"
         @click="activeTab = tab"
       >
         {{ tab === 'gravity' ? 'Cultural Gravity' : tab === 'evolution' ? 'Tag Evolution' : 'Genre Purity' }}
@@ -132,45 +132,37 @@ const purityOption = computed(() => {
     <!-- Cultural Gravity -->
     <div
       v-if="activeTab === 'gravity'"
-      class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+      class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
     >
-      <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-        Unique Artists per Genre
-      </h3>
-      <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
-        Which genres dominate your artist pool (not just track count)
-      </p>
+      <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-1">Unique Artists per Genre</h3>
+      <p class="text-xs text-dimmed mb-3">Which genres dominate your artist pool (not just track count)</p>
       <VChart :option="gravityOption" style="height: 600px" autoresize />
     </div>
 
     <!-- Tag Evolution Timeline -->
     <div
       v-if="activeTab === 'evolution'"
-      class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+      class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
     >
-      <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-        Genre Timeline
-      </h3>
-      <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">
-        How genres appear across the decades in your collection
-      </p>
+      <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-1">Genre Timeline</h3>
+      <p class="text-xs text-dimmed mb-4">How genres appear across the decades in your collection</p>
       <div class="space-y-4">
         <div
           v-for="entry in data.tag_evolution"
           :key="entry.decade"
           class="flex items-start gap-4"
         >
-          <div class="text-sm font-bold text-gray-900 dark:text-white w-12 shrink-0 pt-0.5 tabular-nums">
+          <div class="text-sm font-bold font-display text-acid-300 w-12 shrink-0 pt-0.5 tabular">
             {{ entry.decade }}s
           </div>
           <div class="flex flex-wrap gap-1.5">
             <span
               v-for="tag in entry.tags"
               :key="tag.tag"
-              class="inline-flex items-center gap-1 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-xs px-2.5 py-1 rounded-full"
+              class="inline-flex items-center gap-1 bg-[#7a3df0]/12 text-[#c084fc] ring-1 ring-[#7a3df0]/25 text-xs px-2.5 py-1 rounded-full"
             >
               {{ tag.tag }}
-              <span class="text-violet-400 dark:text-violet-500 text-[10px]">{{ tag.artist_count }}</span>
+              <span class="text-[#7a3df0]/70 text-[10px]">{{ tag.artist_count }}</span>
             </span>
           </div>
         </div>
@@ -180,29 +172,25 @@ const purityOption = computed(() => {
     <!-- Genre Purity -->
     <div
       v-if="activeTab === 'purity'"
-      class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+      class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
     >
-      <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-        Genre Purity vs Hybridization
-      </h3>
-      <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
-        How many tags does each artist carry?
-      </p>
+      <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-1">Genre Purity vs Hybridization</h3>
+      <p class="text-xs text-dimmed mb-3">How many tags does each artist carry?</p>
       <VChart :option="purityOption" style="height: 280px" autoresize />
 
       <!-- Summary callout -->
       <div class="mt-4 grid grid-cols-3 gap-3">
-        <div class="text-center p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
-          <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ data.genre_purity.pure_pct }}%</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Pure genre</div>
+        <div class="text-center p-3 bg-[#6fe3c0]/8 border border-[#6fe3c0]/20 rounded-xl">
+          <div class="text-2xl font-bold font-display tabular text-[#6fe3c0]">{{ data.genre_purity.pure_pct }}%</div>
+          <div class="text-[10px] text-dimmed mt-1 uppercase tracking-widest">Pure genre</div>
         </div>
-        <div class="text-center p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
-          <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ data.genre_purity.hybrid_pct }}%</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Hybrid</div>
+        <div class="text-center p-3 bg-[#59c1ff]/8 border border-[#59c1ff]/20 rounded-xl">
+          <div class="text-2xl font-bold font-display tabular text-[#59c1ff]">{{ data.genre_purity.hybrid_pct }}%</div>
+          <div class="text-[10px] text-dimmed mt-1 uppercase tracking-widest">Hybrid</div>
         </div>
-        <div class="text-center p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
-          <div class="text-2xl font-bold text-amber-600 dark:text-amber-400">{{ data.genre_purity.highly_hybrid_pct }}%</div>
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Highly hybrid</div>
+        <div class="text-center p-3 bg-acid-400/8 border border-acid-400/20 rounded-xl">
+          <div class="text-2xl font-bold font-display tabular text-acid-300">{{ data.genre_purity.highly_hybrid_pct }}%</div>
+          <div class="text-[10px] text-dimmed mt-1 uppercase tracking-widest">Highly hybrid</div>
         </div>
       </div>
     </div>

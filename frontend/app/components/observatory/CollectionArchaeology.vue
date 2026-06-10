@@ -34,35 +34,35 @@ const temporalOption = computed(() => {
     },
     legend: {
       data: ['Library share', 'Playlist usage share'],
-      textStyle: { color: isDark ? '#9ca3af' : '#4b5563' },
+      textStyle: { color: isDark ? '#9a9aa3' : '#4b5563' },
     },
     grid: { left: 50, right: 20, top: 40, bottom: 30 },
     xAxis: {
       type: 'category' as const,
       data: entries.map(e => `${e.decade}`),
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280' },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280' },
     },
     yAxis: {
       type: 'value' as const,
       axisLabel: {
-        color: isDark ? '#9ca3af' : '#6b7280',
+        color: isDark ? '#9a9aa3' : '#6b7280',
         formatter: (v: number) => `${v}%`,
       },
-      splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#f3f4f6' } },
+      splitLine: { lineStyle: { color: isDark ? '#1d1d21' : '#f3f4f6' } },
     },
     series: [
       {
         name: 'Library share',
         type: 'bar',
         data: entries.map(e => e.library_pct),
-        itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: '#59c1ff', borderRadius: [4, 4, 0, 0] },
         barMaxWidth: 20,
       },
       {
         name: 'Playlist usage share',
         type: 'bar',
         data: entries.map(e => e.usage_pct),
-        itemStyle: { color: '#f59e0b', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: '#c8ff4d', borderRadius: [4, 4, 0, 0] },
         barMaxWidth: 20,
       },
     ],
@@ -88,14 +88,14 @@ const biggestBias = computed(() => {
     description="Forgotten tracks, compilation culture, and listening nostalgia"
   >
     <!-- Tab buttons -->
-    <div class="flex items-center gap-2 mb-4">
+    <div class="flex items-center gap-1.5 mb-4">
       <button
         v-for="tab in (['forgotten', 'compilations', 'temporal'] as TabView[])"
         :key="tab"
-        class="px-3 py-1 text-sm font-medium rounded-md transition-colors"
+        class="px-3 py-1 text-sm font-medium rounded-lg transition-colors"
         :class="activeTab === tab
-          ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
-          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+          ? 'bg-acid-400/10 text-acid-300 ring-1 ring-acid-400/30'
+          : 'text-muted hover:text-highlighted'"
         @click="activeTab = tab"
       >
         {{ tab === 'forgotten' ? 'Forgotten Tracks' : tab === 'compilations' ? 'Compilations' : 'Temporal Bias' }}
@@ -105,16 +105,16 @@ const biggestBias = computed(() => {
     <!-- Forgotten Tracks -->
     <div v-if="activeTab === 'forgotten'">
       <!-- Hero stat -->
-      <div class="bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-lg p-6 mb-4">
+      <div class="bg-gradient-to-r from-[#1a0d2e] to-[#161619] border border-[#7a3df0]/25 rounded-xl p-6 mb-4">
         <div class="flex items-baseline gap-3">
-          <span class="text-4xl font-black text-amber-400 tabular-nums">
+          <span class="text-4xl font-black font-display text-[#c084fc] tabular">
             {{ data.forgotten.forgotten_count.toLocaleString() }}
           </span>
-          <span class="text-sm text-gray-400">
+          <span class="text-sm text-muted">
             forgotten tracks ({{ data.forgotten.forgotten_pct }}% of library)
           </span>
         </div>
-        <p class="text-xs text-gray-500 mt-2">
+        <p class="text-xs text-dimmed mt-2">
           Tracks that exist in your archive but have never been selected for any generated playlist.
         </p>
       </div>
@@ -122,24 +122,22 @@ const biggestBias = computed(() => {
       <!-- Sample of forgotten tracks -->
       <div
         v-if="data.forgotten_sample.length > 0"
-        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+        class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
       >
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Random Forgotten Tracks
-        </h3>
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Random Forgotten Tracks</h3>
         <div class="space-y-1.5">
           <div
             v-for="(track, i) in data.forgotten_sample"
             :key="i"
-            class="flex items-center justify-between text-sm py-1"
+            class="flex items-center justify-between text-sm py-1 border-b border-(--ui-border-muted) last:border-0"
           >
             <div class="flex items-center gap-2 min-w-0">
-              <span class="text-gray-900 dark:text-white font-medium truncate">{{ track.title }}</span>
-              <span class="text-gray-400 dark:text-gray-500 text-xs truncate">&mdash; {{ track.artist }}</span>
+              <span class="text-highlighted font-medium truncate">{{ track.title }}</span>
+              <span class="text-dimmed text-xs truncate">&mdash; {{ track.artist }}</span>
             </div>
             <div class="flex items-center gap-3 shrink-0 ml-3">
-              <span v-if="track.year" class="text-gray-400 text-xs tabular-nums">{{ track.year }}</span>
-              <span class="text-gray-500 text-xs font-mono tabular-nums">{{ formatDuration(track.duration_ms) }}</span>
+              <span v-if="track.year" class="text-dimmed text-xs tabular">{{ track.year }}</span>
+              <span class="text-muted text-xs font-mono tabular">{{ formatDuration(track.duration_ms) }}</span>
             </div>
           </div>
         </div>
@@ -150,17 +148,15 @@ const biggestBias = computed(() => {
     <div v-if="activeTab === 'compilations'">
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- Compilation stat -->
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-            Compilation Contamination
-          </h3>
+        <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+          <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Compilation Contamination</h3>
           <div class="flex items-baseline gap-2 mb-3">
-            <span class="text-3xl font-bold text-gray-900 dark:text-white tabular-nums">
+            <span class="text-3xl font-bold font-display tabular text-highlighted">
               {{ data.compilation.compilation_pct }}%
             </span>
-            <span class="text-sm text-gray-500">compilation material</span>
+            <span class="text-sm text-muted">compilation material</span>
           </div>
-          <p class="text-xs text-gray-400">
+          <p class="text-xs text-dimmed">
             {{ data.compilation.compilation_tracks.toLocaleString() }} of {{ data.compilation.total_tracks.toLocaleString() }}
             tracks come from "Various Artists" albums.
           </p>
@@ -169,19 +165,17 @@ const biggestBias = computed(() => {
         <!-- Artists discovered through compilations -->
         <div
           v-if="data.compilation_artists.length > 0"
-          class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+          class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
         >
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-            Artists from Compilations
-          </h3>
+          <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Artists from Compilations</h3>
           <div class="space-y-1.5 max-h-72 overflow-y-auto">
             <div
               v-for="artist in data.compilation_artists"
               :key="artist.name"
-              class="flex items-center justify-between text-sm py-1"
+              class="flex items-center justify-between text-sm py-1 border-b border-(--ui-border-muted) last:border-0"
             >
-              <span class="text-gray-900 dark:text-white font-medium truncate">{{ artist.name }}</span>
-              <span class="text-gray-500 dark:text-gray-400 text-xs tabular-nums shrink-0 ml-3">
+              <span class="text-highlighted font-medium truncate">{{ artist.name }}</span>
+              <span class="text-dimmed text-xs tabular shrink-0 ml-3">
                 {{ artist.track_count }} track{{ artist.track_count !== 1 ? 's' : '' }}
               </span>
             </div>
@@ -192,11 +186,9 @@ const biggestBias = computed(() => {
 
     <!-- Temporal Listening Bias -->
     <div v-if="activeTab === 'temporal'">
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-          Listening Nostalgia Bias
-        </h3>
-        <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
+      <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-1">Listening Nostalgia Bias</h3>
+        <p class="text-xs text-dimmed mb-3">
           Compare what decades your library contains vs what actually gets used in playlists
         </p>
         <VChart :option="temporalOption" style="height: 320px" autoresize />
@@ -205,12 +197,12 @@ const biggestBias = computed(() => {
       <!-- Insight callout -->
       <div
         v-if="biggestBias && biggestBias.diff > 2"
-        class="mt-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3"
+        class="mt-3 bg-acid-400/5 border border-acid-400/20 rounded-xl px-4 py-3"
       >
-        <span class="text-sm text-amber-700 dark:text-amber-300">
-          <span class="font-bold">{{ biggestBias.decade }}s music</span> is
+        <span class="text-sm text-muted">
+          <span class="font-bold text-acid-300">{{ biggestBias.decade }}s music</span> is
           overrepresented in your playlists by
-          <span class="font-bold">{{ biggestBias.diff.toFixed(1) }} percentage points</span>
+          <span class="font-bold text-acid-300">{{ biggestBias.diff.toFixed(1) }} percentage points</span>
           compared to its library share &mdash; your nostalgia decade.
         </span>
       </div>

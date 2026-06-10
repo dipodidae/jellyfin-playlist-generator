@@ -28,8 +28,8 @@ const keywordOption = computed(() => {
     grid: { left: 90, right: 30, top: 10, bottom: 20 },
     xAxis: {
       type: 'value' as const,
-      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280' },
-      splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#f3f4f6' } },
+      axisLabel: { color: isDark ? '#9a9aa3' : '#6b7280' },
+      splitLine: { lineStyle: { color: isDark ? '#1d1d21' : '#f3f4f6' } },
     },
     yAxis: {
       type: 'category' as const,
@@ -76,7 +76,7 @@ const profileOption = computed(() => {
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 6,
-          borderColor: isDark ? '#111827' : '#ffffff',
+          borderColor: isDark ? '#0f0f11' : '#ffffff',
           borderWidth: 2,
         },
         label: {
@@ -103,26 +103,24 @@ const profileOption = computed(() => {
     description="How dark is your musical soul?"
   >
     <!-- Hero stat -->
-    <div class="bg-gradient-to-r from-red-950 to-gray-900 border border-red-900/50 rounded-lg p-6 mb-4">
+    <div class="bg-gradient-to-r from-red-950/60 to-[#161619] border border-red-900/40 rounded-xl p-6 mb-4">
       <div class="flex items-baseline gap-3">
-        <span class="text-4xl font-black text-red-400 tabular-nums">
+        <span class="text-4xl font-black font-display text-red-400 tabular">
           {{ data.total_dark_title_tracks.toLocaleString() }}
         </span>
-        <span class="text-sm text-red-300/70">
+        <span class="text-sm text-muted">
           darkness-coded tracks ({{ data.dark_title_pct }}% of library)
         </span>
       </div>
-      <p class="text-xs text-gray-500 mt-2">
+      <p class="text-xs text-dimmed mt-2">
         Tracks containing words like death, black, blood, doom, evil, night, shadow...
       </p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <!-- Keyword breakdown -->
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Dark Keywords in Titles
-        </h3>
+      <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
+        <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Dark Keywords in Titles</h3>
         <VChart :option="keywordOption" style="height: 400px" autoresize />
       </div>
 
@@ -130,13 +128,12 @@ const profileOption = computed(() => {
       <div class="space-y-4">
         <div
           v-if="data.profile_distribution"
-          class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+          class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
         >
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-            Semantic Darkness Profile
-          </h3>
-          <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
-            Based on AI-computed darkness scores (0-1 scale). Average: <span class="font-bold text-red-400">{{ data.profile_distribution.avg_darkness.toFixed(2) }}</span>
+          <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-1">Semantic Darkness Profile</h3>
+          <p class="text-xs text-dimmed mb-3">
+            Based on AI-computed darkness scores (0-1 scale). Average:
+            <span class="font-bold text-red-400 tabular">{{ data.profile_distribution.avg_darkness.toFixed(2) }}</span>
           </p>
           <VChart v-if="profileOption" :option="profileOption" style="height: 220px" autoresize />
         </div>
@@ -144,29 +141,27 @@ const profileOption = computed(() => {
         <!-- Darkest artists -->
         <div
           v-if="data.darkest_artists.length > 0"
-          class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+          class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4"
         >
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-            Darkest Artists
-          </h3>
+          <h3 class="text-xs font-medium text-muted uppercase tracking-widest mb-3">Darkest Artists</h3>
           <div class="space-y-1.5 max-h-72 overflow-y-auto">
             <div
               v-for="(artist, i) in data.darkest_artists"
               :key="artist.name"
-              class="flex items-center justify-between text-sm py-1"
+              class="flex items-center justify-between text-sm py-1 border-b border-(--ui-border-muted) last:border-0"
             >
               <div class="flex items-center gap-2 min-w-0">
-                <span class="text-gray-400 dark:text-gray-600 w-5 text-right tabular-nums shrink-0">{{ i + 1 }}</span>
-                <span class="text-gray-900 dark:text-white font-medium truncate">{{ artist.name }}</span>
+                <span class="text-dimmed w-5 text-right tabular shrink-0">{{ i + 1 }}</span>
+                <span class="text-highlighted font-medium truncate">{{ artist.name }}</span>
               </div>
               <div class="flex items-center gap-3 shrink-0 ml-3">
-                <div class="w-20 bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
+                <div class="w-20 bg-(--ui-bg-elevated) rounded-full h-1.5">
                   <div
                     class="bg-red-600 h-1.5 rounded-full"
                     :style="{ width: `${artist.avg_darkness * 100}%` }"
                   />
                 </div>
-                <span class="text-xs text-gray-500 tabular-nums w-8 text-right">{{ artist.avg_darkness.toFixed(2) }}</span>
+                <span class="text-xs text-muted tabular w-8 text-right">{{ artist.avg_darkness.toFixed(2) }}</span>
               </div>
             </div>
           </div>

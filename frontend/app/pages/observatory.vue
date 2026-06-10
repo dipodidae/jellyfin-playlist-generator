@@ -19,38 +19,48 @@ function formatTotalDuration(ms: number): string {
 <template>
   <div>
     <!-- Loading state -->
-    <div v-if="loading" class="flex flex-col items-center justify-center py-24 gap-4">
-      <div class="animate-spin rounded-full h-10 w-10 border-2 border-gray-300 dark:border-gray-600 border-t-indigo-500" />
-      <p class="text-sm text-gray-500 dark:text-gray-400">Loading observatory data...</p>
+    <div v-if="loading" class="flex flex-col items-center justify-center py-24 gap-6">
+      <div class="relative size-12">
+        <div class="absolute inset-0 rounded-full border-2 border-acid-400/20" />
+        <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-acid-400 animate-spin" />
+      </div>
+      <p class="text-sm text-muted font-display tracking-wide">Loading observatory data...</p>
     </div>
 
     <!-- Error state -->
     <div v-else-if="error" class="flex flex-col items-center justify-center py-24 gap-4">
-      <div class="text-red-500 text-lg font-semibold">Failed to load data</div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">{{ error }}</p>
-      <UButton variant="soft" @click="fetchStats()">
+      <UIcon name="i-lucide-telescope" class="size-10 text-red-500/70" />
+      <div class="text-red-400 text-base font-display font-semibold">Failed to load data</div>
+      <p class="text-sm text-muted">{{ error }}</p>
+      <UButton variant="soft" color="error" icon="i-lucide-refresh-cw" @click="fetchStats()">
         Retry
       </UButton>
     </div>
 
     <!-- Data loaded -->
-    <div v-else-if="data" class="space-y-10">
+    <div v-else-if="data" class="space-y-6">
       <!-- Page header -->
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Music Observatory</h1>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {{ data.collection.total_tracks.toLocaleString() }} tracks &middot;
-            {{ data.collection.total_artists.toLocaleString() }} artists &middot;
-            {{ formatBytes(data.collection.total_file_size_bytes) }} &middot;
-            {{ formatTotalDuration(data.collection.total_duration_ms) }} of music
+          <h1 class="font-display text-3xl font-bold text-gradient-acid leading-tight">
+            Music Observatory
+          </h1>
+          <p class="text-sm text-muted mt-1.5 tabular">
+            <span class="text-highlighted font-medium">{{ data.collection.total_tracks.toLocaleString() }}</span> tracks
+            <span class="text-dimmed mx-1">&middot;</span>
+            <span class="text-highlighted font-medium">{{ data.collection.total_artists.toLocaleString() }}</span> artists
+            <span class="text-dimmed mx-1">&middot;</span>
+            <span class="text-highlighted font-medium">{{ formatBytes(data.collection.total_file_size_bytes) }}</span>
+            <span class="text-dimmed mx-1">&middot;</span>
+            <span class="text-highlighted font-medium">{{ formatTotalDuration(data.collection.total_duration_ms) }}</span> of music
           </p>
         </div>
         <UButton
           variant="ghost"
           size="sm"
-          icon="i-heroicons-arrow-path"
+          icon="i-lucide-refresh-cw"
           :loading="loading"
+          class="text-muted hover:text-acid-300"
           @click="fetchStats(true)"
         >
           Refresh
@@ -58,7 +68,7 @@ function formatTotalDuration(ms: number): string {
       </div>
 
       <!-- Collection Overview -->
-      <CollectionOverview :stats="data.collection" />
+      <CollectionOverview :stats="data.collection" :dominant-decade="null" :oldest-year="null" :newest-year="null" />
 
       <!-- Format Breakdown -->
       <FormatBreakdown v-if="data.formats.length > 0" :formats="data.formats" />
@@ -70,7 +80,6 @@ function formatTotalDuration(ms: number): string {
         :years="data.years"
         :oldest-tracks="data.oldest_tracks"
         :newest-tracks="data.newest_tracks"
-        :dominant-decade="data.dominant_decade"
       />
 
       <!-- Tag Intelligence -->

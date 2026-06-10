@@ -13,10 +13,10 @@ const props = defineProps<{ formats: FormatEntry[] }>()
 const colorMode = useColorMode()
 
 const formatColors: Record<string, string> = {
-  flac: '#10b981',
-  mp3: '#3b82f6',
-  m4a: '#f59e0b',
-  opus: '#8b5cf6',
+  flac: '#6fe3c0',
+  mp3: '#59c1ff',
+  m4a: '#c8ff4d',
+  opus: '#7a3df0',
   ogg: '#ef4444',
   wav: '#06b6d4',
   aac: '#ec4899',
@@ -38,7 +38,7 @@ const option = computed(() => {
       orient: 'vertical' as const,
       right: 10,
       top: 'center',
-      textStyle: { color: isDark ? '#9ca3af' : '#4b5563' },
+      textStyle: { color: isDark ? '#9a9aa3' : '#4b5563' },
     },
     series: [
       {
@@ -48,7 +48,7 @@ const option = computed(() => {
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 6,
-          borderColor: isDark ? '#111827' : '#ffffff',
+          borderColor: isDark ? '#0f0f11' : '#ffffff',
           borderWidth: 2,
         },
         label: { show: false },
@@ -73,7 +73,7 @@ const option = computed(() => {
 
 <template>
   <ObservatorySection title="Format Breakdown" description="Audio file format distribution">
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+    <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl p-4">
       <VChart :option="option" style="height: 280px" autoresize />
     </div>
   </ObservatorySection>

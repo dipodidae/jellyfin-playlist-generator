@@ -18,16 +18,16 @@ const tabs: { key: TabKey, label: string }[] = [
 
 <template>
   <ObservatorySection title="Fun Stats" description="Quirky facts hiding in your collection">
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
+    <div class="bg-(--ui-bg-accented) border border-(--ui-border) rounded-xl overflow-hidden">
       <!-- Tab selector -->
-      <div class="flex border-b border-gray-200 dark:border-gray-800 px-4">
+      <div class="flex border-b border-(--ui-border) px-4 overflow-x-auto">
         <button
           v-for="tab in tabs"
           :key="tab.key"
-          class="px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors"
+          class="px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap"
           :class="activeTab === tab.key
-            ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-            : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
+            ? 'border-acid-400 text-acid-300'
+            : 'border-transparent text-muted hover:text-highlighted'"
           @click="activeTab = tab.key"
         >
           {{ tab.label }}
@@ -40,21 +40,17 @@ const tabs: { key: TabKey, label: string }[] = [
           <div
             v-for="(t, idx) in stats.longest_titles"
             :key="t.title"
-            class="flex items-start gap-3"
+            class="flex items-start gap-3 py-1 border-b border-(--ui-border-muted) last:border-0"
           >
-            <span class="text-xs font-bold text-gray-400 dark:text-gray-500 w-5 text-right tabular-nums mt-0.5">
+            <span class="text-xs font-bold text-dimmed w-5 text-right tabular mt-0.5 shrink-0">
               {{ idx + 1 }}
             </span>
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-gray-900 dark:text-white break-words">
-                {{ t.title }}
-              </div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t.artist }} &middot; {{ t.length }} characters
-              </div>
+              <div class="text-sm font-medium text-highlighted break-words">{{ t.title }}</div>
+              <div class="text-xs text-muted">{{ t.artist }} &middot; <span class="tabular">{{ t.length }} characters</span></div>
             </div>
           </div>
-          <p v-if="stats.longest_titles.length === 0" class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+          <p v-if="stats.longest_titles.length === 0" class="text-sm text-muted text-center py-4">
             No data available.
           </p>
         </div>
@@ -62,27 +58,19 @@ const tabs: { key: TabKey, label: string }[] = [
         <!-- Track Extremes -->
         <div v-if="activeTab === 'tracks'" class="space-y-4">
           <div>
-            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              Longest Tracks
-            </h4>
+            <h4 class="text-[10px] font-medium text-dimmed uppercase tracking-widest mb-2">Longest Tracks</h4>
             <div class="space-y-2">
               <div
                 v-for="(t, idx) in stats.longest_tracks"
                 :key="`long-${t.title}`"
-                class="flex items-center gap-3"
+                class="flex items-center gap-3 py-1 border-b border-(--ui-border-muted) last:border-0"
               >
-                <span class="text-xs font-bold text-gray-400 dark:text-gray-500 w-5 text-right tabular-nums">
-                  {{ idx + 1 }}
-                </span>
+                <span class="text-xs font-bold text-dimmed w-5 text-right tabular shrink-0">{{ idx + 1 }}</span>
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {{ t.title }}
-                  </div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {{ t.artist }}
-                  </div>
+                  <div class="text-sm font-medium text-highlighted truncate">{{ t.title }}</div>
+                  <div class="text-xs text-muted truncate">{{ t.artist }}</div>
                 </div>
-                <span class="text-sm font-semibold text-emerald-500 tabular-nums shrink-0">
+                <span class="text-sm font-semibold text-[#6fe3c0] tabular shrink-0">
                   {{ formatDuration(t.duration_ms) }}
                 </span>
               </div>
@@ -90,27 +78,19 @@ const tabs: { key: TabKey, label: string }[] = [
           </div>
 
           <div>
-            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              Shortest Tracks
-            </h4>
+            <h4 class="text-[10px] font-medium text-dimmed uppercase tracking-widest mb-2">Shortest Tracks</h4>
             <div class="space-y-2">
               <div
                 v-for="(t, idx) in stats.shortest_tracks"
                 :key="`short-${t.title}`"
-                class="flex items-center gap-3"
+                class="flex items-center gap-3 py-1 border-b border-(--ui-border-muted) last:border-0"
               >
-                <span class="text-xs font-bold text-gray-400 dark:text-gray-500 w-5 text-right tabular-nums">
-                  {{ idx + 1 }}
-                </span>
+                <span class="text-xs font-bold text-dimmed w-5 text-right tabular shrink-0">{{ idx + 1 }}</span>
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {{ t.title }}
-                  </div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {{ t.artist }}
-                  </div>
+                  <div class="text-sm font-medium text-highlighted truncate">{{ t.title }}</div>
+                  <div class="text-xs text-muted truncate">{{ t.artist }}</div>
                 </div>
-                <span class="text-sm font-semibold text-amber-500 tabular-nums shrink-0">
+                <span class="text-sm font-semibold text-acid-300 tabular shrink-0">
                   {{ formatDuration(t.duration_ms) }}
                 </span>
               </div>
@@ -121,39 +101,39 @@ const tabs: { key: TabKey, label: string }[] = [
         <!-- Common Words -->
         <div v-if="activeTab === 'words'" class="space-y-4">
           <div>
-            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              In Track Titles
-            </h4>
+            <h4 class="text-[10px] font-medium text-dimmed uppercase tracking-widest mb-2">In Track Titles</h4>
             <div class="flex flex-wrap gap-2">
-              <span
+              <UBadge
                 v-for="w in stats.common_title_words"
                 :key="`title-${w.word}`"
-                class="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                variant="soft"
+                color="primary"
+                size="sm"
               >
                 {{ w.word }}
-                <span class="text-xs opacity-70">{{ w.count }}</span>
-              </span>
+                <span class="opacity-60 ml-1 tabular">{{ w.count }}</span>
+              </UBadge>
             </div>
-            <p v-if="stats.common_title_words.length === 0" class="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+            <p v-if="stats.common_title_words.length === 0" class="text-sm text-muted text-center py-2">
               No data available.
             </p>
           </div>
 
           <div>
-            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              In Artist Names
-            </h4>
+            <h4 class="text-[10px] font-medium text-dimmed uppercase tracking-widest mb-2">In Artist Names</h4>
             <div class="flex flex-wrap gap-2">
-              <span
+              <UBadge
                 v-for="w in stats.common_artist_words"
                 :key="`artist-${w.word}`"
-                class="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                variant="soft"
+                color="neutral"
+                size="sm"
               >
                 {{ w.word }}
-                <span class="text-xs opacity-70">{{ w.count }}</span>
-              </span>
+                <span class="opacity-60 ml-1 tabular">{{ w.count }}</span>
+              </UBadge>
             </div>
-            <p v-if="stats.common_artist_words.length === 0" class="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+            <p v-if="stats.common_artist_words.length === 0" class="text-sm text-muted text-center py-2">
               No data available.
             </p>
           </div>
@@ -162,41 +142,35 @@ const tabs: { key: TabKey, label: string }[] = [
         <!-- File Paths -->
         <div v-if="activeTab === 'paths'" class="space-y-4">
           <div>
-            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              Longest File Paths
-            </h4>
+            <h4 class="text-[10px] font-medium text-dimmed uppercase tracking-widest mb-2">Longest File Paths</h4>
             <div class="space-y-1.5">
               <div
                 v-for="(p, idx) in stats.longest_paths"
                 :key="`longpath-${idx}`"
-                class="text-xs font-mono text-gray-600 dark:text-gray-400 break-all"
+                class="text-xs font-mono text-muted break-all leading-relaxed"
               >
-                <span class="text-gray-400 dark:text-gray-500">{{ idx + 1 }}.</span>
-                {{ p.path }}
-                <span v-if="p.length" class="text-gray-400 dark:text-gray-500">({{ p.length }} chars)</span>
+                <span class="text-dimmed mr-1">{{ idx + 1 }}.</span>{{ p.path }}
+                <span v-if="p.length" class="text-dimmed ml-1 tabular">({{ p.length }} chars)</span>
               </div>
             </div>
-            <p v-if="stats.longest_paths.length === 0" class="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+            <p v-if="stats.longest_paths.length === 0" class="text-sm text-muted text-center py-2">
               No data available.
             </p>
           </div>
 
           <div>
-            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              Deepest Nested
-            </h4>
+            <h4 class="text-[10px] font-medium text-dimmed uppercase tracking-widest mb-2">Deepest Nested</h4>
             <div class="space-y-1.5">
               <div
                 v-for="(p, idx) in stats.deepest_paths"
                 :key="`deeppath-${idx}`"
-                class="text-xs font-mono text-gray-600 dark:text-gray-400 break-all"
+                class="text-xs font-mono text-muted break-all leading-relaxed"
               >
-                <span class="text-gray-400 dark:text-gray-500">{{ idx + 1 }}.</span>
-                {{ p.path }}
-                <span v-if="p.depth" class="text-gray-400 dark:text-gray-500">({{ p.depth }} levels deep)</span>
+                <span class="text-dimmed mr-1">{{ idx + 1 }}.</span>{{ p.path }}
+                <span v-if="p.depth" class="text-dimmed ml-1 tabular">({{ p.depth }} levels deep)</span>
               </div>
             </div>
-            <p v-if="stats.deepest_paths.length === 0" class="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+            <p v-if="stats.deepest_paths.length === 0" class="text-sm text-muted text-center py-2">
               No data available.
             </p>
           </div>
