@@ -174,6 +174,25 @@ async def update_album_date(
     )
     post_resp.raise_for_status()
 
+    # Nudge Jellyfin to re-render derived/display fields so the new date shows up
+    # without the user manually refreshing. CRITICAL: metadataRefreshMode=Default +
+    # replaceAllMetadata=false — a "replace all" / FullRefresh re-runs the MusicBrainz
+    # provider and OVERRIDES the LockData lock, reverting the date. This default
+    # refresh respects the lock (verified: value holds), it just refreshes the display.
+    try:
+        await client.post(
+            f"{settings.jellyfin_url}/Items/{jellyfin_album_id}/Refresh",
+            headers=_headers(),
+            params={
+                "metadataRefreshMode": "Default",
+                "imageRefreshMode": "None",
+                "replaceAllMetadata": "false",
+                "replaceAllImages": "false",
+            },
+        )
+    except Exception:  # noqa: BLE001 — refresh is best-effort; the date write already succeeded
+        pass
+
 
 def _load_eligible_albums() -> list[dict]:
     """App albums with a resolved original date + representative track paths."""
