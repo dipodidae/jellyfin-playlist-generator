@@ -175,7 +175,11 @@ def _load_eligible_albums() -> list[dict]:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT a.id, a.title, a.artist_name,
+                SELECT a.id, a.title,
+                       (SELECT ar.name FROM album_artists aa
+                        JOIN artists ar ON ar.id = aa.artist_id
+                        WHERE aa.album_id = a.id
+                        ORDER BY aa.position LIMIT 1) AS artist_name,
                        ard.original_year, ard.original_month, ard.original_day, ard.precision,
                        ARRAY(
                            SELECT tf.path FROM track_albums ta
