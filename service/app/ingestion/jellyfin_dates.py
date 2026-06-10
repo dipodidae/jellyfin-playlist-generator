@@ -148,7 +148,14 @@ async def update_album_date(
     premiere_date: str,
     year: int,
 ) -> None:
-    """Set PremiereDate + ProductionYear on a Jellyfin album and lock those fields."""
+    """Set PremiereDate + ProductionYear on a Jellyfin album so they persist.
+
+    Persistence uses the per-item ``LockData`` flag (whole-item metadata lock).
+    NOTE: ``LockedFields`` is NOT used — its MetadataField enum has no
+    PremiereDate/ProductionYear members, so locking individual date fields is
+    impossible; ``LockData=True`` is what actually stops a metadata refresh from
+    reverting these values.
+    """
     # Fetch the full item DTO
     get_resp = await client.get(
         f"{settings.jellyfin_url}/Users/{settings.jellyfin_user_id}/Items/{jellyfin_album_id}",
@@ -158,9 +165,7 @@ async def update_album_date(
     dto = get_resp.json()
     dto["PremiereDate"] = premiere_date
     dto["ProductionYear"] = int(year)
-    locked = set(dto.get("LockedFields") or [])
-    locked.update({"PremiereDate", "ProductionYear"})
-    dto["LockedFields"] = list(locked)
+    dto["LockData"] = True  # pin the whole item so a refresh won't revert the date
     # POST the mutated DTO back (UpdateItem)
     post_resp = await client.post(
         f"{settings.jellyfin_url}/Items/{jellyfin_album_id}",
