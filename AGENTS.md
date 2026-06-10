@@ -113,7 +113,8 @@ playlist-generator/
 │   │   │   ├── discogs.py   # Discogs release date resolution
 │   │   │   ├── release_dates.py  # Multi-source original release date resolver
 │   │   │   ├── version_classifier.py # Pure studio/live/demo/remix classifier → (version_type, studio_score)
-│   │   │   └── studio_scores.py  # Backfill track_studio_scores from title/album metadata
+│   │   │   ├── studio_scores.py  # Backfill track_studio_scores from title/album metadata
+│   │   │   └── jellyfin_dates.py # Push resolved original release dates to Jellyfin (path-based album matching, locked fields)
 │   │   ├── enrichment/
 │   │   │   └── banger_detector.py # Banger detection from Last.fm popularity
 │   │   ├── profiles/
@@ -179,6 +180,7 @@ playlist-generator/
 | `/settings/test/{group}` | POST | Credential reachability check — `group` ∈ `lastfm`, `openai`, `discogs`, `jellyfin`; returns `{ok, message}` |
 | `/settings/discogs/oauth/start` | POST | Begin Discogs 3-legged OAuth; returns `{authorize_url}` |
 | `/settings/discogs/oauth/callback` | GET | Complete Discogs OAuth, store permanent access token, redirect to `/settings` |
+| `/jellyfin/fix-release-dates` | POST | Push resolved original release dates onto matching Jellyfin albums; sets PremiereDate + ProductionYear and locks those fields (SSE progress) |
 
 ## V4 Trajectory Engine
 

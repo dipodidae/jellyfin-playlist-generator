@@ -43,6 +43,7 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 - `service/app/genre/manifold.py` - Genre Manifold System (GMS)
 - `service/app/ingestion/release_dates.py` - Multi-source original release date resolver
 - `service/app/ingestion/musicbrainz.py` - MusicBrainz ID resolution
+- `service/app/ingestion/jellyfin_dates.py` - Push resolved original release dates to Jellyfin: path-based album matching (LOCAL_PATH_PREFIX → JELLYFIN_PATH_PREFIX) with normalized name fallback, sets PremiereDate + ProductionYear and locks those fields
 - `service/app/ingestion/metal_archives.py` - Metal Archives album legitimacy
 - `service/app/ingestion/version_classifier.py` - Pure studio/live/demo/remix/bonus classifier → (version_type, studio_score); no I/O
 - `service/app/ingestion/studio_scores.py` - Backfill `track_studio_scores` from track + album title metadata
@@ -53,6 +54,7 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 ### Frontend
 - `frontend/app/pages/index.vue` - Main UI
 - `frontend/app/pages/settings.vue` - In-app settings page (registry-driven)
+- `frontend/app/pages/tools.vue` - Tools page: Fix Jellyfin release dates button (SSE progress); writes LOCKED original release dates to Jellyfin albums via path-based matching
 - `frontend/app/composables/useSettings.ts` - fetch/save/test/OAuth composable
 - `frontend/app/types/settings.ts` - TypeScript types for the settings API
 - `frontend/server/api/` - Nuxt server routes (proxy to backend)

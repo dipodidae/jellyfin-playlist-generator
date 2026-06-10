@@ -127,6 +127,10 @@ Three path modes for compatibility with different media servers:
 
 Collection analytics dashboard with taste fingerprints, scene cluster visualization, genre maps, darkness index, audio feature distributions, and generation history.
 
+### Tools
+
+A Tools page (`/tools`) provides one-off maintenance operations. Currently includes **Fix Jellyfin release dates**: reads the app's resolved original release dates from `album_release_dates` (first-pressing year sourced from Discogs/MusicBrainz), matches each album to its Jellyfin counterpart via translated track paths (with a normalized name fallback for albums missing path overlap), sets `PremiereDate` and `ProductionYear` on the Jellyfin album item, and locks those fields so a Jellyfin metadata refresh cannot overwrite them.
+
 ## Prerequisites
 
 - **PostgreSQL 16** with [pgvector](https://github.com/pgvector/pgvector)
@@ -313,6 +317,7 @@ Each enrichment type has a fire-and-forget endpoint and an SSE streaming variant
 | GET | `/export/m3u/download/{id}` | Download playlist as M3U file |
 | GET | `/jellyfin/status` | Check Jellyfin connection |
 | POST | `/export/jellyfin` | Push playlist to Jellyfin |
+| POST | `/jellyfin/fix-release-dates` | Push resolved original release dates onto matching Jellyfin albums; locks PremiereDate + ProductionYear so Jellyfin won't revert them (SSE progress) |
 
 ### Other
 
