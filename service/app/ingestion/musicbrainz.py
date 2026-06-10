@@ -8,6 +8,7 @@ Rate-limited to 1 request/second per MB API terms of service.
 """
 
 import asyncio
+import json
 import logging
 import re
 from difflib import SequenceMatcher
@@ -514,6 +515,280 @@ async def resolve_musicbrainz_ids(
             total_work, total_work,
             f"MusicBrainz complete: {stats['artists_resolved']} artists, "
             f"{stats['albums_resolved']} albums resolved",
+        )
+
+    return stats
+
+
+# ---------------------------------------------------------------------------
+# MB release-group first-release-date resolver (single source of truth)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_original_year_for_album(
+    album_id: str,
+    title: str,
+    artist_name: str,
+) -> dict[str, Any] | None:
+    """Search MB release-groups for *title* by *artist_name*; return the
+    earliest ``first-release-date`` among ``primary-type == 'Album'`` hits
+    with title similarity >= 0.6.
+
+    Returns a dict suitable for upsert into ``album_release_dates``, or None
+    if no confident match is found.
+    """
+    _ensure_init()
+    try:
+        result = musicbrainzngs.search_release_groups(
+            artist=artist_name,
+            releasegroup=title,
+            type="album",
+            limit=5,
+        )
+    except Exception as e:
+        logger.debug(f"MB rg search failed for '{artist_name} - {title}': {e}")
+        return None
+
+    rgs = result.get("release-group-list", [])
+    if not rgs:
+        return None
+
+    best_rg_id: str | None = None
+    best_date: str | None = None  # earliest first-release-date as raw string
+
+    for rg in rgs:
+        # Must be an Album primary type.
+        if rg.get("primary-type", "") != "Album":
+            continue
+
+        frd = rg.get("first-release-date", "")
+        if not frd or len(frd) < 4:
+            continue
+
+        rg_title = rg.get("title", "")
+        if _title_similarity(title, rg_title) < 0.6:
+            continue
+
+        # Keep the one with the earliest first-release-date.
+        if best_date is None or frd < best_date:
+            best_date = frd
+            best_rg_id = rg.get("id")
+
+    if best_date is None or best_rg_id is None:
+        return None
+
+    # Parse year / month / day from the chosen date string.
+    try:
+        year = int(best_date[:4])
+    except ValueError:
+        return None
+
+    if year < 1900 or year > 2100:
+        return None
+
+    month: int | None = None
+    day: int | None = None
+    if len(best_date) >= 7:
+        try:
+            m = int(best_date[5:7])
+            if 1 <= m <= 12:
+                month = m
+        except ValueError:
+            pass
+    if month is not None and len(best_date) >= 10:
+        try:
+            d = int(best_date[8:10])
+            if 1 <= d <= 31:
+                day = d
+        except ValueError:
+            pass
+
+    if day is not None:
+        precision = "day"
+    elif month is not None:
+        precision = "month"
+    else:
+        precision = "year"
+
+    evidence = {"mb_release_group_id": best_rg_id, "first_release_date": best_date}
+
+    return {
+        "album_id": album_id,
+        "original_year": year,
+        "original_month": month,
+        "original_day": day,
+        "precision": precision,
+        "confidence": 0.9,
+        "primary_source": "musicbrainz",
+        "country": None,
+        "label": None,
+        "format": None,
+        "catalog_number": None,
+        "evidence": evidence,
+    }
+
+
+def _upsert_release_date(data: dict[str, Any]) -> None:
+    """Upsert a resolved release date row, overwriting any existing entry."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO album_release_dates (
+                    album_id, original_year, original_month, original_day,
+                    precision, confidence, primary_source,
+                    country, label, format, catalog_number, evidence
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (album_id) DO UPDATE SET
+                    original_year     = EXCLUDED.original_year,
+                    original_month    = EXCLUDED.original_month,
+                    original_day      = EXCLUDED.original_day,
+                    precision         = EXCLUDED.precision,
+                    confidence        = EXCLUDED.confidence,
+                    primary_source    = EXCLUDED.primary_source,
+                    country           = EXCLUDED.country,
+                    label             = EXCLUDED.label,
+                    format            = EXCLUDED.format,
+                    catalog_number    = EXCLUDED.catalog_number,
+                    evidence          = EXCLUDED.evidence,
+                    resolved_at       = now()
+                """,
+                [
+                    data["album_id"],
+                    data["original_year"],
+                    data.get("original_month"),
+                    data.get("original_day"),
+                    data.get("precision", "year"),
+                    data.get("confidence", 0.9),
+                    data.get("primary_source", "musicbrainz"),
+                    data.get("country"),
+                    data.get("label"),
+                    data.get("format"),
+                    data.get("catalog_number"),
+                    json.dumps(data.get("evidence", {})),
+                ],
+            )
+
+
+def resolve_original_years_via_mb(
+    progress_callback: Any = None,
+    only_missing: bool = False,
+) -> dict[str, int]:
+    """Resolve original release years for all albums via MusicBrainz
+    release-group ``first-release-date``.
+
+    For each album the primary artist (lowest ``album_artists.position``) is
+    used to search MB release-groups by artist + title.  Among results
+    ``primary-type == 'Album'`` with title similarity >= 0.6 the one with the
+    EARLIEST ``first-release-date`` is chosen — that is the original release,
+    not a reissue.  The result is upserted into ``album_release_dates`` with
+    ``primary_source='musicbrainz'``, overwriting any existing row.
+
+    Args:
+        progress_callback: Optional ``(current, total, message)`` callable.
+        only_missing: When True, skip albums that already have a
+            ``primary_source='musicbrainz'`` row (incremental runs).
+
+    Returns:
+        ``{processed, resolved, no_match, failed}`` stats dict.
+    """
+    _ensure_init()
+
+    # Fetch albums with their primary artist name.
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            if only_missing:
+                cur.execute(
+                    """
+                    SELECT a.id, a.title,
+                           (SELECT ar.name
+                            FROM album_artists aa
+                            JOIN artists ar ON ar.id = aa.artist_id
+                            WHERE aa.album_id = a.id
+                            ORDER BY aa.position
+                            LIMIT 1) AS artist_name
+                    FROM albums a
+                    LEFT JOIN album_release_dates ard
+                        ON ard.album_id = a.id
+                        AND ard.primary_source = 'musicbrainz'
+                    WHERE ard.album_id IS NULL
+                    ORDER BY a.id
+                    """
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT a.id, a.title,
+                           (SELECT ar.name
+                            FROM album_artists aa
+                            JOIN artists ar ON ar.id = aa.artist_id
+                            WHERE aa.album_id = a.id
+                            ORDER BY aa.position
+                            LIMIT 1) AS artist_name
+                    FROM albums a
+                    ORDER BY a.id
+                    """
+                )
+            rows = cur.fetchall()
+
+    stats: dict[str, int] = {
+        "processed": 0,
+        "resolved": 0,
+        "no_match": 0,
+        "failed": 0,
+    }
+    total = len(rows)
+    logger.info(
+        f"MB year resolution: {total} albums to process (only_missing={only_missing})"
+    )
+
+    if progress_callback:
+        progress_callback(0, total, f"Resolving original years for {total} albums via MB...")
+
+    for i, (album_id, title, artist_name) in enumerate(rows):
+        if not artist_name:
+            stats["no_match"] += 1
+            stats["processed"] += 1
+            continue
+
+        try:
+            data = _resolve_original_year_for_album(str(album_id), title, artist_name)
+            if data:
+                _upsert_release_date(data)
+                stats["resolved"] += 1
+                logger.debug(
+                    f"MB year: '{artist_name} - {title}' → {data['original_year']} "
+                    f"(rg={data['evidence'].get('mb_release_group_id')})"
+                )
+            else:
+                stats["no_match"] += 1
+                logger.debug(f"MB year: no match for '{artist_name} - {title}'")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"MB year resolution error for '{artist_name} - {title}': {e}")
+            stats["failed"] += 1
+
+        stats["processed"] += 1
+
+        if progress_callback and (i + 1) % 20 == 0:
+            progress_callback(
+                i + 1, total,
+                f"MB years: {i + 1}/{total} ({stats['resolved']} resolved, "
+                f"{stats['no_match']} no match, {stats['failed']} failed)",
+            )
+
+        if (i + 1) % 100 == 0:
+            logger.info(
+                f"MB years: {i + 1}/{total} — resolved={stats['resolved']}, "
+                f"no_match={stats['no_match']}, failed={stats['failed']}"
+            )
+
+    logger.info(f"MB year resolution complete: {stats}")
+    if progress_callback:
+        progress_callback(
+            total, total,
+            f"MB years complete: {stats['resolved']} resolved, "
+            f"{stats['no_match']} no match, {stats['failed']} failed",
         )
 
     return stats

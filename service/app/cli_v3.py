@@ -242,6 +242,34 @@ def cmd_export_m3u(args):
     logger.info(f"Exported to {result}")
 
 
+def cmd_resolve_mb_dates(args):
+    """Resolve original release years for all albums via MusicBrainz release-group."""
+    from app.ingestion.musicbrainz import resolve_original_years_via_mb
+
+    init_db()
+
+    def progress(current, total, message):
+        if total > 0:
+            pct = int((current / total) * 100)
+            print(f"\r  [{pct:3d}%] {current}/{total} - {message}", end="", flush=True)
+        else:
+            print(f"\r  {message}", end="", flush=True)
+
+    only_missing = args.only_missing
+    qualifier = "(only missing)" if only_missing else "(all albums)"
+    logger.info(f"Resolving MB original release years {qualifier}...")
+    stats = resolve_original_years_via_mb(
+        progress_callback=progress,
+        only_missing=only_missing,
+    )
+    print()
+    logger.info(
+        f"MB dates complete: processed={stats['processed']}, resolved={stats['resolved']}, "
+        f"no_match={stats['no_match']}, failed={stats['failed']}"
+    )
+    print(json.dumps(stats, indent=2))
+
+
 def cmd_path_mapping(args):
     """Manage path mappings."""
     from app.export.m3u import get_path_mappings, create_path_mapping, delete_path_mapping
@@ -334,6 +362,17 @@ def main():
     mapping_parser.add_argument("--target", help="Target prefix")
     mapping_parser.add_argument("--priority", type=int, help="Priority (higher = preferred)")
 
+    # resolve-mb-dates
+    mb_dates_parser = subparsers.add_parser(
+        "resolve-mb-dates",
+        help="Resolve original release years via MusicBrainz release-group first-release-date",
+    )
+    mb_dates_parser.add_argument(
+        "--only-missing",
+        action="store_true",
+        help="Skip albums that already have a musicbrainz primary_source row",
+    )
+
     args = parser.parse_args()
 
     if not args.command:
@@ -364,6 +403,8 @@ def main():
         cmd_export_m3u(args)
     elif args.command == "path-mapping":
         cmd_path_mapping(args)
+    elif args.command == "resolve-mb-dates":
+        cmd_resolve_mb_dates(args)
 
 
 if __name__ == "__main__":
