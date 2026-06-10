@@ -5,7 +5,9 @@ from xml.etree import ElementTree as ET
 from app.ingestion.jellyfin_dates import (
     build_album_nfo,
     choose_album_for_folder,
+    effective_year,
     folder_album_name,
+    folder_year,
     iso_date,
     nfo_is_current,
     partition_by_ledger,
@@ -306,3 +308,94 @@ def test_choose_album_no_prefix_folder():
     result = choose_album_for_folder([_PAINKILLER, _ORIG_CLASSICS], "Painkiller")
     assert result is not None
     assert result["album_id"] == "p"
+
+
+def test_choose_album_none_year_not_conflicting():
+    """An album with year=None does not conflict with a resolved-year album."""
+    none_year = {"album_id": "p_none", "title": "Painkiller", "year": None}
+    result = choose_album_for_folder([_PAINKILLER, none_year], "1990 - Painkiller")
+    # Both match; none_year doesn't conflict → first (by dedup order) is returned.
+    assert result is not None
+    assert result["year"] in (1990, None)
+
+
+# ---------------------------------------------------------------------------
+# folder_year
+# ---------------------------------------------------------------------------
+
+
+def test_folder_year_typical():
+    assert folder_year("1988 - South of Heaven") == 1988
+
+
+def test_folder_year_no_separator():
+    assert folder_year("2026 Album Name") == 2026
+
+
+def test_folder_year_no_year():
+    assert folder_year("Greatest Hits") is None
+
+
+def test_folder_year_too_short():
+    assert folder_year("1") is None
+
+
+def test_folder_year_out_of_range_low():
+    assert folder_year("0001 - Garbage Tag") is None
+
+
+def test_folder_year_out_of_range_high():
+    assert folder_year("2200 - Future") is None
+
+
+def test_folder_year_boundary_1900():
+    assert folder_year("1900 - First") == 1900
+
+
+def test_folder_year_boundary_2100():
+    assert folder_year("2100 - Last") == 2100
+
+
+def test_folder_year_leading_whitespace():
+    # The regex allows optional leading whitespace in the basename.
+    assert folder_year("  1988 - South of Heaven") == 1988
+
+
+# ---------------------------------------------------------------------------
+# effective_year
+# ---------------------------------------------------------------------------
+
+
+def test_effective_year_resolved_wins():
+    """Good resolved year takes priority even when folder also has a year."""
+    assert effective_year(1988, "1988 - South of Heaven") == (1988, "resolved")
+
+
+def test_effective_year_resolved_different_from_folder():
+    """Resolved year is authoritative regardless of folder year."""
+    assert effective_year(1990, "1988 - South of Heaven") == (1990, "resolved")
+
+
+def test_effective_year_bogus_resolved_falls_to_folder():
+    """resolved_year < 1900 (e.g. year=1 from 0001-01-01 tag) → folder fallback."""
+    assert effective_year(1, "1988 - South of Heaven") == (1988, "folder")
+
+
+def test_effective_year_none_resolved_falls_to_folder():
+    """No resolved year → folder fallback."""
+    assert effective_year(None, "1988 - South of Heaven") == (1988, "folder")
+
+
+def test_effective_year_resolved_none_no_folder_year():
+    """No resolved year and no parseable folder year → (None, 'none')."""
+    assert effective_year(None, "Greatest Hits") == (None, "none")
+
+
+def test_effective_year_bogus_resolved_no_folder_year():
+    """Bogus resolved year + no parseable folder year → (None, 'none')."""
+    assert effective_year(1, "Greatest Hits") == (None, "none")
+
+
+def test_effective_year_resolved_exactly_1900():
+    """Boundary: 1900 is valid as a resolved year."""
+    assert effective_year(1900, "Greatest Hits") == (1900, "resolved")

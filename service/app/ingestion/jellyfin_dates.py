@@ -19,6 +19,13 @@ NFO writing is FOLDER-CENTRIC: multiple app-albums that resolve to the same
 folder directory are disambiguated by title matching against the folder basename.
 Ambiguous folders (no title match, or title-match with conflicting years) are
 skipped rather than written with a guessed year.
+
+Year resolution uses a two-tier priority:
+1. ``resolved_year`` from ``album_release_dates`` (if >= 1900).
+2. Fallback to a leading 4-digit year parsed from the folder basename
+   (e.g. ``"1988 - South of Heaven"`` → 1988) when the resolved year is
+   absent or garbage (< 1900, e.g. ``0001`` embedded by a bad tagger).
+Albums with neither a resolved year nor a parseable folder year are skipped.
 """
 
 import logging
@@ -38,6 +45,7 @@ logger = logging.getLogger(__name__)
 _DISC_RE = re.compile(r"^(disc|cd)\s*\d+$", re.IGNORECASE)
 _DATE_TAGS = frozenset({"year", "premiered", "releasedate", "lockdata"})
 _XML_DECL = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>'
+_FOLDER_YEAR_RE = re.compile(r"^\s*(\d{4})\b")
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +72,60 @@ def folder_album_name(folder_basename: str) -> str:
     """
     name = _FOLDER_PREFIX_RE.sub("", folder_basename, count=1)
     return normalize_title(name)
+
+
+def folder_year(folder_basename: str) -> int | None:
+    """Parse a leading 4-digit year from a folder basename.
+
+    Returns the year as an ``int`` if it falls in ``[1900, 2100]``, else ``None``.
+
+    Examples::
+
+        >>> folder_year("1988 - South of Heaven")
+        1988
+        >>> folder_year("2026 - X")
+        2026
+        >>> folder_year("Greatest Hits")  # no leading year
+        >>> folder_year("1")              # too short
+        >>> folder_year("0001 - x")       # out of range
+    """
+    m = _FOLDER_YEAR_RE.match(folder_basename)
+    if not m:
+        return None
+    y = int(m.group(1))
+    return y if 1900 <= y <= 2100 else None
+
+
+def effective_year(
+    resolved_year: int | None, folder_basename: str
+) -> tuple[int | None, str]:
+    """Return ``(year, source)`` using a two-tier priority.
+
+    1. If *resolved_year* is not None AND >= 1900 → ``(resolved_year, "resolved")``.
+    2. Elif ``folder_year(folder_basename)`` is not None → ``(that, "folder")``.
+    3. Else → ``(None, "none")``.
+
+    A *resolved_year* < 1900 (e.g. ``1`` from a garbage ``date=0001-01-01`` tag)
+    falls through to the folder-name heuristic so albums like
+    ``"1988 - South of Heaven"`` still get the correct year written.
+
+    Examples::
+
+        >>> effective_year(1988, "1988 - South of Heaven")
+        (1988, 'resolved')
+        >>> effective_year(1, "1988 - South of Heaven")
+        (1988, 'folder')
+        >>> effective_year(None, "1988 - South of Heaven")
+        (1988, 'folder')
+        >>> effective_year(None, "Greatest Hits")
+        (None, 'none')
+    """
+    if resolved_year is not None and resolved_year >= 1900:
+        return (resolved_year, "resolved")
+    fy = folder_year(folder_basename)
+    if fy is not None:
+        return (fy, "folder")
+    return (None, "none")
 
 
 def choose_album_for_folder(candidates: list[dict], folder_basename: str) -> dict | None:
@@ -113,12 +175,15 @@ def choose_album_for_folder(candidates: list[dict], folder_basename: str) -> dic
     if len(unique) == 1:
         return unique[0]
 
-    # Multiple distinct albums matched — accept only if they all share the same year.
-    years = {c["year"] for c in unique}
-    if len(years) == 1:
+    # Multiple distinct albums matched — accept only if they all share the same
+    # resolved year (None values are excluded from the conflict check; a None year
+    # album doesn't conflict with a resolved-year album because the folder-year
+    # fallback will be applied later).
+    non_none_years = {c["year"] for c in unique if c["year"] is not None}
+    if len(non_none_years) <= 1:
         return unique[0]
 
-    # Conflicting years → ambiguous → skip.
+    # Conflicting resolved years → ambiguous → skip.
     return None
 
 
@@ -232,8 +297,13 @@ def _headers() -> dict:
     return {"X-Emby-Token": settings.jellyfin_api_key}
 
 
-def _load_eligible_albums() -> list[dict]:
-    """App albums with a resolved original date + representative track paths."""
+def _load_albums() -> list[dict]:
+    """All app albums + representative track paths.
+
+    LEFT JOINs ``album_release_dates`` so albums without a resolved date are
+    included (year/month/day/precision will be ``None`` for those rows).
+    The folder-year fallback in ``effective_year`` handles unresolved albums.
+    """
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -250,8 +320,7 @@ def _load_eligible_albums() -> list[dict]:
                            LIMIT 5
                        ) AS track_paths
                 FROM albums a
-                JOIN album_release_dates ard ON ard.album_id = a.id
-                WHERE ard.original_year IS NOT NULL
+                LEFT JOIN album_release_dates ard ON ard.album_id = a.id
             """)
             rows = cur.fetchall()
     return [
@@ -321,30 +390,33 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
     folder contains tracks from many app-albums (e.g. a compilation and its
     original studio release share the same directory):
 
-    1. Load eligible albums + ledger; ``partition_by_ledger`` filters out
-       already-applied albums (unless ``force=True``).
-    2. Group the remaining albums by their resolved folder (first track path,
-       disc-subfolder collapse via ``_DISC_RE``).  Albums with no track paths
-       are counted as ``skipped_no_jellyfin_match``.
+    1. Load ALL albums + ledger (LEFT JOIN so unresolved albums are included).
+    2. Group all albums by their resolved folder (first track path, disc-subfolder
+       collapse via ``_DISC_RE``).  Albums with no track paths are counted as
+       ``skipped_no_jellyfin_match``.
     3. For each folder run ``choose_album_for_folder`` against the candidates.
-       - If None (no title match, or conflicting years) → count all candidates
-         as ``skipped_no_jellyfin_match`` and skip (never write a guessed year).
-       - If a winner is chosen → write/merge ``album.nfo`` for that album,
-         ``record_applied`` for the chosen album only, count ``updated``.
-    4. After all writes, trigger one Jellyfin library refresh (best-effort).
+       - If None (no title match, or conflicting resolved years) → count all
+         candidates as ``skipped_no_jellyfin_match`` and skip.
+       - If a winner is chosen → compute ``effective_year(chosen.year, folder.name)``:
+         * source=="resolved": use resolved year + resolved month/day.
+         * source=="folder": use folder year; month/day are left as None.
+         * source=="none": no usable year → count as ``skipped_no_jellyfin_match``.
+    4. Ledger check (unless ``force=True``): skip if already applied at the same
+       effective year.
+    5. Write/merge ``album.nfo``, ``record_applied``, count ``updated``.
+    6. After all writes, trigger one Jellyfin library refresh (best-effort).
 
     NFO writes are filesystem operations and do NOT require Jellyfin credentials.
     The refresh POST is skipped if jellyfin_url/jellyfin_api_key are not configured.
 
     Idempotent via the ``jellyfin_date_applied`` ledger. ``force=True`` re-applies all.
     """
-    albums = _load_eligible_albums()
+    albums = _load_albums()
     ledger = load_applied_ledger()
-    to_process, already_applied = partition_by_ledger(albums, ledger, force)
 
     stats: dict = {
         "eligible": len(albums),
-        "already_applied": already_applied,
+        "already_applied": 0,
         "matched": 0,
         "updated": 0,
         "skipped_no_jellyfin_match": 0,
@@ -352,13 +424,10 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
         "errors": [],
     }
 
-    if not to_process:
-        return stats
-
-    # --- Group albums by resolved folder path ----------------------------------
+    # --- Group ALL albums by resolved folder path ------------------------------
     # albums with no track paths are skipped immediately
     folder_to_candidates: dict[Path, list[dict]] = defaultdict(list)
-    for album in to_process:
+    for album in albums:
         track_paths = album.get("track_paths") or []
         if not track_paths:
             stats["skipped_no_jellyfin_match"] += 1
@@ -369,6 +438,9 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
         folder_to_candidates[folder].append(album)
 
     total = len(folder_to_candidates)
+    if not total:
+        return stats
+
     for i, (folder, candidates) in enumerate(folder_to_candidates.items()):
         chosen = choose_album_for_folder(candidates, folder.name)
 
@@ -381,6 +453,27 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
 
         stats["matched"] += 1
 
+        # Determine the best available year for this folder.
+        year, source = effective_year(chosen["year"], folder.name)
+
+        if year is None:
+            # No resolved year and no parseable folder year → skip.
+            stats["skipped_no_jellyfin_match"] += 1
+            if progress_callback:
+                progress_callback(i + 1, total, f"Processing {i + 1}/{total}")
+            continue
+
+        # Ledger / idempotency check (per-effective-year, post-fallback).
+        if not force and ledger.get(chosen["album_id"]) == year:
+            stats["already_applied"] += 1
+            if progress_callback:
+                progress_callback(i + 1, total, f"Processing {i + 1}/{total}")
+            continue
+
+        # month/day are meaningful only when the year came from the resolved source.
+        month = chosen.get("month") if source == "resolved" else None
+        day = chosen.get("day") if source == "resolved" else None
+
         try:
             nfo_path = folder / "album.nfo"
             existing_xml: str | None = None
@@ -390,7 +483,6 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
                 except OSError:
                     existing_xml = None
 
-            year = chosen["year"]
             if existing_xml and nfo_is_current(existing_xml, year):
                 # NFO already has the right year + lockdata; record in ledger but
                 # don't rewrite the file.
@@ -401,8 +493,8 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
                     existing_xml,
                     chosen["title"],
                     year,
-                    chosen.get("month"),
-                    chosen.get("day"),
+                    month,
+                    day,
                 )
                 nfo_path.write_text(content, encoding="utf-8")
                 record_applied(chosen["album_id"], "", year)
