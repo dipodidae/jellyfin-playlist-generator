@@ -5,6 +5,7 @@ const activeNav = computed(() => {
   if (route.path === '/observatory') return 'observatory'
   if (route.path === '/eval') return 'eval'
   if (route.path === '/settings') return 'settings'
+  if (route.path === '/tools') return 'tools'
   return 'generator'
 })
 
@@ -13,6 +14,7 @@ const navItems = [
   { to: '/observatory', key: 'observatory', label: 'Observatory' },
   { to: '/eval', key: 'eval', label: 'Eval' },
   { to: '/settings', key: 'settings', label: 'Settings' },
+  { to: '/tools', key: 'tools', label: 'Tools' },
 ]
 
 const widePages = computed(() => activeNav.value === 'observatory' || activeNav.value === 'eval')
