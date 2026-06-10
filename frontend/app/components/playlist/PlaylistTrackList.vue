@@ -11,7 +11,7 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="divide-y divide-gray-200 dark:divide-gray-800 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+  <div class="glass rounded-xl border border-(--ui-border) overflow-hidden">
     <PlaylistTrackRow
       v-for="(track, index) in tracks"
       :key="track.id"

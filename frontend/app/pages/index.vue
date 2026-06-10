@@ -76,9 +76,9 @@ async function handleJellyfinExport() {
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div class="space-y-6 rise-in">
     <!-- Library status bar -->
-    <div class="p-4 bg-gray-100 dark:bg-gray-900 rounded-lg space-y-3">
+    <SectionCard>
       <LibraryStatusBar
         :stats="libraryStats.stats.value"
         :is-syncing="sync.isSyncing.value"
@@ -112,17 +112,15 @@ async function handleJellyfinExport() {
       />
 
       <!-- Cold-start quality warning -->
-      <div
+      <UAlert
         v-if="libraryStats.stats.value?.cold_start?.recommendation"
-        class="mt-2 flex items-center gap-2 rounded px-3 py-2 text-xs"
-        :class="libraryStats.stats.value.cold_start.quality_level === 'low'
-          ? 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300'
-          : 'bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300'"
-      >
-        <span class="shrink-0">{{ libraryStats.stats.value.cold_start.quality_level === 'low' ? '⚠️' : 'ℹ️' }}</span>
-        <span>{{ libraryStats.stats.value.cold_start.recommendation }}</span>
-      </div>
-    </div>
+        :color="libraryStats.stats.value.cold_start.quality_level === 'low' ? 'error' : 'warning'"
+        :icon="libraryStats.stats.value.cold_start.quality_level === 'low' ? 'i-lucide-alert-triangle' : 'i-lucide-info'"
+        variant="soft"
+        :description="libraryStats.stats.value.cold_start.recommendation"
+        class="mt-1"
+      />
+    </SectionCard>
 
     <!-- Empty library state -->
     <EmptyLibraryState
@@ -131,7 +129,7 @@ async function handleJellyfinExport() {
       @scan="sync.startScan(false)"
     />
 
-    <!-- Prompt form -->
+    <!-- Prompt form — hero -->
     <PlaylistPromptForm
       v-if="(!libraryStats.stats.value || libraryStats.hasLibraryData.value) && !playlist.isGenerating.value && !playlist.result.value"
       :model-value="playlist.prompt.value"

@@ -54,57 +54,63 @@ function handleCreateMapping() {
   <UModal
     :open="open"
     title="Export Playlist"
+    :ui="{
+      header: 'font-display',
+      title: 'font-display font-semibold',
+    }"
     @update:open="emit('update:open', $event)"
   >
     <template #body>
-      <div class="space-y-4">
+      <div class="space-y-5">
         <!-- Error alert -->
         <UAlert
           v-if="exportError"
           color="error"
+          variant="soft"
           icon="i-lucide-alert-circle"
           title="Export failed"
           :description="exportError"
         />
 
         <!-- Export mode -->
-        <div>
-          <label class="block text-sm font-medium mb-2">Export Mode</label>
+        <UFormField label="Export Mode">
           <URadioGroup
             :model-value="exportMode"
             :items="exportItems"
             @update:model-value="emit('update:exportMode', $event as 'absolute' | 'mapped')"
           />
-        </div>
+        </UFormField>
 
         <!-- Path mapping selection -->
         <div v-if="exportMode === 'mapped'" class="space-y-3">
-          <label class="block text-sm font-medium">Path Mapping</label>
-
-          <USelect
-            v-if="mappingItems.length > 0"
-            :model-value="selectedMapping"
-            :items="mappingItems"
-            placeholder="Select a mapping..."
-            @update:model-value="emit('update:selectedMapping', $event as string)"
-          />
+          <UFormField label="Path Mapping">
+            <USelect
+              v-if="mappingItems.length > 0"
+              :model-value="selectedMapping"
+              :items="mappingItems"
+              placeholder="Select a mapping..."
+              class="w-full"
+              @update:model-value="emit('update:selectedMapping', $event as string)"
+            />
+          </UFormField>
 
           <!-- Existing mappings list with delete -->
           <div v-if="pathMappings.length > 0" class="space-y-1">
             <div
               v-for="m in pathMappings"
               :key="m.name"
-              class="flex items-center justify-between rounded px-2 py-1 text-xs bg-elevated"
+              class="glass flex items-center justify-between rounded-lg px-3 py-2 text-xs"
             >
-              <span class="truncate">
-                <span class="font-medium">{{ m.name }}</span>
-                <span class="text-muted ml-1">{{ m.source_prefix }} → {{ m.target_prefix }}</span>
+              <span class="truncate flex-1 min-w-0">
+                <span class="font-semibold text-white">{{ m.name }}</span>
+                <span class="text-(--ui-text-muted) ml-1.5">{{ m.source_prefix }} → {{ m.target_prefix }}</span>
               </span>
               <UButton
                 variant="ghost"
                 color="error"
                 size="xs"
                 icon="i-lucide-trash-2"
+                class="shrink-0 ml-2"
                 @click="emit('deleteMapping', m.name)"
               />
             </div>
@@ -113,7 +119,8 @@ function handleCreateMapping() {
           <!-- Add new mapping -->
           <div v-if="!showNewMapping">
             <UButton
-              variant="link"
+              variant="ghost"
+              color="neutral"
               size="xs"
               icon="i-lucide-plus"
               @click="showNewMapping = true"
@@ -121,25 +128,33 @@ function handleCreateMapping() {
               Add path mapping
             </UButton>
           </div>
-          <div v-else class="space-y-2 rounded-lg border border-default p-3">
-            <UInput v-model="newMapping.name" placeholder="Name (e.g. jellyfin)" size="sm" />
-            <UInput v-model="newMapping.source_prefix" placeholder="Source prefix (e.g. /mnt/music)" size="sm" />
-            <UInput v-model="newMapping.target_prefix" placeholder="Target prefix (e.g. /data/music)" size="sm" />
-            <div class="flex gap-2">
+
+          <div v-else class="space-y-2 glass rounded-xl border border-(--ui-border) p-4">
+            <UFormField label="Name">
+              <UInput v-model="newMapping.name" placeholder="e.g. jellyfin" size="sm" class="w-full" />
+            </UFormField>
+            <UFormField label="Source prefix">
+              <UInput v-model="newMapping.source_prefix" placeholder="/mnt/music" size="sm" class="w-full" />
+            </UFormField>
+            <UFormField label="Target prefix">
+              <UInput v-model="newMapping.target_prefix" placeholder="/data/music" size="sm" class="w-full" />
+            </UFormField>
+            <div class="flex gap-2 pt-1">
               <UButton
                 size="xs"
+                color="primary"
                 :disabled="!newMapping.name || !newMapping.source_prefix || !newMapping.target_prefix"
                 @click="handleCreateMapping"
               >
                 Save
               </UButton>
-              <UButton size="xs" variant="ghost" @click="showNewMapping = false">
+              <UButton size="xs" variant="ghost" color="neutral" @click="showNewMapping = false">
                 Cancel
               </UButton>
             </div>
           </div>
 
-          <p v-if="pathMappings.length === 0 && !showNewMapping" class="text-sm text-muted">
+          <p v-if="pathMappings.length === 0 && !showNewMapping" class="text-sm text-(--ui-text-muted)">
             No path mappings configured. Add one to map local paths to your media server's paths.
           </p>
         </div>
@@ -148,10 +163,12 @@ function handleCreateMapping() {
 
     <template #footer>
       <div class="flex justify-end gap-2">
-        <UButton variant="ghost" @click="emit('update:open', false)">
+        <UButton variant="ghost" color="neutral" @click="emit('update:open', false)">
           Cancel
         </UButton>
         <UButton
+          color="primary"
+          icon="i-lucide-download"
           :loading="isExporting"
           :disabled="!canExport"
           @click="emit('confirm')"

@@ -79,17 +79,21 @@ const diffCategoryLabels: Record<keyof EnhanceDiff, { label: string, color: stri
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-5">
     <PlaylistPromptGuide />
 
-    <div>
+    <!-- Hero prompt input -->
+    <div class="relative">
       <UTextarea
         :model-value="modelValue"
         placeholder="driving through fog at 3am"
-        :rows="3"
+        :rows="4"
         size="xl"
         autofocus
-        class="w-full"
+        class="w-full font-display text-base"
+        :ui="{
+          base: 'resize-none transition-shadow duration-200 focus:ring-2 focus:ring-acid-400/40',
+        }"
         @update:model-value="emit('update:modelValue', $event)"
       />
     </div>
@@ -103,47 +107,52 @@ const diffCategoryLabels: Record<keyof EnhanceDiff, { label: string, color: stri
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-2"
     >
-      <div v-if="enhanceResult" class="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+      <div
+        v-if="enhanceResult"
+        class="glass rounded-xl border border-acid-500/30 bg-acid-400/5 p-4 space-y-3"
+      >
         <div class="flex items-start justify-between gap-2">
-          <h4 class="text-sm font-semibold text-default flex items-center gap-1.5">
-            <UIcon name="i-lucide-sparkles" class="size-4 text-primary" />
+          <h4 class="text-sm font-semibold text-white flex items-center gap-1.5">
+            <UIcon name="i-lucide-sparkles" class="size-4 text-acid-400" />
             Enhanced prompt
           </h4>
-          <button
-            class="text-muted hover:text-default transition-colors cursor-pointer"
+          <UButton
+            variant="ghost"
+            color="neutral"
+            size="xs"
+            icon="i-lucide-x"
             @click="dismissEnhancement"
-          >
-            <UIcon name="i-lucide-x" class="size-4" />
-          </button>
+          />
         </div>
 
-        <div class="rounded-md bg-elevated px-3 py-2 text-sm text-default leading-relaxed">
+        <div class="rounded-lg bg-(--ui-bg-elevated) border border-(--ui-border) px-3.5 py-2.5 text-sm text-white leading-relaxed">
           {{ enhanceResult.improved_prompt }}
         </div>
 
         <!-- Diff pills -->
         <div class="flex flex-wrap gap-1.5">
           <template v-for="(meta, category) in diffCategoryLabels" :key="category">
-            <span
+            <UBadge
               v-for="item in enhanceResult.diff[category]"
               :key="`${category}-${item}`"
-              class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-elevated"
+              variant="soft"
+              size="sm"
               :class="meta.color"
             >
-              <span class="opacity-60">{{ meta.label }}:</span> {{ item }}
-            </span>
+              <span class="opacity-60 mr-0.5">{{ meta.label }}:</span>{{ item }}
+            </UBadge>
           </template>
         </div>
 
-        <p class="text-xs text-muted leading-relaxed">
+        <p class="text-xs text-(--ui-text-muted) leading-relaxed">
           {{ enhanceResult.explanation }}
         </p>
 
         <div class="flex gap-2">
-          <UButton size="sm" @click="applyEnhancement">
+          <UButton size="sm" color="primary" icon="i-lucide-check" @click="applyEnhancement">
             Apply
           </UButton>
-          <UButton size="sm" variant="ghost" @click="dismissEnhancement">
+          <UButton size="sm" variant="ghost" color="neutral" @click="dismissEnhancement">
             Dismiss
           </UButton>
         </div>
@@ -151,31 +160,35 @@ const diffCategoryLabels: Record<keyof EnhanceDiff, { label: string, color: stri
     </Transition>
 
     <!-- Enhance error -->
-    <div v-if="enhanceError" class="rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-sm text-error flex items-center justify-between">
-      <span>{{ enhanceError }}</span>
-      <button class="text-error/60 hover:text-error cursor-pointer" @click="enhanceError = null">
-        <UIcon name="i-lucide-x" class="size-4" />
-      </button>
-    </div>
+    <UAlert
+      v-if="enhanceError"
+      color="error"
+      variant="soft"
+      icon="i-lucide-alert-circle"
+      :description="enhanceError"
+      :close-button="{ icon: 'i-lucide-x', color: 'neutral', variant: 'ghost', size: 'xs' }"
+      @close="enhanceError = null"
+    />
 
-    <!-- Enhance controls -->
-    <div class="flex items-center gap-2">
-      <div class="flex rounded-lg border border-default overflow-hidden">
-        <button
+    <!-- Enhance controls row -->
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Mode toggle via UButtonGroup -->
+      <UButtonGroup size="sm">
+        <UButton
           v-for="m in modes"
           :key="m.value"
-          class="px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
-          :class="enhanceMode === m.value
-            ? 'bg-primary text-white'
-            : 'bg-elevated text-muted hover:text-default'"
+          :variant="enhanceMode === m.value ? 'solid' : 'soft'"
+          :color="enhanceMode === m.value ? 'primary' : 'neutral'"
           @click="enhanceMode = m.value"
         >
           {{ m.label }}
-        </button>
-      </div>
+        </UButton>
+      </UButtonGroup>
+
       <UButton
         size="sm"
         variant="soft"
+        color="neutral"
         icon="i-lucide-sparkles"
         :loading="isEnhancing"
         :disabled="!modelValue.trim() || isEnhancing"
@@ -185,27 +198,32 @@ const diffCategoryLabels: Record<keyof EnhanceDiff, { label: string, color: stri
       </UButton>
     </div>
 
+    <!-- Playlist size row -->
     <div class="flex items-center gap-4">
-      <label class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-        Playlist size:
-      </label>
+      <span class="text-sm text-(--ui-text-muted) whitespace-nowrap shrink-0">
+        Playlist size
+      </span>
       <USlider
         :model-value="playlistSize"
         :min="10"
         :max="100"
         :step="5"
+        color="primary"
         class="flex-1"
         @update:model-value="emit('update:playlistSize', $event)"
       />
-      <span class="text-sm font-medium text-gray-900 dark:text-white w-16 text-right">
+      <span class="tabular text-sm font-semibold text-white w-20 text-right shrink-0">
         {{ playlistSize }} tracks
       </span>
     </div>
 
+    <!-- Generate CTA -->
     <UButton
-      size="lg"
+      size="xl"
+      color="primary"
       :disabled="!canGenerate || !hasLibraryData"
-      class="w-full justify-center"
+      class="w-full justify-center font-display font-semibold tracking-tight glow-acid"
+      icon="i-lucide-wand-2"
       @click="emit('submit', { prompt: modelValue, size: playlistSize })"
     >
       Generate Playlist
