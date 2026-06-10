@@ -1,4 +1,4 @@
-from app.trajectory.intent import parse_valence_target, detect_prefer_live
+from app.trajectory.intent import detect_prefer_live, parse_valence_target
 
 
 def test_uplifting_is_high():
