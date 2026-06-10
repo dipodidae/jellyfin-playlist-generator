@@ -4,6 +4,8 @@ from xml.etree import ElementTree as ET
 
 from app.ingestion.jellyfin_dates import (
     build_album_nfo,
+    choose_album_for_folder,
+    folder_album_name,
     iso_date,
     nfo_is_current,
     partition_by_ledger,
@@ -204,3 +206,103 @@ def test_partition_by_ledger_empty_ledger():
     to_process, skipped = partition_by_ledger(albums, {})
     assert skipped == 0
     assert len(to_process) == 2
+
+
+# ---------------------------------------------------------------------------
+# folder_album_name
+# ---------------------------------------------------------------------------
+
+
+def test_folder_album_name_year_dash_prefix():
+    assert folder_album_name("1990 - Painkiller") == "painkiller"
+
+
+def test_folder_album_name_year_space_prefix():
+    assert folder_album_name("1990 Painkiller") == "painkiller"
+
+
+def test_folder_album_name_no_prefix():
+    assert folder_album_name("Painkiller") == "painkiller"
+
+
+def test_folder_album_name_nn_dash_prefix():
+    assert folder_album_name("01 - Holy Diver") == "holy diver"
+
+
+def test_folder_album_name_remaster_suffix_stripped_by_normalize():
+    # normalize_title drops trailing "(Remastered)" — so the result is "painkiller"
+    assert folder_album_name("2010 - Painkiller (Remastered)") == "painkiller"
+
+
+def test_folder_album_name_four_digit_year_only():
+    # "2001 - " prefix stripped leaving just the album name
+    assert folder_album_name("2001 - Songs of Experience") == "songs of experience"
+
+
+# ---------------------------------------------------------------------------
+# choose_album_for_folder
+# ---------------------------------------------------------------------------
+
+# Shared helpers for these tests
+_PAINKILLER = {"album_id": "p", "title": "Painkiller", "year": 1990}
+_ORIG_CLASSICS = {"album_id": "c", "title": "Original Album Classics", "year": 1983}
+_METAL_WORKS = {"album_id": "mw", "title": "Metal Works '73-'93", "year": 1993}
+
+
+def test_choose_album_painkiller_wins_over_compilation():
+    """THE core regression: Painkiller folder should pick Painkiller 1990."""
+    candidates = [_PAINKILLER, _ORIG_CLASSICS]
+    result = choose_album_for_folder(candidates, "1990 - Painkiller")
+    assert result is not None
+    assert result["album_id"] == "p"
+    assert result["year"] == 1990
+
+
+def test_choose_album_no_title_match_returns_none():
+    """No candidate title matches the folder → ambiguous → None."""
+    candidates = [_ORIG_CLASSICS, _METAL_WORKS]
+    result = choose_album_for_folder(candidates, "1990 - Painkiller")
+    assert result is None
+
+
+def test_choose_album_conflicting_years_returns_none():
+    """Two distinct albums with different years match the folder → ambiguous."""
+    painkiller_alt = {"album_id": "p2", "title": "Painkiller", "year": 2001}
+    candidates = [_PAINKILLER, painkiller_alt]
+    result = choose_album_for_folder(candidates, "1990 - Painkiller")
+    assert result is None
+
+
+def test_choose_album_same_year_duplicates_returns_one():
+    """Two entries for the same album (same year) → any is acceptable."""
+    dup = {"album_id": "p_dup", "title": "Painkiller", "year": 1990}
+    candidates = [_PAINKILLER, dup]
+    result = choose_album_for_folder(candidates, "1990 - Painkiller")
+    assert result is not None
+    assert result["year"] == 1990
+
+
+def test_choose_album_single_candidate_match():
+    """Only one candidate and its title matches → return it."""
+    result = choose_album_for_folder([_PAINKILLER], "1990 - Painkiller")
+    assert result is not None
+    assert result["album_id"] == "p"
+
+
+def test_choose_album_no_candidates():
+    result = choose_album_for_folder([], "1990 - Painkiller")
+    assert result is None
+
+
+def test_choose_album_remaster_folder_matches_original():
+    """Folder 'Painkiller (Remastered)' → normalize_title → 'painkiller' → matches."""
+    result = choose_album_for_folder([_PAINKILLER], "2010 - Painkiller (Remastered)")
+    assert result is not None
+    assert result["album_id"] == "p"
+
+
+def test_choose_album_no_prefix_folder():
+    """Folder without year prefix still matches by title."""
+    result = choose_album_for_folder([_PAINKILLER, _ORIG_CLASSICS], "Painkiller")
+    assert result is not None
+    assert result["album_id"] == "p"
