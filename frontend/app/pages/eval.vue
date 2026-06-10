@@ -558,7 +558,7 @@ function severityColor(s: string): 'error' | 'warning' | 'info' {
             <div v-if="selectedRun?.id === run.id" class="mt-4 space-y-4" @click.stop>
 
               <!-- Dimension scores -->
-              <div class="grid grid-cols-5 gap-2">
+              <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
                 <div
                   v-for="dim in ['arc', 'genre', 'transition', 'fidelity', 'curation']"
                   :key="dim"
