@@ -362,40 +362,69 @@ def test_folder_year_leading_whitespace():
 
 
 # ---------------------------------------------------------------------------
-# effective_year
+# effective_year  (folder-first priority since curated folder names are authoritative)
 # ---------------------------------------------------------------------------
 
 
-def test_effective_year_resolved_wins():
-    """Good resolved year takes priority even when folder also has a year."""
-    assert effective_year(1988, "1988 - South of Heaven") == (1988, "resolved")
+def test_effective_year_folder_wins_over_file_metadata():
+    """file_metadata reissue tag must never win; folder year is authoritative."""
+    # Vol 4 folder says 1972; embedded tag says 2021 (reissue rip)
+    assert effective_year(2021, "file_metadata", "1972 - Vol 4") == (1972, "folder")
 
 
-def test_effective_year_resolved_different_from_folder():
-    """Resolved year is authoritative regardless of folder year."""
-    assert effective_year(1990, "1988 - South of Heaven") == (1990, "resolved")
+def test_effective_year_folder_wins_over_discogs_reissue():
+    """Discogs sometimes matches a reissue master; folder year still wins."""
+    # Never Say Die! folder says 1978; Discogs resolved 1996 (reissue)
+    assert effective_year(1996, "discogs", "1978 - Never Say Die!") == (1978, "folder")
 
 
-def test_effective_year_bogus_resolved_falls_to_folder():
-    """resolved_year < 1900 (e.g. year=1 from 0001-01-01 tag) → folder fallback."""
-    assert effective_year(1, "1988 - South of Heaven") == (1988, "folder")
-
-
-def test_effective_year_none_resolved_falls_to_folder():
+def test_effective_year_folder_wins_when_no_resolved():
     """No resolved year → folder fallback."""
-    assert effective_year(None, "1988 - South of Heaven") == (1988, "folder")
+    assert effective_year(None, None, "1988 - South of Heaven") == (1988, "folder")
 
 
-def test_effective_year_resolved_none_no_folder_year():
+def test_effective_year_folder_wins_even_if_bogus_resolved():
+    """resolved_year < 1900 → folder fallback (folder year present)."""
+    assert effective_year(1, "file_metadata", "1988 - South of Heaven") == (1988, "folder")
+
+
+def test_effective_year_discogs_fallback_no_folder_year():
+    """No folder year, discogs source → resolved year trusted."""
+    # Heaven and Hell has no year prefix in folder; Discogs gives 1980
+    assert effective_year(1980, "discogs", "Heaven and Hell") == (1980, "resolved")
+
+
+def test_effective_year_musicbrainz_fallback_no_folder_year():
+    """No folder year, musicbrainz source → resolved year trusted."""
+    assert effective_year(1975, "musicbrainz", "Sabotage") == (1975, "resolved")
+
+
+def test_effective_year_file_metadata_no_folder_year():
+    """No folder year + file_metadata source → never trust the tag → (None, 'none')."""
+    # Sabbath Bloody Sabbath folder has no year prefix; embedded tag says 2004 (reissue)
+    assert effective_year(2004, "file_metadata", "Some Comp") == (None, "none")
+
+
+def test_effective_year_none_resolved_no_folder_year():
     """No resolved year and no parseable folder year → (None, 'none')."""
-    assert effective_year(None, "Greatest Hits") == (None, "none")
+    assert effective_year(None, None, "Greatest Hits") == (None, "none")
+
+
+def test_effective_year_none_source_no_folder_year():
+    """source=None (no album_release_dates row) + no folder year → (None, 'none')."""
+    assert effective_year(None, None, "Greatest Hits") == (None, "none")
+
+
+def test_effective_year_resolved_exactly_1900_no_folder():
+    """Boundary: 1900 is a valid resolved year for discogs source."""
+    assert effective_year(1900, "discogs", "Greatest Hits") == (1900, "resolved")
+
+
+def test_effective_year_folder_present_no_resolved():
+    """Folder year present, resolved=None → folder wins."""
+    assert effective_year(None, None, "1988 - South of Heaven") == (1988, "folder")
 
 
 def test_effective_year_bogus_resolved_no_folder_year():
-    """Bogus resolved year + no parseable folder year → (None, 'none')."""
-    assert effective_year(1, "Greatest Hits") == (None, "none")
-
-
-def test_effective_year_resolved_exactly_1900():
-    """Boundary: 1900 is valid as a resolved year."""
-    assert effective_year(1900, "Greatest Hits") == (1900, "resolved")
+    """Bogus resolved year (< 1900) + no folder year → (None, 'none')."""
+    assert effective_year(1, "discogs", "Greatest Hits") == (None, "none")

@@ -20,12 +20,14 @@ folder directory are disambiguated by title matching against the folder basename
 Ambiguous folders (no title match, or title-match with conflicting years) are
 skipped rather than written with a guessed year.
 
-Year resolution uses a two-tier priority:
-1. ``resolved_year`` from ``album_release_dates`` (if >= 1900).
-2. Fallback to a leading 4-digit year parsed from the folder basename
-   (e.g. ``"1988 - South of Heaven"`` → 1988) when the resolved year is
-   absent or garbage (< 1900, e.g. ``0001`` embedded by a bad tagger).
-Albums with neither a resolved year nor a parseable folder year are skipped.
+Year resolution uses a FOLDER-FIRST priority:
+1. A leading 4-digit year parsed from the folder basename
+   (e.g. ``"1972 - Vol 4"`` → 1972) always wins — the user curates these
+   folder names with the TRUE original year and they are considered authoritative.
+2. Fallback to ``resolved_year`` from ``album_release_dates`` ONLY when no
+   folder year exists AND the source is NOT ``"file_metadata"`` (embedded tags
+   are frequently reissue/rip years and must never be trusted).
+3. If neither is available the album is skipped.
 """
 
 import logging
@@ -97,34 +99,43 @@ def folder_year(folder_basename: str) -> int | None:
 
 
 def effective_year(
-    resolved_year: int | None, folder_basename: str
+    resolved_year: int | None,
+    source: str | None,
+    folder_basename: str,
 ) -> tuple[int | None, str]:
-    """Return ``(year, source)`` using a two-tier priority.
+    """Return ``(year, source_label)`` using a FOLDER-FIRST priority.
 
-    1. If *resolved_year* is not None AND >= 1900 → ``(resolved_year, "resolved")``.
-    2. Elif ``folder_year(folder_basename)`` is not None → ``(that, "folder")``.
+    1. If ``folder_year(folder_basename)`` is not None → ``(that, "folder")``.
+       Curated folder names (``"YYYY - Album"``) are always authoritative.
+    2. Elif *resolved_year* is not None AND >= 1900 AND *source* is not
+       ``"file_metadata"`` → ``(resolved_year, "resolved")``.
+       Discogs / MusicBrainz resolved years are trusted as a fallback for
+       albums that have no folder-year prefix.  File-metadata tags are NEVER
+       trusted because they frequently carry reissue/rip years.
     3. Else → ``(None, "none")``.
-
-    A *resolved_year* < 1900 (e.g. ``1`` from a garbage ``date=0001-01-01`` tag)
-    falls through to the folder-name heuristic so albums like
-    ``"1988 - South of Heaven"`` still get the correct year written.
 
     Examples::
 
-        >>> effective_year(1988, "1988 - South of Heaven")
-        (1988, 'resolved')
-        >>> effective_year(1, "1988 - South of Heaven")
-        (1988, 'folder')
-        >>> effective_year(None, "1988 - South of Heaven")
-        (1988, 'folder')
-        >>> effective_year(None, "Greatest Hits")
+        >>> effective_year(2021, "file_metadata", "1972 - Vol 4")
+        (1972, 'folder')
+        >>> effective_year(1996, "discogs", "1978 - Never Say Die!")
+        (1978, 'folder')
+        >>> effective_year(1980, "discogs", "Heaven and Hell")
+        (1980, 'resolved')
+        >>> effective_year(2004, "file_metadata", "Some Comp")
+        (None, 'none')
+        >>> effective_year(None, None, "Greatest Hits")
         (None, 'none')
     """
-    if resolved_year is not None and resolved_year >= 1900:
-        return (resolved_year, "resolved")
     fy = folder_year(folder_basename)
     if fy is not None:
         return (fy, "folder")
+    if (
+        resolved_year is not None
+        and resolved_year >= 1900
+        and source != "file_metadata"
+    ):
+        return (resolved_year, "resolved")
     return (None, "none")
 
 
@@ -313,6 +324,7 @@ def _load_albums() -> list[dict]:
                         WHERE aa.album_id = a.id
                         ORDER BY aa.position LIMIT 1) AS artist_name,
                        ard.original_year, ard.original_month, ard.original_day, ard.precision,
+                       ard.primary_source,
                        ARRAY(
                            SELECT tf.path FROM track_albums ta
                            JOIN track_files tf ON tf.track_id = ta.track_id
@@ -327,7 +339,8 @@ def _load_albums() -> list[dict]:
         {
             "album_id": str(r[0]), "title": r[1], "artist_name": r[2],
             "year": r[3], "month": r[4], "day": r[5], "precision": r[6] or "year",
-            "track_paths": list(r[7] or []),
+            "source": r[7],
+            "track_paths": list(r[8] or []),
         }
         for r in rows
     ]
@@ -397,10 +410,13 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
     3. For each folder run ``choose_album_for_folder`` against the candidates.
        - If None (no title match, or conflicting resolved years) → count all
          candidates as ``skipped_no_jellyfin_match`` and skip.
-       - If a winner is chosen → compute ``effective_year(chosen.year, folder.name)``:
-         * source=="resolved": use resolved year + resolved month/day.
-         * source=="folder": use folder year; month/day are left as None.
-         * source=="none": no usable year → count as ``skipped_no_jellyfin_match``.
+       - If a winner is chosen → compute
+         ``effective_year(chosen.year, chosen.source, folder.name)``:
+         * source_label=="folder": use folder year; month/day are left as None.
+         * source_label=="resolved": use resolved year + resolved month/day
+           (Discogs/MB fallback; file_metadata source is never trusted).
+         * source_label=="none": no usable year → count as
+           ``skipped_no_jellyfin_match``.
     4. Ledger check (unless ``force=True``): skip if already applied at the same
        effective year.
     5. Write/merge ``album.nfo``, ``record_applied``, count ``updated``.
@@ -454,7 +470,7 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
         stats["matched"] += 1
 
         # Determine the best available year for this folder.
-        year, source = effective_year(chosen["year"], folder.name)
+        year, source_label = effective_year(chosen.get("year"), chosen.get("source"), folder.name)
 
         if year is None:
             # No resolved year and no parseable folder year → skip.
@@ -471,8 +487,8 @@ async def fix_release_dates(progress_callback=None, force: bool = False) -> dict
             continue
 
         # month/day are meaningful only when the year came from the resolved source.
-        month = chosen.get("month") if source == "resolved" else None
-        day = chosen.get("day") if source == "resolved" else None
+        month = chosen.get("month") if source_label == "resolved" else None
+        day = chosen.get("day") if source_label == "resolved" else None
 
         try:
             nfo_path = folder / "album.nfo"
