@@ -12,12 +12,12 @@ const edits = reactive<Record<string, string>>({})
 const saving = ref(false)
 const testResults = reactive<Record<string, string>>({})
 
-const GROUPS: { key: SettingField['group'], label: string, advanced?: boolean }[] = [
-  { key: 'credentials', label: 'Credentials' },
-  { key: 'enrichment', label: 'Enrichment' },
-  { key: 'jellyfin', label: 'Jellyfin' },
-  { key: 'library', label: 'Library' },
-  { key: 'advanced', label: 'Advanced', advanced: true },
+const GROUPS: { key: SettingField['group'], label: string, icon: string, advanced?: boolean }[] = [
+  { key: 'credentials', label: 'Credentials', icon: 'i-lucide-key-round' },
+  { key: 'enrichment', label: 'Enrichment', icon: 'i-lucide-sparkles' },
+  { key: 'jellyfin', label: 'Jellyfin', icon: 'i-lucide-tv-2' },
+  { key: 'library', label: 'Library', icon: 'i-lucide-library' },
+  { key: 'advanced', label: 'Advanced', icon: 'i-lucide-sliders-horizontal', advanced: true },
 ]
 
 function fieldsFor(group: string) {
@@ -81,60 +81,182 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-semibold">Settings</h1>
-      <UButton :loading="saving" @click="onSave">Save changes</UButton>
+  <div class="rise-in space-y-8 pb-20">
+
+    <!-- Page header -->
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="font-display text-3xl font-bold tracking-tight text-white">
+          Settings
+        </h1>
+        <p class="mt-1 text-sm text-(--ui-text-muted)">
+          Configure API credentials, enrichment sources, and library behaviour.
+        </p>
+      </div>
+
+      <!-- Sticky Save — also duplicated at bottom for long pages -->
+      <UButton
+        color="primary"
+        size="md"
+        icon="i-lucide-save"
+        :loading="saving"
+        :disabled="saving || Object.keys(edits).length === 0"
+        class="glow-acid shrink-0 self-start"
+        @click="onSave"
+      >
+        Save changes
+      </UButton>
     </div>
 
-    <div v-if="loading">Loading…</div>
+    <!-- Loading skeleton -->
+    <div v-if="loading" class="space-y-4">
+      <div v-for="i in 4" :key="i" class="glass h-28 animate-pulse rounded-2xl" />
+    </div>
 
-    <div v-else class="space-y-8">
-      <section v-for="g in GROUPS" :key="g.key">
-        <h2 class="text-lg font-medium mb-3">{{ g.label }}</h2>
-        <div class="space-y-3">
-          <div v-for="f in fieldsFor(g.key)" :key="f.key" class="flex items-center gap-3">
-            <label class="w-64 text-sm text-gray-600 dark:text-gray-400">{{ f.label }}</label>
+    <!-- Setting groups -->
+    <div v-else class="space-y-6">
+      <SectionCard
+        v-for="g in GROUPS"
+        :key="g.key"
+      >
+        <!-- Section header -->
+        <div class="flex items-center gap-2.5 pb-1">
+          <span class="h-4 w-1 rounded-full bg-acid-400" />
+          <UIcon :name="g.icon" class="size-4 text-acid-400" />
+          <h2 class="font-display text-base font-semibold tracking-tight text-white">
+            {{ g.label }}
+          </h2>
+          <UBadge
+            v-if="g.advanced"
+            label="Advanced"
+            color="neutral"
+            variant="subtle"
+            size="xs"
+            class="ml-auto"
+          />
+        </div>
 
+        <!-- Fields grid: 1-col mobile → 2-col md+ -->
+        <div class="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+          <UFormField
+            v-for="f in fieldsFor(g.key)"
+            :key="f.key"
+            :label="f.label"
+            class="space-y-1"
+          >
+            <!-- Bool toggle -->
             <USwitch
               v-if="f.type === 'bool'"
               :model-value="modelFor(f) === true || modelFor(f) === 'true'"
+              color="primary"
               @update:model-value="(v: boolean) => setField(f, v)"
             />
+
+            <!-- Secret / password -->
             <UInput
               v-else-if="f.secret"
               type="password"
               :placeholder="f.is_set ? f.masked : 'not set'"
               :model-value="(edits[f.key] ?? '')"
-              class="flex-1"
+              class="w-full"
               @update:model-value="(v: string) => setField(f, v)"
             />
+
+            <!-- Numeric or text -->
             <UInput
               v-else
               :type="(f.type === 'int' || f.type === 'float') ? 'number' : 'text'"
               :model-value="String(modelFor(f) ?? '')"
-              class="flex-1"
+              class="w-full"
               @update:model-value="(v: string) => setField(f, v)"
             />
-          </div>
+          </UFormField>
+        </div>
 
-          <!-- Per-group test / connect actions -->
-          <div v-if="g.key === 'credentials'" class="flex flex-wrap gap-2 pt-2">
-            <UButton size="xs" variant="soft" @click="onTest('lastfm')">Test Last.fm</UButton>
-            <span class="text-xs self-center">{{ testResults['lastfm'] }}</span>
-            <UButton size="xs" variant="soft" @click="onTest('openai')">Test OpenAI</UButton>
-            <span class="text-xs self-center">{{ testResults['openai'] }}</span>
-            <UButton size="xs" variant="soft" @click="onTest('discogs')">Test Discogs</UButton>
-            <span class="text-xs self-center">{{ testResults['discogs'] }}</span>
-            <UButton size="xs" color="primary" @click="onConnectDiscogs">Connect with Discogs</UButton>
-            <span class="text-xs self-center">{{ discogsStatus }}</span>
-          </div>
-          <div v-if="g.key === 'jellyfin'" class="flex gap-2 pt-2">
-            <UButton size="xs" variant="soft" @click="onTest('jellyfin')">Test Jellyfin</UButton>
-            <span class="text-xs self-center">{{ testResults['jellyfin'] }}</span>
+        <!-- Per-group action bar: Credentials -->
+        <div v-if="g.key === 'credentials'" class="mt-2 flex flex-wrap items-center gap-2 border-t border-(--ui-border) pt-4">
+          <span class="mr-1 text-xs font-semibold uppercase tracking-wider text-(--ui-text-dimmed)">Test</span>
+
+          <UButton size="xs" variant="soft" icon="i-lucide-activity" @click="onTest('lastfm')">
+            Last.fm
+          </UButton>
+          <span
+            v-if="testResults['lastfm']"
+            class="text-xs"
+            :class="testResults['lastfm'].startsWith('✓') ? 'text-acid-400' : 'text-red-400'"
+          >{{ testResults['lastfm'] }}</span>
+
+          <UButton size="xs" variant="soft" icon="i-lucide-activity" @click="onTest('openai')">
+            OpenAI
+          </UButton>
+          <span
+            v-if="testResults['openai']"
+            class="text-xs"
+            :class="testResults['openai'].startsWith('✓') ? 'text-acid-400' : 'text-red-400'"
+          >{{ testResults['openai'] }}</span>
+
+          <UButton size="xs" variant="soft" icon="i-lucide-activity" @click="onTest('discogs')">
+            Discogs
+          </UButton>
+          <span
+            v-if="testResults['discogs']"
+            class="text-xs"
+            :class="testResults['discogs'].startsWith('✓') ? 'text-acid-400' : 'text-red-400'"
+          >{{ testResults['discogs'] }}</span>
+
+          <div class="ml-auto flex items-center gap-2">
+            <UBadge
+              :label="discogsStatus"
+              :color="discogsStatus === 'Connected (OAuth)' ? 'primary' : discogsStatus === 'Using key/secret' ? 'warning' : 'neutral'"
+              variant="subtle"
+              size="xs"
+            />
+            <UButton
+              size="xs"
+              color="primary"
+              variant="soft"
+              icon="i-lucide-link"
+              @click="onConnectDiscogs"
+            >
+              Connect with Discogs
+            </UButton>
           </div>
         </div>
-      </section>
+
+        <!-- Per-group action bar: Jellyfin -->
+        <div v-if="g.key === 'jellyfin'" class="mt-2 flex flex-wrap items-center gap-2 border-t border-(--ui-border) pt-4">
+          <UButton size="xs" variant="soft" icon="i-lucide-activity" @click="onTest('jellyfin')">
+            Test Jellyfin
+          </UButton>
+          <span
+            v-if="testResults['jellyfin']"
+            class="text-xs"
+            :class="testResults['jellyfin'].startsWith('✓') ? 'text-acid-400' : 'text-red-400'"
+          >{{ testResults['jellyfin'] }}</span>
+        </div>
+      </SectionCard>
     </div>
+
+    <!-- Bottom save bar (prominent for long forms) -->
+    <div class="flex items-center justify-between rounded-2xl border border-(--ui-border) bg-(--ui-bg-elevated)/60 px-5 py-4 backdrop-blur-sm">
+      <p class="text-sm text-(--ui-text-muted)">
+        <span v-if="Object.keys(edits).length > 0" class="text-acid-400 font-semibold">
+          {{ Object.keys(edits).length }} unsaved change{{ Object.keys(edits).length === 1 ? '' : 's' }}
+        </span>
+        <span v-else>All changes saved.</span>
+      </p>
+      <UButton
+        color="primary"
+        size="md"
+        icon="i-lucide-save"
+        :loading="saving"
+        :disabled="saving || Object.keys(edits).length === 0"
+        class="glow-acid"
+        @click="onSave"
+      >
+        Save changes
+      </UButton>
+    </div>
+
   </div>
 </template>

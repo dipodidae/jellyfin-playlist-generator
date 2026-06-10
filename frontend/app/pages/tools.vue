@@ -5,40 +5,111 @@ const { running, progress, message, stats, error, fixReleaseDates } = useJellyfi
 </script>
 
 <template>
-  <div>
-    <h1 class="text-2xl font-semibold mb-6">Tools</h1>
+  <div class="rise-in space-y-8 pb-16">
 
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-5 max-w-2xl">
-      <h2 class="text-lg font-medium mb-1">Fix Jellyfin release dates</h2>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Pushes the app's resolved original release dates (first-pressing year from Discogs/MusicBrainz)
-        onto matching Jellyfin albums, and locks the fields so Jellyfin won't revert them.
-        Album-level; reissues get their original date.
+    <!-- Page header -->
+    <div>
+      <h1 class="font-display text-3xl font-bold tracking-tight text-white">
+        Tools
+      </h1>
+      <p class="mt-1 text-sm text-(--ui-text-muted)">
+        One-off maintenance operations for your library.
       </p>
-
-      <UButton :loading="running" :disabled="running" @click="fixReleaseDates">
-        {{ running ? 'Fixing…' : 'Fix Jellyfin release dates' }}
-      </UButton>
-
-      <div v-if="running || message" class="mt-4">
-        <div class="h-2 bg-gray-200 dark:bg-gray-800 rounded overflow-hidden">
-          <div class="h-full bg-emerald-500 transition-all" :style="{ width: `${progress}%` }" />
-        </div>
-        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ message }}</div>
-      </div>
-
-      <div v-if="error" class="mt-4 text-sm text-red-500">{{ error }}</div>
-
-      <div v-if="stats" class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="text-center"><div class="text-xl font-bold text-emerald-500">{{ stats.updated }}</div><div class="text-xs text-gray-500">Updated</div></div>
-        <div class="text-center"><div class="text-xl font-bold">{{ stats.matched }}</div><div class="text-xs text-gray-500">Matched</div></div>
-        <div class="text-center"><div class="text-xl font-bold text-amber-500">{{ stats.skipped_no_jellyfin_match }}</div><div class="text-xs text-gray-500">Unmatched</div></div>
-        <div class="text-center"><div class="text-xl font-bold text-red-500">{{ stats.failed }}</div><div class="text-xs text-gray-500">Failed</div></div>
-      </div>
-
-      <ul v-if="stats && stats.errors && stats.errors.length" class="mt-3 text-xs text-red-400 list-disc pl-5">
-        <li v-for="(e, i) in stats.errors" :key="i">{{ e }}</li>
-      </ul>
     </div>
+
+    <!-- Fix Jellyfin Release Dates tool card -->
+    <SectionCard>
+      <div class="space-y-5">
+
+        <!-- Tool header -->
+        <div class="flex items-start gap-3">
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-acid-400/10 ring-1 ring-acid-400/30">
+            <UIcon name="i-lucide-calendar-check" class="size-5 text-acid-400" />
+          </div>
+          <div>
+            <h2 class="font-display text-lg font-semibold tracking-tight text-white">
+              Fix Jellyfin release dates
+            </h2>
+            <p class="mt-0.5 text-sm text-(--ui-text-muted) leading-relaxed max-w-xl">
+              Pushes the app's resolved original release dates (first-pressing year from Discogs&nbsp;/&nbsp;MusicBrainz)
+              onto matching Jellyfin albums, and locks the fields so Jellyfin won't revert them.
+              Album-level — reissues get their original date.
+            </p>
+          </div>
+        </div>
+
+        <!-- CTA -->
+        <UButton
+          color="primary"
+          size="lg"
+          icon="i-lucide-play-circle"
+          :loading="running"
+          :disabled="running"
+          class="glow-acid"
+          @click="fixReleaseDates"
+        >
+          {{ running ? 'Fixing…' : 'Fix Jellyfin release dates' }}
+        </UButton>
+
+        <!-- Progress bar + message -->
+        <Transition name="fade">
+          <div v-if="running || message" class="space-y-2">
+            <UProgress
+              :model-value="progress"
+              color="primary"
+              size="sm"
+              class="w-full"
+            />
+            <p class="text-xs text-(--ui-text-dimmed) tabular">{{ message }}</p>
+          </div>
+        </Transition>
+
+        <!-- Error alert -->
+        <UAlert
+          v-if="error"
+          color="error"
+          variant="subtle"
+          icon="i-lucide-circle-x"
+          title="Operation failed"
+          :description="error"
+        />
+
+        <!-- Result stats -->
+        <div v-if="stats" class="space-y-3">
+          <div class="h-px bg-(--ui-border)" />
+          <p class="text-xs font-semibold uppercase tracking-wider text-(--ui-text-dimmed)">Results</p>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatPill label="Updated" :value="stats.updated" />
+            <StatPill label="Matched" :value="stats.matched" />
+            <StatPill label="Unmatched" :value="stats.skipped_no_jellyfin_match" />
+            <StatPill label="Failed" :value="stats.failed" />
+          </div>
+        </div>
+
+        <!-- Error list from stats -->
+        <div v-if="stats && stats.errors && stats.errors.length" class="mt-1 space-y-1">
+          <p class="text-xs font-semibold uppercase tracking-wider text-(--ui-text-dimmed)">Error details</p>
+          <ul class="space-y-1 pl-3">
+            <li
+              v-for="(e, i) in stats.errors"
+              :key="i"
+              class="flex items-start gap-2 text-xs text-red-400"
+            >
+              <UIcon name="i-lucide-dot" class="mt-0.5 size-3 shrink-0" />
+              {{ e }}
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </SectionCard>
+
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from,
+.fade-leave-to { opacity: 0; }
+</style>

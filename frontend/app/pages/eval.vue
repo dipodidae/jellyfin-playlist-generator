@@ -410,34 +410,47 @@ function severityColor(s: string): 'error' | 'warning' | 'info' {
 </script>
 
 <template>
-  <div>
+  <div class="rise-in pb-16">
+
     <!-- Loading -->
     <div v-if="loading" class="flex flex-col items-center justify-center py-24 gap-4">
-      <div class="animate-spin rounded-full h-10 w-10 border-2 border-gray-300 dark:border-gray-600 border-t-indigo-500" />
-      <p class="text-sm text-gray-500 dark:text-gray-400">Loading eval runs...</p>
+      <div class="relative size-12">
+        <div class="absolute inset-0 rounded-full border-2 border-acid-400/20" />
+        <div class="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-acid-400" />
+      </div>
+      <p class="text-sm text-(--ui-text-muted)">Loading eval runs…</p>
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="flex flex-col items-center justify-center py-24 gap-4">
-      <div class="text-red-500 text-lg font-semibold">Failed to load data</div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">{{ error }}</p>
-      <UButton variant="soft" @click="fetchRuns()">Retry</UButton>
+    <div v-else-if="error" class="flex flex-col items-center justify-center py-24 gap-5">
+      <UIcon name="i-lucide-circle-x" class="size-12 text-red-400" />
+      <div class="text-center">
+        <p class="font-display text-lg font-semibold text-white">Failed to load data</p>
+        <p class="mt-1 text-sm text-(--ui-text-muted)">{{ error }}</p>
+      </div>
+      <UButton variant="soft" icon="i-lucide-refresh-cw" @click="fetchRuns()">
+        Retry
+      </UButton>
     </div>
 
     <!-- Data -->
-    <div v-else class="space-y-8">
-      <!-- Header -->
-      <div class="flex items-center justify-between">
+    <div v-else class="space-y-6">
+
+      <!-- Page header -->
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Eval Runs</h1>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {{ runs.length }} evaluation runs &middot; GPT-4o scored &middot; 9 prompts each
+          <h1 class="font-display text-3xl font-bold tracking-tight text-white">
+            Eval Runs
+          </h1>
+          <p class="mt-1 text-sm text-(--ui-text-muted)">
+            {{ runs.length }} evaluation run{{ runs.length === 1 ? '' : 's' }}
+            &middot; GPT-4o scored &middot; 9 prompts each
           </p>
         </div>
         <UButton
           variant="ghost"
           size="sm"
-          icon="i-heroicons-arrow-path"
+          icon="i-lucide-refresh-cw"
           :loading="loading"
           @click="fetchRuns()"
         >
@@ -445,106 +458,136 @@ function severityColor(s: string): 'error' | 'warning' | 'info' {
         </UButton>
       </div>
 
-      <!-- Stat Cards -->
-      <div v-if="stats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-          <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Latest</div>
-          <div class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ stats.latest.toFixed(2) }}</div>
+      <!-- KPI stat pills -->
+      <div v-if="stats" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="glass rounded-2xl px-4 py-3.5">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-(--ui-text-dimmed)">Latest</p>
+          <p class="tabular mt-1 font-display text-2xl font-bold text-white">{{ stats.latest.toFixed(2) }}</p>
         </div>
-        <div class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-          <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Best</div>
-          <div class="text-2xl font-bold text-green-500 mt-1">{{ stats.best.toFixed(2) }}</div>
+        <div class="glass rounded-2xl px-4 py-3.5">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-(--ui-text-dimmed)">Best</p>
+          <p class="tabular mt-1 font-display text-2xl font-bold text-acid-400">{{ stats.best.toFixed(2) }}</p>
         </div>
-        <div class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-          <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Worst</div>
-          <div class="text-2xl font-bold text-red-400 mt-1">{{ stats.worst.toFixed(2) }}</div>
+        <div class="glass rounded-2xl px-4 py-3.5">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-(--ui-text-dimmed)">Worst</p>
+          <p class="tabular mt-1 font-display text-2xl font-bold text-red-400">{{ stats.worst.toFixed(2) }}</p>
         </div>
-        <div class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-          <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Trend</div>
-          <div class="text-2xl font-bold mt-1" :class="stats.delta >= 0 ? 'text-green-500' : 'text-red-400'">
+        <div class="glass rounded-2xl px-4 py-3.5">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-(--ui-text-dimmed)">Trend</p>
+          <p
+            class="tabular mt-1 font-display text-2xl font-bold"
+            :class="stats.delta >= 0 ? 'text-acid-400' : 'text-red-400'"
+          >
             {{ stats.delta >= 0 ? '+' : '' }}{{ stats.delta.toFixed(2) }}
-          </div>
+          </p>
         </div>
       </div>
 
-      <!-- Overall Score Progression -->
-      <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Score Progression</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Overall weighted score across all 9 prompts per run. Green dot marks the best run.</p>
+      <!-- Score Progression chart -->
+      <SectionCard title="Score Progression">
+        <p class="text-sm text-(--ui-text-muted)">
+          Overall weighted score across all 9 prompts per run. Green dot marks the best run.
+        </p>
         <VChart :option="overallOption" style="height: 300px" autoresize />
-      </section>
+      </SectionCard>
 
-      <!-- Dimension Breakdown -->
-      <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Dimension Breakdown</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">How each scoring dimension evolved across runs.</p>
+      <!-- Dimension Breakdown chart -->
+      <SectionCard title="Dimension Breakdown">
+        <p class="text-sm text-(--ui-text-muted)">
+          How each scoring dimension evolved across runs.
+        </p>
         <VChart :option="dimensionOption" style="height: 350px" autoresize />
-      </section>
+      </SectionCard>
 
       <!-- Per-Prompt Heatmap -->
-      <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Per-Prompt Heatmap</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Weighted score per prompt across all runs. Hover for playlist titles.</p>
+      <SectionCard title="Per-Prompt Heatmap">
+        <p class="text-sm text-(--ui-text-muted)">
+          Weighted score per prompt across all runs. Hover for playlist titles.
+        </p>
         <VChart :option="heatmapOption" style="height: 400px" autoresize />
-      </section>
+      </SectionCard>
 
       <!-- Latest vs Best Comparison -->
-      <section v-if="comparisonOption" class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Latest vs Best</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Per-prompt comparison between the most recent run and the best overall run.</p>
+      <SectionCard v-if="comparisonOption" title="Latest vs Best">
+        <p class="text-sm text-(--ui-text-muted)">
+          Per-prompt comparison between the most recent run and the best overall run.
+        </p>
         <VChart :option="comparisonOption" style="height: 400px" autoresize />
-      </section>
+      </SectionCard>
 
-      <!-- Run Details (clickable list) -->
-      <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Run History</h2>
+      <!-- Run History -->
+      <SectionCard title="Run History">
         <div class="space-y-2">
           <button
             v-for="(run, idx) in [...runs].reverse()"
             :key="run.id"
-            class="w-full text-left px-4 py-3 rounded-lg border transition-colors"
+            class="w-full rounded-xl border px-4 py-3 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acid-400/50"
             :class="selectedRun?.id === run.id
-              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30'
-              : 'border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50'"
+              ? 'border-acid-400/40 bg-acid-400/8'
+              : 'border-(--ui-border) hover:border-acid-400/20 hover:bg-(--ui-bg-elevated)'"
             @click="selectedRun = selectedRun?.id === run.id ? null : run"
           >
+            <!-- Run summary row -->
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <span class="text-xs font-mono text-gray-400 dark:text-gray-500 w-8">#{{ runs.length - idx }}</span>
-                <span class="text-sm text-gray-600 dark:text-gray-300">{{ formatTs(run.timestamp) }}</span>
+                <span class="tabular w-8 text-xs font-mono text-(--ui-text-dimmed)">#{{ runs.length - idx }}</span>
+                <span class="text-sm text-(--ui-text-muted)">{{ formatTs(run.timestamp) }}</span>
               </div>
               <div class="flex items-center gap-4">
-                <span class="text-sm font-semibold" :class="run.means.overall === stats?.best ? 'text-green-500' : 'text-gray-900 dark:text-white'">
+                <span
+                  class="tabular text-sm font-semibold"
+                  :class="run.means.overall === stats?.best ? 'text-acid-400' : 'text-white'"
+                >
                   {{ run.means.overall?.toFixed(2) }}
                 </span>
-                <span v-if="idx < runs.length - 1" class="text-xs font-mono" :class="(run.means.overall ?? 0) - (runs[runs.length - idx - 2]?.means?.overall ?? 0) >= 0 ? 'text-green-500' : 'text-red-400'">
+                <span
+                  v-if="idx < runs.length - 1"
+                  class="tabular text-xs font-mono"
+                  :class="(run.means.overall ?? 0) - (runs[runs.length - idx - 2]?.means?.overall ?? 0) >= 0 ? 'text-acid-400' : 'text-red-400'"
+                >
                   {{ ((run.means.overall ?? 0) - (runs[runs.length - idx - 2]?.means?.overall ?? 0)) >= 0 ? '+' : '' }}{{ ((run.means.overall ?? 0) - (runs[runs.length - idx - 2]?.means?.overall ?? 0)).toFixed(2) }}
                 </span>
+                <UIcon
+                  :name="selectedRun?.id === run.id ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                  class="size-3.5 text-(--ui-text-dimmed)"
+                />
               </div>
             </div>
 
             <!-- Expanded details -->
             <div v-if="selectedRun?.id === run.id" class="mt-4 space-y-4" @click.stop>
+
               <!-- Dimension scores -->
               <div class="grid grid-cols-5 gap-2">
-                <div v-for="dim in ['arc', 'genre', 'transition', 'fidelity', 'curation']" :key="dim" class="text-center">
-                  <div class="text-xs text-gray-400 dark:text-gray-500 uppercase">{{ dimensionLabels[dim] }}</div>
-                  <div class="text-lg font-bold" :style="{ color: dimensionColors[dim] }">{{ run.means[dim]?.toFixed(1) }}</div>
+                <div
+                  v-for="dim in ['arc', 'genre', 'transition', 'fidelity', 'curation']"
+                  :key="dim"
+                  class="rounded-xl border border-(--ui-border) bg-(--ui-bg-elevated)/40 px-2 py-2 text-center"
+                >
+                  <p class="text-[10px] uppercase tracking-wider text-(--ui-text-dimmed)">{{ dimensionLabels[dim] }}</p>
+                  <p class="tabular mt-0.5 font-display text-lg font-bold" :style="{ color: dimensionColors[dim] }">
+                    {{ run.means[dim]?.toFixed(1) }}
+                  </p>
                 </div>
               </div>
 
               <!-- Per-prompt scores -->
-              <div class="space-y-1">
+              <div class="space-y-0.5 overflow-hidden rounded-xl border border-(--ui-border)">
                 <div
                   v-for="pk in promptKeys"
                   :key="pk"
-                  class="flex items-center justify-between text-sm px-2 py-1 rounded"
-                  :class="(run.prompt_results[pk]?.weighted_score ?? 0) >= 6 ? 'bg-green-50 dark:bg-green-950/20' : (run.prompt_results[pk]?.weighted_score ?? 0) < 4 ? 'bg-red-50 dark:bg-red-950/20' : ''"
+                  class="flex items-center justify-between px-3 py-2 text-sm odd:bg-(--ui-bg-elevated)/40"
+                  :class="(run.prompt_results[pk]?.weighted_score ?? 0) >= 6 ? 'bg-acid-400/5!' : (run.prompt_results[pk]?.weighted_score ?? 0) < 4 ? 'bg-red-500/5!' : ''"
                 >
-                  <span class="text-gray-600 dark:text-gray-300">{{ promptLabels[pk] }}</span>
+                  <span class="text-(--ui-text-muted)">{{ promptLabels[pk] }}</span>
                   <div class="flex items-center gap-3">
-                    <span class="text-xs text-gray-400 dark:text-gray-500 max-w-48 truncate">{{ run.prompt_results[pk]?.playlist_title }}</span>
-                    <span class="font-mono font-bold" :class="(run.prompt_results[pk]?.weighted_score ?? 0) >= 6 ? 'text-green-600 dark:text-green-400' : (run.prompt_results[pk]?.weighted_score ?? 0) < 4 ? 'text-red-500' : 'text-gray-700 dark:text-gray-200'">
+                    <span class="max-w-48 truncate text-xs text-(--ui-text-dimmed)">
+                      {{ run.prompt_results[pk]?.playlist_title }}
+                    </span>
+                    <span
+                      class="tabular font-mono font-bold"
+                      :class="(run.prompt_results[pk]?.weighted_score ?? 0) >= 6 ? 'text-acid-400' : (run.prompt_results[pk]?.weighted_score ?? 0) < 4 ? 'text-red-400' : 'text-white'"
+                    >
                       {{ run.prompt_results[pk]?.weighted_score?.toFixed(1) }}
                     </span>
                   </div>
@@ -552,23 +595,31 @@ function severityColor(s: string): 'error' | 'warning' | 'info' {
               </div>
 
               <!-- Diagnosis -->
-              <div v-if="run.diagnosis_summary" class="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-600 dark:text-gray-300">
-                <div class="font-medium text-gray-900 dark:text-white mb-1">Diagnosis</div>
-                {{ run.diagnosis_summary }}
+              <div v-if="run.diagnosis_summary" class="rounded-xl border border-(--ui-border) bg-(--ui-bg-elevated)/40 p-4">
+                <p class="mb-1 text-xs font-semibold uppercase tracking-wider text-(--ui-text-dimmed)">Diagnosis</p>
+                <p class="text-sm text-(--ui-text-muted)">{{ run.diagnosis_summary }}</p>
               </div>
 
               <!-- Systemic Issues -->
               <div v-if="run.systemic_issues.length > 0" class="space-y-2">
-                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Issues Found</div>
-                <div v-for="(issue, ii) in run.systemic_issues" :key="ii" class="flex items-start gap-2 text-sm">
-                  <UBadge :color="severityColor(issue.severity)" size="xs" variant="subtle">{{ issue.severity }}</UBadge>
-                  <span class="text-gray-600 dark:text-gray-300">{{ issue.description }}</span>
+                <p class="text-xs font-semibold uppercase tracking-wider text-(--ui-text-dimmed)">Issues Found</p>
+                <div
+                  v-for="(issue, ii) in run.systemic_issues"
+                  :key="ii"
+                  class="flex items-start gap-2"
+                >
+                  <UBadge :color="severityColor(issue.severity)" size="xs" variant="subtle">
+                    {{ issue.severity }}
+                  </UBadge>
+                  <span class="text-sm text-(--ui-text-muted)">{{ issue.description }}</span>
                 </div>
               </div>
+
             </div>
           </button>
         </div>
-      </section>
+      </SectionCard>
+
     </div>
   </div>
 </template>
