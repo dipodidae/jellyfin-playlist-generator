@@ -1,197 +1,151 @@
-"""Fix Jellyfin album release dates from the app's resolved original dates.
+"""Fix Jellyfin album release dates by writing durable album.nfo sidecars.
 
-Pure helpers (no I/O) + an httpx Jellyfin client + an orchestrator. Matching is
-path-based (both systems index the same files via the configured prefix mapping)
-with a normalized name fallback.
+Approach
+--------
+The previous API/LockData approach reverted on every Jellyfin metadata refresh
+because the MusicBrainz provider overrides ``LockData`` during a full refresh.
+
+The durable fix is an ``album.nfo`` sidecar in each album folder:
+- ``<year>``, ``<premiered>``, ``<releasedate>`` carry the correct original year.
+- ``<lockdata>true</lockdata>`` stops the online provider from overriding values.
+- Jellyfin's NFO reader runs first and the lock is filesystem-persistent.
+
+The container's ``/music`` mount must be read-write for this to work.
+
+Pure helpers (no I/O) at the top are ported from the host-side
+``scripts/jellyfin_nfo_dates.py`` — identical logic.
 """
 
 import logging
+import re
+from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import httpx
 
 from app.config import settings
 from app.database_pg import get_connection
-from app.trajectory.textnorm import normalize_artist, normalize_title
 
 logger = logging.getLogger(__name__)
 
-
-def translate_path(local_path: str, local_prefix: str, jellyfin_prefix: str) -> str:
-    """Rewrite an app /music path to the path Jellyfin reports. Passthrough if no prefix match."""
-    lp = local_prefix.rstrip("/")
-    jp = jellyfin_prefix.rstrip("/")
-    if lp and local_path.startswith(lp):
-        return jp + local_path[len(lp):]
-    return local_path
+_DISC_RE = re.compile(r"^(disc|cd)\s*\d+$", re.IGNORECASE)
+_DATE_TAGS = frozenset({"year", "premiered", "releasedate", "lockdata"})
+_XML_DECL = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>'
 
 
-def build_premiere_date(year, month, day, precision: str) -> str:
-    """ISO-8601 PremiereDate string Jellyfin accepts. Missing month/day default to 01."""
-    m = month if (precision in ("month", "day") and month) else 1
-    d = day if (precision == "day" and day) else 1
-    return f"{int(year):04d}-{int(m):02d}-{int(d):02d}T00:00:00.0000000Z"
+# ---------------------------------------------------------------------------
+# Pure / testable functions (no I/O)
+# ---------------------------------------------------------------------------
 
 
-def resolve_album_id_map(app_albums, jellyfin_audio_items, local_prefix, jellyfin_prefix):
-    """Map app album_id -> Jellyfin AlbumId via translated track paths.
+def iso_date(year: int, month: int | None, day: int | None) -> str:
+    """Format a partial date as ISO-8601 ``YYYY-MM-DD``, defaulting month/day to 01.
 
-    app_albums: [{"album_id": str, "track_paths": [str, ...]}]
-    jellyfin_audio_items: [{"Id", "AlbumId", "Path"}]
-    Returns (mapping, unresolved_album_ids).
+    >>> iso_date(1990, None, None)
+    '1990-01-01'
+    >>> iso_date(1983, 5, 25)
+    '1983-05-25'
+    >>> iso_date(2001, 3, None)
+    '2001-03-01'
     """
-    by_path = {it.get("Path"): it.get("AlbumId") for it in jellyfin_audio_items if it.get("Path")}
-    mapping: dict[str, str] = {}
-    unresolved: list[str] = []
-    for alb in app_albums:
-        found = None
-        for p in alb.get("track_paths", []):
-            jf_path = translate_path(p, local_prefix, jellyfin_prefix)
-            album_id = by_path.get(jf_path)
-            if album_id:
-                found = album_id
-                break
-        if found:
-            mapping[alb["album_id"]] = found
-        else:
-            unresolved.append(alb["album_id"])
-    return mapping, unresolved
+    m = month if month is not None else 1
+    d = day if day is not None else 1
+    return f"{year:04d}-{m:02d}-{d:02d}"
 
 
-def match_by_name(app_album_name, app_artist, jellyfin_albums) -> str | None:
-    """Normalized AlbumArtist+Name fallback match. Returns Jellyfin album Id or None.
+def build_album_nfo(
+    existing_xml: str | None,
+    title: str,
+    year: int,
+    month: int | None,
+    day: int | None,
+) -> str:
+    """Build (or update) an ``album.nfo`` XML string.
 
-    Returns None when the name+artist is AMBIGUOUS (matches more than one Jellyfin
-    album) — libraries with duplicate songs spread across multiple albums often have
-    several albums sharing a name/artist (studio vs compilation), and guessing one
-    would stamp the wrong album. Path matching is the reliable route; name fallback
-    only fires for a single unambiguous hit.
+    If *existing_xml* is ``None``, a minimal ``<album>`` element is created.
+    Otherwise the existing XML is parsed and:
+    - ``<year>``, ``<premiered>``, ``<releasedate>``, ``<lockdata>`` are
+      set/overwritten.
+    - Any child element whose tag starts with ``musicbrainz`` is removed so
+      Jellyfin cannot re-fetch a wrong date via a stale MB release id.
+    - All other existing child elements are preserved.
+    - A ``<title>`` is added if none exists.
+
+    The returned string includes the XML declaration line.
     """
-    want_title = normalize_title(app_album_name or "")
-    want_artist = normalize_artist(app_artist or "")
-    matches = [
-        alb.get("Id") for alb in jellyfin_albums
-        if normalize_title(alb.get("Name") or "") == want_title
-        and normalize_artist(alb.get("AlbumArtist") or "") == want_artist
+    date_str = iso_date(year, month, day)
+
+    if existing_xml:
+        try:
+            root = ET.fromstring(existing_xml)
+        except ET.ParseError:
+            root = ET.Element("album")
+    else:
+        root = ET.Element("album")
+
+    # Remove musicbrainz* elements and date-related elements (re-added below).
+    to_remove = [
+        el for el in list(root)
+        if el.tag.lower().startswith("musicbrainz") or el.tag.lower() in _DATE_TAGS
     ]
-    return matches[0] if len(matches) == 1 else None
+    for el in to_remove:
+        root.remove(el)
+
+    # Ensure <title> exists.
+    if root.find("title") is None:
+        title_el = ET.SubElement(root, "title")
+        title_el.text = title
+
+    # Append date fields in a consistent order.
+    year_el = ET.SubElement(root, "year")
+    year_el.text = str(year)
+
+    premiered_el = ET.SubElement(root, "premiered")
+    premiered_el.text = date_str
+
+    releasedate_el = ET.SubElement(root, "releasedate")
+    releasedate_el.text = date_str
+
+    lock_el = ET.SubElement(root, "lockdata")
+    lock_el.text = "true"
+
+    body = ET.tostring(root, encoding="unicode", xml_declaration=False)
+    return f"{_XML_DECL}\n{body}"
 
 
-_PAGE = 500
+def nfo_is_current(existing_xml: str, year: int) -> bool:
+    """Return True if *existing_xml* already has the correct year and lockdata=true.
+
+    Parsing errors are treated as "not current" so the NFO is rewritten.
+    """
+    try:
+        root = ET.fromstring(existing_xml)
+    except ET.ParseError:
+        return False
+
+    year_el = root.find("year")
+    lock_el = root.find("lockdata")
+
+    if year_el is None or year_el.text is None:
+        return False
+    try:
+        nfo_year = int(year_el.text.strip())
+    except ValueError:
+        return False
+
+    if nfo_year != year:
+        return False
+
+    return not (lock_el is None or (lock_el.text or "").strip().lower() != "true")
+
+
+# ---------------------------------------------------------------------------
+# DB helpers (side-effecting; tested via integration)
+# ---------------------------------------------------------------------------
 
 
 def _headers() -> dict:
     return {"X-Emby-Token": settings.jellyfin_api_key}
-
-
-async def fetch_audio_items(client: httpx.AsyncClient) -> list[dict]:
-    """Page through all Jellyfin Audio items, returning [{Id, AlbumId, Path}]."""
-    items: list[dict] = []
-    start = 0
-    while True:
-        resp = await client.get(
-            f"{settings.jellyfin_url}/Users/{settings.jellyfin_user_id}/Items",
-            headers=_headers(),
-            params={
-                "IncludeItemTypes": "Audio",
-                "Recursive": "true",
-                "Fields": "Path",
-                "StartIndex": start,
-                "Limit": _PAGE,
-            },
-        )
-        resp.raise_for_status()
-        page = resp.json().get("Items", [])
-        if not page:
-            break
-        for it in page:
-            items.append({"Id": it.get("Id"), "AlbumId": it.get("AlbumId"), "Path": it.get("Path")})
-        start += len(page)
-        if len(page) < _PAGE:
-            break
-    return items
-
-
-async def fetch_album_items(client: httpx.AsyncClient) -> list[dict]:
-    """Page through all Jellyfin MusicAlbum items, returning [{Id, Name, AlbumArtist}]."""
-    items: list[dict] = []
-    start = 0
-    while True:
-        resp = await client.get(
-            f"{settings.jellyfin_url}/Users/{settings.jellyfin_user_id}/Items",
-            headers=_headers(),
-            params={
-                "IncludeItemTypes": "MusicAlbum",
-                "Recursive": "true",
-                "Fields": "AlbumArtist",
-                "StartIndex": start,
-                "Limit": _PAGE,
-            },
-        )
-        resp.raise_for_status()
-        page = resp.json().get("Items", [])
-        if not page:
-            break
-        for it in page:
-            artist = it.get("AlbumArtist")
-            if not artist and it.get("AlbumArtists"):
-                artist = (it["AlbumArtists"][0] or {}).get("Name")
-            items.append({"Id": it.get("Id"), "Name": it.get("Name"), "AlbumArtist": artist})
-        start += len(page)
-        if len(page) < _PAGE:
-            break
-    return items
-
-
-async def update_album_date(
-    client: httpx.AsyncClient,
-    jellyfin_album_id: str,
-    premiere_date: str,
-    year: int,
-) -> None:
-    """Set PremiereDate + ProductionYear on a Jellyfin album so they persist.
-
-    Persistence uses the per-item ``LockData`` flag (whole-item metadata lock).
-    NOTE: ``LockedFields`` is NOT used — its MetadataField enum has no
-    PremiereDate/ProductionYear members, so locking individual date fields is
-    impossible; ``LockData=True`` is what actually stops a metadata refresh from
-    reverting these values.
-    """
-    # Fetch the full item DTO
-    get_resp = await client.get(
-        f"{settings.jellyfin_url}/Users/{settings.jellyfin_user_id}/Items/{jellyfin_album_id}",
-        headers=_headers(),
-    )
-    get_resp.raise_for_status()
-    dto = get_resp.json()
-    dto["PremiereDate"] = premiere_date
-    dto["ProductionYear"] = int(year)
-    dto["LockData"] = True  # pin the whole item so a refresh won't revert the date
-    # POST the mutated DTO back (UpdateItem)
-    post_resp = await client.post(
-        f"{settings.jellyfin_url}/Items/{jellyfin_album_id}",
-        headers={**_headers(), "Content-Type": "application/json"},
-        json=dto,
-    )
-    post_resp.raise_for_status()
-
-    # Nudge Jellyfin to re-render derived/display fields so the new date shows up
-    # without the user manually refreshing. CRITICAL: metadataRefreshMode=Default +
-    # replaceAllMetadata=false — a "replace all" / FullRefresh re-runs the MusicBrainz
-    # provider and OVERRIDES the LockData lock, reverting the date. This default
-    # refresh respects the lock (verified: value holds), it just refreshes the display.
-    try:
-        await client.post(
-            f"{settings.jellyfin_url}/Items/{jellyfin_album_id}/Refresh",
-            headers=_headers(),
-            params={
-                "metadataRefreshMode": "Default",
-                "imageRefreshMode": "None",
-                "replaceAllMetadata": "false",
-                "replaceAllImages": "false",
-            },
-        )
-    except Exception:  # noqa: BLE001 — refresh is best-effort; the date write already succeeded
-        pass
 
 
 def _load_eligible_albums() -> list[dict]:
@@ -227,7 +181,7 @@ def _load_eligible_albums() -> list[dict]:
 
 
 def load_applied_ledger() -> dict[str, int]:
-    """Return {app_album_id: applied_year} of dates already written to Jellyfin."""
+    """Return {app_album_id: applied_year} of dates already written."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT album_id, applied_year FROM jellyfin_date_applied")
@@ -271,63 +225,110 @@ def partition_by_ledger(albums: list[dict], ledger: dict[str, int], force: bool 
     return to_process, skipped
 
 
+# ---------------------------------------------------------------------------
+# Main orchestrator
+# ---------------------------------------------------------------------------
+
+
 async def fix_release_dates(progress_callback=None, force: bool = False) -> dict:
-    """Push resolved original dates onto matching Jellyfin albums. Album-level, locked.
+    """Write durable album.nfo sidecars so Jellyfin shows correct original release years.
 
-    Idempotent: albums already written at their current resolved year are skipped
-    via the ``jellyfin_date_applied`` ledger (no Jellyfin call), so re-runs are short
-    maintenance bursts touching only new/changed albums. ``force=True`` re-applies all.
+    For each eligible album (resolved original_year in the DB):
+    1. Derive the album folder from the first track path (container path under /music).
+       Collapses disc sub-folders (``disc N`` / ``cd N``) to the album root.
+    2. Read any existing album.nfo; skip if already current (correct year + lockdata).
+    3. Write a new/merged album.nfo with <year>, <premiered>, <releasedate>,
+       <lockdata>true</lockdata>; strips musicbrainz* elements that would cause
+       Jellyfin to re-fetch and override the date.
+    4. After all writes, trigger one Jellyfin library refresh (best-effort).
+
+    NFO writes are filesystem operations and do NOT require Jellyfin credentials.
+    The refresh POST is skipped if jellyfin_url/jellyfin_api_key are not configured.
+
+    Idempotent via the ``jellyfin_date_applied`` ledger. ``force=True`` re-applies all.
     """
-    if not settings.jellyfin_url or not settings.jellyfin_api_key:
-        return {"error": "Jellyfin not configured (set jellyfin_url + jellyfin_api_key)"}
-
     albums = _load_eligible_albums()
     ledger = load_applied_ledger()
     to_process, already_applied = partition_by_ledger(albums, ledger, force)
 
-    stats = {
-        "eligible": len(albums), "already_applied": already_applied,
-        "matched": 0, "updated": 0,
-        "skipped_no_jellyfin_match": 0, "failed": 0, "errors": [],
+    stats: dict = {
+        "eligible": len(albums),
+        "already_applied": already_applied,
+        "matched": 0,
+        "updated": 0,
+        "skipped_no_jellyfin_match": 0,
+        "failed": 0,
+        "errors": [],
     }
-    # Nothing new/changed → skip the (expensive) Jellyfin library fetch entirely.
+
     if not to_process:
         return stats
 
-    lp = settings.local_path_prefix or "/music"
-    jp = settings.jellyfin_path_prefix or ""
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        audio_items = await fetch_audio_items(client)
-        mapping, unresolved = resolve_album_id_map(
-            [{"album_id": a["album_id"], "track_paths": a["track_paths"]} for a in to_process],
-            audio_items, lp, jp,
-        )
-        if unresolved:
-            jf_albums = await fetch_album_items(client)
-            by_id = {a["album_id"]: a for a in to_process}
-            for aid in unresolved:
-                a = by_id[aid]
-                jf_id = match_by_name(a["title"], a["artist_name"], jf_albums)
-                if jf_id:
-                    mapping[aid] = jf_id
-
-        stats["matched"] = len(mapping)
-        stats["skipped_no_jellyfin_match"] = len(to_process) - len(mapping)
-
-        total = len(mapping)
-        by_id = {a["album_id"]: a for a in to_process}
-        for i, (app_id, jf_id) in enumerate(mapping.items()):
-            a = by_id[app_id]
-            try:
-                premiere = build_premiere_date(a["year"], a["month"], a["day"], a["precision"])
-                await update_album_date(client, jf_id, premiere, a["year"])
-                record_applied(app_id, jf_id, a["year"])  # ledger: don't touch again
-                stats["updated"] += 1
-            except Exception as e:  # noqa: BLE001 — per-album failure must not abort the run
-                stats["failed"] += 1
-                if len(stats["errors"]) < 10:
-                    stats["errors"].append(f"{a['artist_name']} - {a['title']}: {e}")
+    total = len(to_process)
+    for i, album in enumerate(to_process):
+        track_paths = album.get("track_paths") or []
+        if not track_paths:
+            stats["skipped_no_jellyfin_match"] += 1
             if progress_callback:
-                progress_callback(i + 1, total, f"Updated {i + 1}/{total} albums")
+                progress_callback(i + 1, total, f"Processing {i + 1}/{total}")
+            continue
+
+        try:
+            folder = Path(track_paths[0]).parent
+            if _DISC_RE.match(folder.name):
+                folder = folder.parent
+
+            stats["matched"] += 1
+
+            nfo_path = folder / "album.nfo"
+            existing_xml: str | None = None
+            if nfo_path.exists():
+                try:
+                    existing_xml = nfo_path.read_text(encoding="utf-8")
+                except OSError:
+                    existing_xml = None
+
+            year = album["year"]
+            if existing_xml and nfo_is_current(existing_xml, year):
+                # NFO already has the right year + lockdata; record in ledger but
+                # don't rewrite the file.
+                record_applied(album["album_id"], "", year)
+                stats["updated"] += 1
+            else:
+                content = build_album_nfo(
+                    existing_xml,
+                    album["title"],
+                    year,
+                    album.get("month"),
+                    album.get("day"),
+                )
+                nfo_path.write_text(content, encoding="utf-8")
+                record_applied(album["album_id"], "", year)
+                stats["updated"] += 1
+
+        except Exception as e:  # noqa: BLE001 — per-album failure must not abort the run
+            stats["failed"] += 1
+            if len(stats["errors"]) < 10:
+                stats["errors"].append(
+                    f"{album.get('artist_name')} - {album.get('title')}: {e}"
+                )
+
+        if progress_callback:
+            progress_callback(i + 1, total, f"Processing {i + 1}/{total}")
+
+    # Best-effort Jellyfin library refresh so it re-reads the new NFOs.
+    if settings.jellyfin_url and settings.jellyfin_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                await client.post(
+                    f"{settings.jellyfin_url}/Library/Refresh",
+                    headers=_headers(),
+                )
+        except Exception as e:  # noqa: BLE001 — refresh failure must not fail the run
+            logger.warning("Jellyfin /Library/Refresh failed (ignored): %s", e)
+    else:
+        logger.info(
+            "Jellyfin credentials not configured — NFOs written but library refresh skipped"
+        )
+
     return stats

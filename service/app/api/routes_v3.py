@@ -1151,7 +1151,12 @@ _jellyfin_dates_lock = asyncio.Lock()
 
 @router.post("/jellyfin/fix-release-dates")
 async def jellyfin_fix_release_dates(request: Request, force: bool = False):
-    """Push resolved original release dates onto matching Jellyfin albums (SSE progress).
+    """Write durable album.nfo sidecars with correct original release years (SSE progress).
+
+    Each album folder under ``/music`` receives an ``album.nfo`` with
+    ``<year>``, ``<premiered>``, ``<releasedate>``, and ``<lockdata>true</lockdata>``.
+    The NFO approach is durable: Jellyfin's NFO reader runs first and the lock
+    prevents the MusicBrainz provider from overriding the date on refresh.
 
     Idempotent by default: albums already written at their current year are skipped
     via the applied ledger (short maintenance bursts). Pass ``?force=true`` to re-apply all.
