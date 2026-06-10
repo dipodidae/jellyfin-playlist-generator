@@ -7,8 +7,9 @@ defineProps<{
 
 <template>
   <UAlert
-    color="red"
-    icon="i-heroicons-exclamation-triangle"
+    color="error"
+    variant="subtle"
+    icon="i-lucide-triangle-alert"
     :title="title"
     :description="description"
   />

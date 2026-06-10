@@ -9,24 +9,33 @@ defineProps<{
     <div
       v-for="(step, index) in steps"
       :key="index"
-      class="flex items-center gap-2 text-sm"
+      class="flex items-center gap-2.5 text-sm"
     >
+      <!-- Done -->
       <UIcon
         v-if="step.done"
-        name="i-heroicons-check-circle"
-        class="w-5 h-5 text-green-500"
+        name="i-lucide-circle-check"
+        class="size-4 shrink-0 text-acid-400"
       />
+      <!-- Active (first incomplete step) -->
       <UIcon
         v-else-if="index === steps.findIndex(s => !s.done)"
-        name="i-heroicons-arrow-path"
-        class="w-5 h-5 text-blue-500 animate-spin"
+        name="i-lucide-loader"
+        class="size-4 shrink-0 text-acid-300 animate-spin"
       />
+      <!-- Pending -->
       <UIcon
         v-else
-        name="i-heroicons-circle-stack"
-        class="w-5 h-5 text-gray-300 dark:text-gray-600"
+        name="i-lucide-circle-dashed"
+        class="size-4 shrink-0 text-(--ui-text-dimmed)"
       />
-      <span :class="step.done ? 'text-gray-500' : 'text-gray-900 dark:text-white'">
+      <span
+        :class="step.done
+          ? 'text-(--ui-text-muted)'
+          : index === steps.findIndex(s => !s.done)
+            ? 'text-white'
+            : 'text-(--ui-text-dimmed)'"
+      >
         {{ step.message }}
       </span>
     </div>

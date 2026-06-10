@@ -49,10 +49,18 @@ const mbArtistPct = computed(() => coveragePct(props.stats.artists_with_mbid, pr
 const mbAlbumPct = computed(() => coveragePct(props.stats.albums_with_mbid, props.stats.albums))
 const rymPct = computed(() => coveragePct(props.stats.albums_with_rym, props.stats.albums))
 
-function coverageColor(pct: number): string {
-  if (pct >= 80) return 'text-green-600 dark:text-green-400'
-  if (pct >= 40) return 'text-yellow-600 dark:text-yellow-400'
-  return 'text-red-500 dark:text-red-400'
+type CoverageLevel = 'high' | 'mid' | 'low'
+
+function coverageLevel(pct: number): CoverageLevel {
+  if (pct >= 80) return 'high'
+  if (pct >= 40) return 'mid'
+  return 'low'
+}
+
+const coverageTextClass: Record<CoverageLevel, string> = {
+  high: 'text-acid-400',
+  mid: 'text-yellow-400',
+  low: 'text-red-400',
 }
 
 const activeJob = computed(() => {
@@ -91,299 +99,234 @@ const latestOutcome = computed(() => {
 
   return null
 })
+
+// Coverage metrics list for the grid
+const metrics = computed(() => [
+  {
+    label: 'Embeddings',
+    title: 'Semantic vectors used to match tracks to your prompt. Required for generation.',
+    pct: embeddingPct.value,
+    countLabel: `${(props.stats.tracks_with_embeddings ?? 0).toLocaleString()} / ${props.stats.tracks.toLocaleString()} tracks`,
+    isRunning: embeddings.isRunning.value,
+  },
+  {
+    label: 'Profiles',
+    title: '4D scores (energy, darkness, tempo, texture) that drive the trajectory engine.',
+    pct: profilePct.value,
+    countLabel: `${(props.stats.tracks_with_profiles ?? 0).toLocaleString()} / ${props.stats.tracks.toLocaleString()} tracks`,
+    isRunning: profiles.isRunning.value,
+  },
+  {
+    label: 'Last.fm Artists',
+    title: 'Artists enriched with genre tags and similarity data from Last.fm.',
+    pct: lastfmPct.value,
+    countLabel: `${(props.stats.artists_with_tags ?? 0).toLocaleString()} / ${props.stats.artists.toLocaleString()} artists`,
+    isRunning: lastfm.isRunning.value,
+  },
+  {
+    label: 'Last.fm Tracks',
+    title: 'Per-track playcount and listener stats from Last.fm. Powers banger detection.',
+    pct: lastfmTracksPct.value,
+    countLabel: `${(props.stats.tracks_with_lastfm_stats ?? 0).toLocaleString()} / ${props.stats.tracks.toLocaleString()} tracks`,
+    isRunning: lastfmTracks.isRunning.value,
+  },
+  {
+    label: 'Scene Clusters',
+    title: 'Artists grouped into stylistic scenes. Used for variety and smooth transitions.',
+    pct: clusterPct.value,
+    countLabel: `${(props.stats.artists_clustered ?? 0).toLocaleString()} / ${props.stats.artists.toLocaleString()} artists`,
+    extra: props.stats.vector_index_built ? '· index ✓' : '',
+    badge: `${(props.stats.scene_clusters ?? 0)} clusters`,
+    isRunning: clusters.isRunning.value,
+  },
+  {
+    label: 'Audio Features',
+    title: 'BPM, loudness, and brightness extracted from audio files. Optional — profiles cover similar ground semantically.',
+    pct: audioPct.value,
+    countLabel: `${(props.stats.tracks_with_audio_features ?? 0).toLocaleString()} / ${props.stats.tracks.toLocaleString()} tracks`,
+    isRunning: audio.isRunning.value,
+  },
+  {
+    label: 'Genre Manifold',
+    title: 'Probabilistic genre identity vectors. Used for hard/soft genre constraints and drift prevention.',
+    pct: genreManifoldPct.value,
+    countLabel: `${(props.stats.tracks_with_genre_probs ?? 0).toLocaleString()} / ${props.stats.tracks.toLocaleString()} tracks`,
+    isRunning: genreManifold.isRunning.value,
+  },
+  {
+    label: 'Metal Archives',
+    title: 'Album ratings and review counts scraped from Metal Archives. Used for album legitimacy scoring.',
+    pct: metalArchivesPct.value,
+    countLabel: `${(props.stats.albums_with_legitimacy ?? 0).toLocaleString()} / ${props.stats.albums.toLocaleString()} albums`,
+    isRunning: metalArchives.isRunning.value,
+  },
+  {
+    label: 'MusicBrainz',
+    title: 'MusicBrainz IDs resolved for artists and albums. Used as canonical join keys for RYM and other external data.',
+    pct: mbArtistPct.value,
+    countLabel: `${(props.stats.artists_with_mbid ?? 0).toLocaleString()} / ${props.stats.artists.toLocaleString()} artists · ${(props.stats.albums_with_mbid ?? 0).toLocaleString()} albums`,
+    isRunning: musicbrainz.isRunning.value,
+  },
+  {
+    label: 'RateYourMusic',
+    title: 'Album ratings, genres, and descriptors from RateYourMusic. Enriches curation scoring, genre identity, and album adjacency transitions.',
+    pct: rymPct.value,
+    countLabel: `${(props.stats.albums_with_rym ?? 0).toLocaleString()} / ${props.stats.albums.toLocaleString()} albums`,
+    extra: (props.stats.rym_adjacency_pairs ?? 0) > 0 ? `· ${(props.stats.rym_adjacency_pairs ?? 0).toLocaleString()} adjacency pairs` : '',
+    isRunning: rym.isRunning.value,
+  },
+])
 </script>
 
 <template>
-  <div class="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-3">
-    <details class="rounded border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-      <summary class="cursor-pointer text-sm font-medium text-gray-900 dark:text-white">
+  <div class="pt-3 border-t border-(--ui-border) space-y-4">
+    <!-- How it works collapsible -->
+    <UCollapsible>
+      <UButton
+        variant="ghost"
+        color="neutral"
+        size="sm"
+        icon="i-lucide-info"
+        trailing-icon="i-lucide-chevron-down"
+        class="w-full justify-between text-(--ui-text-muted) hover:text-white"
+      >
         How it works &amp; what each metric means
-      </summary>
-      <div class="mt-3 space-y-3 text-xs text-gray-600 dark:text-gray-300">
-        <div>
-          <div class="font-medium text-gray-900 dark:text-white">Recommended order</div>
-          <div>1. Run <code>Full Sync</code> if the library is missing tracks or paths changed.</div>
-          <div>2. Run <code>MusicBrainz</code> to resolve canonical IDs for artists and albums.</div>
-          <div>3. Run <code>Last.fm</code> to fetch artist tags and similarities.</div>
-          <div>3b. Run <code>Last.fm Tracks</code> to fetch per-track playcount and listener stats (feeds banger detection).</div>
-          <div>4. Run <code>Embeddings</code> to build semantic search vectors.</div>
-          <div>5. Run <code>Profiles</code> to generate trajectory-ready track features.</div>
-          <div>6. Run <code>Rebuild Clusters</code> after embeddings exist.</div>
-          <div>7. Run <code>Audio Analysis</code> if you want BPM and loudness features.</div>
-          <div>8. Run <code>Genre Manifold</code> after embeddings and clusters exist — required for genre fidelity constraints.</div>
-          <div>9. Run <code>Metal Archives</code> to scrape album ratings — feeds into album legitimacy scoring.</div>
-          <div>10. Run <code>RYM</code> after MusicBrainz — scrapes album ratings, genres, and descriptors from RateYourMusic.</div>
-        </div>
-        <div>
-          <div class="font-medium text-gray-900 dark:text-white">What to expect</div>
-          <div>Only one long-running job should be active at a time.</div>
-          <div>A running job shows progress here. When it finishes, you should see either a success or failure message.</div>
-          <div>If a job ends unexpectedly, the UI now reports that instead of silently stopping.</div>
-        </div>
-        <div>
-          <div class="font-medium text-gray-900 dark:text-white">When to use each button</div>
-          <div><code>Full Sync</code> rescans files and metadata from disk.</div>
-          <div><code>MusicBrainz</code> resolves canonical IDs — run before RYM or other external lookups.</div>
-          <div><code>Last.fm</code> enriches artist metadata and can take a while on large libraries.</div>
-          <div><code>Embeddings</code> and <code>Profiles</code> improve prompt matching and trajectory quality.</div>
-          <div><code>Rebuild Clusters</code> depends on embeddings.</div>
-          <div><code>RYM</code> scrapes album data from RateYourMusic — requires MusicBrainz IDs.</div>
-          <div><code>Refresh</code> only reloads counters; it does not start work.</div>
-        </div>
-        <div>
-          <div class="font-medium text-gray-900 dark:text-white">What each metric means</div>
-          <div class="mt-1 space-y-1">
-            <div><span class="text-gray-900 dark:text-white font-medium">Embeddings</span> — Semantic vectors computed for each track. The generator queries these to find candidates matching your prompt. Without them, playlist generation won't work.</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">Profiles</span> — Per-track scores across four dimensions: energy, darkness, tempo, and texture (0–1 each). These power the trajectory engine — they're what shapes how mood and intensity evolve across a playlist.</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">Last.fm Artists</span> — Genre tags and artist similarity data fetched from Last.fm. Used to enrich scoring and improve stylistic coherence between tracks.</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">Last.fm Tracks</span> — Per-track playcount and listener counts from Last.fm. Powers banger detection — identifying standout tracks within each artist's catalog and across the library.</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">Scene Clusters</span> — Artists grouped into stylistic scenes using embedding similarity. The engine uses these to ensure variety and smooth transitions between musical zones. The count shown is the number of distinct scenes.</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">Audio Features</span> — Acoustic measurements (BPM, loudness, brightness) extracted directly from audio files. Optional — profiles already cover the same dimensions via semantic analysis, but audio features can sharpen accuracy.</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">Genre Manifold</span> — Probabilistic genre identity vectors per track, built from kNN neighborhood votes, Last.fm tags, and cluster membership. Powers strict genre filtering and prevents adjacent-genre drift (e.g. thrash staying thrash, not bleeding into NWOBHM).</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">Metal Archives</span> — Album ratings and review counts scraped from Encyclopaedia Metallum. Matched to local albums via fuzzy title + year comparison. Feeds into a curation score that gently favours well-reviewed releases.</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">MusicBrainz</span> — Canonical artist and album IDs resolved from the MusicBrainz database. These serve as join keys for external data sources like RateYourMusic.</div>
-            <div><span class="text-gray-900 dark:text-white font-medium">RateYourMusic</span> — Album ratings, vote counts, genres, and descriptors scraped from RYM. Enriches curation scoring, embedding text, and builds an album adjacency graph used for transition bonuses during sequencing.</div>
+      </UButton>
+
+      <template #content>
+        <div class="mt-3 rounded-xl border border-(--ui-border) bg-(--ui-bg-elevated)/40 p-4 space-y-4 text-xs text-(--ui-text-muted)">
+          <div>
+            <div class="font-semibold text-white mb-1">Recommended order</div>
+            <div>1. Run <code class="font-mono text-acid-300">Full Sync</code> if the library is missing tracks or paths changed.</div>
+            <div>2. Run <code class="font-mono text-acid-300">MusicBrainz</code> to resolve canonical IDs for artists and albums.</div>
+            <div>3. Run <code class="font-mono text-acid-300">Last.fm</code> to fetch artist tags and similarities.</div>
+            <div>3b. Run <code class="font-mono text-acid-300">Last.fm Tracks</code> to fetch per-track playcount and listener stats (feeds banger detection).</div>
+            <div>4. Run <code class="font-mono text-acid-300">Embeddings</code> to build semantic search vectors.</div>
+            <div>5. Run <code class="font-mono text-acid-300">Profiles</code> to generate trajectory-ready track features.</div>
+            <div>6. Run <code class="font-mono text-acid-300">Rebuild Clusters</code> after embeddings exist.</div>
+            <div>7. Run <code class="font-mono text-acid-300">Audio Analysis</code> if you want BPM and loudness features.</div>
+            <div>8. Run <code class="font-mono text-acid-300">Genre Manifold</code> after embeddings and clusters exist — required for genre fidelity constraints.</div>
+            <div>9. Run <code class="font-mono text-acid-300">Metal Archives</code> to scrape album ratings — feeds into album legitimacy scoring.</div>
+            <div>10. Run <code class="font-mono text-acid-300">RYM</code> after MusicBrainz — scrapes album ratings, genres, and descriptors from RateYourMusic.</div>
+          </div>
+          <div>
+            <div class="font-semibold text-white mb-1">What to expect</div>
+            <div>Only one long-running job should be active at a time.</div>
+            <div>A running job shows progress here. When it finishes, you should see either a success or failure message.</div>
+            <div>If a job ends unexpectedly, the UI now reports that instead of silently stopping.</div>
+          </div>
+          <div>
+            <div class="font-semibold text-white mb-1">When to use each button</div>
+            <div><code class="font-mono text-acid-300">Full Sync</code> rescans files and metadata from disk.</div>
+            <div><code class="font-mono text-acid-300">MusicBrainz</code> resolves canonical IDs — run before RYM or other external lookups.</div>
+            <div><code class="font-mono text-acid-300">Last.fm</code> enriches artist metadata and can take a while on large libraries.</div>
+            <div><code class="font-mono text-acid-300">Embeddings</code> and <code class="font-mono text-acid-300">Profiles</code> improve prompt matching and trajectory quality.</div>
+            <div><code class="font-mono text-acid-300">Rebuild Clusters</code> depends on embeddings.</div>
+            <div><code class="font-mono text-acid-300">RYM</code> scrapes album data from RateYourMusic — requires MusicBrainz IDs.</div>
+            <div><code class="font-mono text-acid-300">Refresh</code> only reloads counters; it does not start work.</div>
+          </div>
+          <div>
+            <div class="font-semibold text-white mb-1">What each metric means</div>
+            <div class="mt-1 space-y-1.5">
+              <div><span class="text-white font-medium">Embeddings</span> — Semantic vectors computed for each track. The generator queries these to find candidates matching your prompt. Without them, playlist generation won't work.</div>
+              <div><span class="text-white font-medium">Profiles</span> — Per-track scores across four dimensions: energy, darkness, tempo, and texture (0–1 each). These power the trajectory engine — they're what shapes how mood and intensity evolve across a playlist.</div>
+              <div><span class="text-white font-medium">Last.fm Artists</span> — Genre tags and artist similarity data fetched from Last.fm. Used to enrich scoring and improve stylistic coherence between tracks.</div>
+              <div><span class="text-white font-medium">Last.fm Tracks</span> — Per-track playcount and listener counts from Last.fm. Powers banger detection — identifying standout tracks within each artist's catalog and across the library.</div>
+              <div><span class="text-white font-medium">Scene Clusters</span> — Artists grouped into stylistic scenes using embedding similarity. The engine uses these to ensure variety and smooth transitions between musical zones. The count shown is the number of distinct scenes.</div>
+              <div><span class="text-white font-medium">Audio Features</span> — Acoustic measurements (BPM, loudness, brightness) extracted directly from audio files. Optional — profiles already cover the same dimensions via semantic analysis, but audio features can sharpen accuracy.</div>
+              <div><span class="text-white font-medium">Genre Manifold</span> — Probabilistic genre identity vectors per track, built from kNN neighborhood votes, Last.fm tags, and cluster membership. Powers strict genre filtering and prevents adjacent-genre drift (e.g. thrash staying thrash, not bleeding into NWOBHM).</div>
+              <div><span class="text-white font-medium">Metal Archives</span> — Album ratings and review counts scraped from Encyclopaedia Metallum. Matched to local albums via fuzzy title + year comparison. Feeds into a curation score that gently favours well-reviewed releases.</div>
+              <div><span class="text-white font-medium">MusicBrainz</span> — Canonical artist and album IDs resolved from the MusicBrainz database. These serve as join keys for external data sources like RateYourMusic.</div>
+              <div><span class="text-white font-medium">RateYourMusic</span> — Album ratings, vote counts, genres, and descriptors scraped from RYM. Enriches curation scoring, embedding text, and builds an album adjacency graph used for transition bonuses during sequencing.</div>
+            </div>
           </div>
         </div>
-      </div>
-    </details>
+      </template>
+    </UCollapsible>
 
     <!-- Coverage grid -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-      <!-- Embeddings -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Semantic vectors used to match tracks to your prompt. Required for generation.">Embeddings</span>
-          <span :class="coverageColor(embeddingPct)" class="text-xs font-semibold">
-            {{ embeddingPct }}%
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+      <div
+        v-for="metric in metrics"
+        :key="metric.label"
+        class="rounded-xl border border-(--ui-border) bg-(--ui-bg-elevated)/40 p-2.5 space-y-1.5"
+        :class="{ 'ring-1 ring-acid-400/25': metric.isRunning }"
+      >
+        <!-- Label row -->
+        <div class="flex items-center justify-between gap-1">
+          <span
+            class="text-[11px] font-medium text-(--ui-text-muted) truncate"
+            :title="metric.title"
+          >
+            {{ metric.label }}
+          </span>
+          <span
+            class="text-[11px] font-semibold tabular shrink-0"
+            :class="coverageTextClass[coverageLevel(metric.pct)]"
+          >
+            {{ metric.badge ?? `${metric.pct}%` }}
           </span>
         </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-blue-500 rounded-full transition-all duration-500"
-            :style="{ width: `${embeddingPct}%` }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.tracks_with_embeddings ?? 0).toLocaleString() }} / {{ stats.tracks.toLocaleString() }} tracks
-        </div>
-      </div>
 
-      <!-- Profiles -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="4D scores (energy, darkness, tempo, texture) that drive the trajectory engine.">Profiles</span>
-          <span :class="coverageColor(profilePct)" class="text-xs font-semibold">
-            {{ profilePct }}%
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-purple-500 rounded-full transition-all duration-500"
-            :style="{ width: `${profilePct}%` }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.tracks_with_profiles ?? 0).toLocaleString() }} / {{ stats.tracks.toLocaleString() }} tracks
-        </div>
-      </div>
+        <!-- Progress bar -->
+        <UProgress
+          :model-value="metric.pct"
+          :max="100"
+          size="2xs"
+          color="primary"
+          :animation="metric.isRunning ? 'elastic' : undefined"
+          :ui="{ base: 'bg-(--ui-bg-accented)' }"
+        />
 
-      <!-- Last.fm -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Artists enriched with genre tags and similarity data from Last.fm.">Last.fm Artists</span>
-          <span :class="coverageColor(lastfmPct)" class="text-xs font-semibold">
-            {{ lastfmPct }}%
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-red-500 rounded-full transition-all duration-500"
-            :style="{ width: `${lastfmPct}%` }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.artists_with_tags ?? 0).toLocaleString() }} / {{ stats.artists.toLocaleString() }} artists
-        </div>
-      </div>
-
-      <!-- Last.fm Tracks -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Per-track playcount and listener stats from Last.fm. Powers banger detection.">Last.fm Tracks</span>
-          <span :class="coverageColor(lastfmTracksPct)" class="text-xs font-semibold">
-            {{ lastfmTracksPct }}%
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-pink-500 rounded-full transition-all duration-500"
-            :style="{ width: `${lastfmTracksPct}%` }"
-            :class="{ 'animate-pulse': lastfmTracks.isRunning.value }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.tracks_with_lastfm_stats ?? 0).toLocaleString() }} / {{ stats.tracks.toLocaleString() }} tracks
-        </div>
-      </div>
-
-      <!-- Clusters -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Artists grouped into stylistic scenes. Used for variety and smooth transitions.">Scene Clusters</span>
-          <span :class="coverageColor(clusterPct)" class="text-xs font-semibold">
-            {{ (stats.scene_clusters ?? 0) }} clusters
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-amber-500 rounded-full transition-all duration-500"
-            :style="{ width: `${clusterPct}%` }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.artists_clustered ?? 0).toLocaleString() }} / {{ stats.artists.toLocaleString() }} artists
-          <span v-if="stats.vector_index_built" class="ml-1 text-green-500">· index ✓</span>
-        </div>
-      </div>
-
-      <!-- Audio Features -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="BPM, loudness, and brightness extracted from audio files. Optional — profiles cover similar ground semantically.">Audio Features</span>
-          <span :class="coverageColor(audioPct)" class="text-xs font-semibold">
-            {{ audioPct }}%
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-teal-500 rounded-full transition-all duration-500"
-            :style="{ width: `${audioPct}%` }"
-            :class="{ 'animate-pulse': audio.isRunning.value }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.tracks_with_audio_features ?? 0).toLocaleString() }} / {{ stats.tracks.toLocaleString() }} tracks
-        </div>
-      </div>
-
-      <!-- Genre Manifold -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Probabilistic genre identity vectors. Used for hard/soft genre constraints and drift prevention.">Genre Manifold</span>
-          <span :class="coverageColor(genreManifoldPct)" class="text-xs font-semibold">
-            {{ genreManifoldPct }}%
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-indigo-500 rounded-full transition-all duration-500"
-            :style="{ width: `${genreManifoldPct}%` }"
-            :class="{ 'animate-pulse': genreManifold.isRunning.value }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.tracks_with_genre_probs ?? 0).toLocaleString() }} / {{ stats.tracks.toLocaleString() }} tracks
-        </div>
-      </div>
-
-      <!-- Metal Archives -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Album ratings and review counts scraped from Metal Archives. Used for album legitimacy scoring.">Metal Archives</span>
-          <span :class="coverageColor(metalArchivesPct)" class="text-xs font-semibold">
-            {{ metalArchivesPct }}%
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-orange-500 rounded-full transition-all duration-500"
-            :style="{ width: `${metalArchivesPct}%` }"
-            :class="{ 'animate-pulse': metalArchives.isRunning.value }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.albums_with_legitimacy ?? 0).toLocaleString() }} / {{ stats.albums.toLocaleString() }} albums
-        </div>
-      </div>
-
-      <!-- MusicBrainz -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="MusicBrainz IDs resolved for artists and albums. Used as canonical join keys for RYM and other external data.">MusicBrainz</span>
-          <span :class="coverageColor(mbArtistPct)" class="text-xs font-semibold">
-            {{ mbArtistPct }}%
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-cyan-500 rounded-full transition-all duration-500"
-            :style="{ width: `${mbArtistPct}%` }"
-            :class="{ 'animate-pulse': musicbrainz.isRunning.value }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.artists_with_mbid ?? 0).toLocaleString() }} / {{ stats.artists.toLocaleString() }} artists
-          · {{ (stats.albums_with_mbid ?? 0).toLocaleString() }} albums
-        </div>
-      </div>
-
-      <!-- RYM -->
-      <div class="space-y-1">
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400 text-xs" title="Album ratings, genres, and descriptors from RateYourMusic. Enriches curation scoring, genre identity, and album adjacency transitions.">RateYourMusic</span>
-          <span :class="coverageColor(rymPct)" class="text-xs font-semibold">
-            {{ rymPct }}%
-          </span>
-        </div>
-        <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-rose-500 rounded-full transition-all duration-500"
-            :style="{ width: `${rymPct}%` }"
-            :class="{ 'animate-pulse': rym.isRunning.value }"
-          />
-        </div>
-        <div class="text-xs text-gray-400">
-          {{ (stats.albums_with_rym ?? 0).toLocaleString() }} / {{ stats.albums.toLocaleString() }} albums
-          <span v-if="(stats.rym_adjacency_pairs ?? 0) > 0" class="ml-1">· {{ (stats.rym_adjacency_pairs ?? 0).toLocaleString() }} adjacency pairs</span>
+        <!-- Count label -->
+        <div class="text-[11px] text-(--ui-text-dimmed) tabular leading-tight">
+          {{ metric.countLabel }}
+          <span v-if="metric.extra" class="ml-1 text-acid-400/70">{{ metric.extra }}</span>
         </div>
       </div>
     </div>
 
-    <!-- Active enrichment progress -->
+    <!-- Active enrichment console panel -->
     <div
       v-if="activeJob"
-      class="rounded bg-gray-50 dark:bg-gray-800 px-3 py-2 text-xs space-y-1"
+      class="glass rounded-xl p-3 space-y-2"
     >
-      <div class="flex items-center justify-between text-gray-600 dark:text-gray-300">
-        <span class="truncate">{{ activeJob.operationLabel.value }} · {{ activeJob.message.value || 'Running…' }}</span>
-        <span class="shrink-0 ml-2 font-mono">{{ activeJob.progress.value }}%</span>
+      <div class="flex items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="inline-flex size-1.5 rounded-full bg-acid-400 animate-pulse shrink-0" />
+          <span class="font-medium text-white truncate">{{ activeJob.operationLabel.value }}</span>
+          <span class="text-(--ui-text-muted) truncate">{{ activeJob.message.value || 'Running…' }}</span>
+        </div>
+        <span class="tabular font-semibold text-acid-300 shrink-0">{{ activeJob.progress.value }}%</span>
       </div>
-      <div class="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-        <div
-          class="h-full bg-blue-500 rounded-full transition-all duration-300"
-          :style="{ width: `${activeJob.progress.value}%` }"
-        />
-      </div>
+      <UProgress
+        :model-value="activeJob.progress.value"
+        :max="100"
+        size="xs"
+        color="primary"
+        :ui="{ base: 'bg-(--ui-bg-accented)' }"
+      />
     </div>
 
-    <div
+    <!-- Outcome alert -->
+    <UAlert
       v-if="latestOutcome"
-      class="rounded px-3 py-2 text-xs"
-      :class="latestOutcome.tone === 'error'
-        ? 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300'
-        : 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300'"
-    >
-      <div class="font-medium">{{ latestOutcome.title }}</div>
-      <div class="mt-1">{{ latestOutcome.message }}</div>
-    </div>
+      :color="latestOutcome.tone === 'error' ? 'error' : 'success'"
+      variant="subtle"
+      :icon="latestOutcome.tone === 'error' ? 'i-lucide-circle-x' : 'i-lucide-circle-check'"
+      :title="latestOutcome.title"
+      :description="latestOutcome.message"
+    />
 
+    <!-- Action buttons -->
     <div class="flex flex-wrap gap-2 pt-1">
       <UButton
         :loading="isSyncing"
         :disabled="isSyncing || anyRunning"
-        variant="outline"
+        color="primary"
+        variant="soft"
         size="xs"
+        icon="i-lucide-refresh-cw"
         @click="emit('full-sync')"
       >
         Full Sync
@@ -391,6 +334,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="lastfm.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="lastfm.run('/api/enrich/lastfm/stream', 'Last.fm enrichment')"
@@ -400,6 +344,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="lastfmTracks.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="lastfmTracks.run('/api/enrich/lastfm-tracks/stream', 'Last.fm track enrichment')"
@@ -409,6 +354,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="embeddings.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="embeddings.run('/api/enrich/embeddings/stream', 'Embedding generation')"
@@ -418,6 +364,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="profiles.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="profiles.run('/api/enrich/profiles/stream', 'Profile generation')"
@@ -427,6 +374,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="clusters.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="clusters.run('/api/enrich/clusters/stream', 'Scene clustering')"
@@ -436,6 +384,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="audio.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="audio.run('/api/enrich/audio/stream', 'Audio analysis')"
@@ -445,6 +394,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="genreManifold.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="genreManifold.run('/api/enrich/genre-manifold/stream', 'Genre manifold build')"
@@ -454,6 +404,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="metalArchives.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="metalArchives.run('/api/enrich/metal-archives/stream', 'Metal Archives enrichment')"
@@ -463,6 +414,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="musicbrainz.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="musicbrainz.run('/api/enrich/musicbrainz/stream', 'MusicBrainz resolution')"
@@ -472,6 +424,7 @@ const latestOutcome = computed(() => {
       <UButton
         :loading="rym.isRunning.value"
         :disabled="anyRunning"
+        color="neutral"
         variant="outline"
         size="xs"
         @click="rym.run('/api/enrich/rym/stream', 'RYM enrichment')"
@@ -480,8 +433,10 @@ const latestOutcome = computed(() => {
       </UButton>
       <UButton
         variant="ghost"
+        color="neutral"
         size="xs"
         :disabled="anyRunning"
+        icon="i-lucide-rotate-ccw"
         @click="emit('refresh-stats')"
       >
         Refresh
