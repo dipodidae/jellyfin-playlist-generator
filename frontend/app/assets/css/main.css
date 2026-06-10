@@ -1,2 +1,135 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* ───────────────────────────────────────────────────────────────
+   GOATED design system — "vinyl-noir / studio console"
+   Deep warm near-black canvas · chartreuse-lime signature accent
+   Bricolage Grotesque (display) + Geist (body/mono)
+   Fonts are auto-provisioned by @nuxt/fonts (bundled with @nuxt/ui).
+   ─────────────────────────────────────────────────────────────── */
+
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
+  --font-display: "Bricolage Grotesque", "Geist", ui-sans-serif, sans-serif;
+
+  /* signature accent ramp (chartreuse-lime) */
+  --color-acid-50: #f7ffe0;
+  --color-acid-100: #ecffb8;
+  --color-acid-200: #dbff85;
+  --color-acid-300: #c8ff4d;
+  --color-acid-400: #b6f43a;
+  --color-acid-500: #97d717;
+  --color-acid-600: #74ab0c;
+  --color-acid-700: #57810f;
+  --color-acid-800: #466612;
+  --color-acid-900: #3b5614;
+  --color-acid-950: #1e3005;
+
+  --radius-xl: 1.1rem;
+}
+
+:root {
+  --ui-radius: 0.75rem;
+}
+
+/* warm near-black surfaces (override Nuxt UI neutral so it isn't flat gray) */
+.dark {
+  --ui-bg: #0a0a0b;
+  --ui-bg-muted: #0f0f11;
+  --ui-bg-elevated: #161619;
+  --ui-bg-accented: #1d1d21;
+  --ui-border: #232327;
+  --ui-border-muted: #1a1a1e;
+  --ui-text-dimmed: #6b6b73;
+  --ui-text-muted: #9a9aa3;
+}
+
+/* ── Base canvas: layered gradient-mesh glow + film grain ── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #08080a;
+  color: var(--ui-text, #e7e7ea);
+  background-image:
+    radial-gradient(60rem 60rem at 8% -10%, color-mix(in oklab, var(--color-acid-500) 16%, transparent), transparent 60%),
+    radial-gradient(50rem 50rem at 100% 0%, color-mix(in oklab, #18b6c9 14%, transparent), transparent 55%),
+    radial-gradient(70rem 70rem at 50% 120%, color-mix(in oklab, #7a3df0 12%, transparent), transparent 60%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Film-grain overlay — fixed, non-interactive, subtle */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#__nuxt { position: relative; z-index: 1; }
+
+/* ── Typography ── */
+.font-display { font-family: var(--font-display); letter-spacing: -0.015em; }
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
+.tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* ── Reusable atmosphere utilities ── */
+@utility glass {
+  background: color-mix(in oklab, var(--ui-bg-elevated) 70%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--ui-border);
+}
+
+@utility glow-acid {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-acid-400) 35%, transparent),
+              0 8px 40px -12px color-mix(in oklab, var(--color-acid-500) 45%, transparent);
+}
+
+@utility text-gradient-acid {
+  background: linear-gradient(100deg, var(--color-acid-300), #6fe3c0 60%, #59c1ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── Custom scrollbar ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-acid-700) transparent;
+}
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--color-acid-600) 55%, #2a2a2e);
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--color-acid-500); }
+
+/* ── Selection ── */
+::selection {
+  background: color-mix(in oklab, var(--color-acid-400) 35%, transparent);
+  color: #f7ffe0;
+}
+
+/* ── Page-load reveal + brand equalizer ── */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.rise-in { animation: rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.eq-bar { transform-origin: bottom; animation: eq 1.1s ease-in-out infinite; }

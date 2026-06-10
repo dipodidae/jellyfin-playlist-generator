@@ -6,8 +6,8 @@ defineProps<{
 </script>
 
 <template>
-  <div>
-    <p class="text-gray-500">{{ label }}</p>
-    <p class="font-medium text-gray-900 dark:text-white">{{ value }}</p>
+  <div class="rounded-xl border border-(--ui-border) bg-(--ui-bg-elevated)/40 px-3.5 py-2.5">
+    <p class="text-[11px] font-medium uppercase tracking-wider text-(--ui-text-dimmed)">{{ label }}</p>
+    <p class="tabular mt-0.5 font-display text-lg font-semibold text-white">{{ value }}</p>
   </div>
 </template>

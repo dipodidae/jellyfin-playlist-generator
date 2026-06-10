@@ -23,8 +23,15 @@ export default defineNuxtConfig({
       title: 'Playlist Generator',
       meta: [
         { name: 'description', content: 'Prompt-driven playlist generation for your music library' },
+        { name: 'theme-color', content: '#08080a' },
       ],
     },
+  },
+
+  // Dark-first: the vinyl-noir aesthetic is designed for dark.
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
   },
 
 
