@@ -67,3 +67,23 @@ def test_match_by_name_ambiguous_returns_none():
         {"Id": "JF2", "Name": "Greatest Hits", "AlbumArtist": "Queen"},
     ]
     assert match_by_name("Greatest Hits", "Queen", jf_albums) is None
+
+
+def test_partition_by_ledger_skips_already_applied():
+    from app.ingestion.jellyfin_dates import partition_by_ledger
+    albums = [
+        {"album_id": "A1", "year": 1990},   # already applied at 1990 -> skip
+        {"album_id": "A2", "year": 1983},   # applied at 1979 (changed) -> process
+        {"album_id": "A3", "year": 2001},   # never applied -> process
+    ]
+    ledger = {"A1": 1990, "A2": 1979}
+    to_process, skipped = partition_by_ledger(albums, ledger)
+    assert skipped == 1
+    assert [a["album_id"] for a in to_process] == ["A2", "A3"]
+
+
+def test_partition_by_ledger_force_processes_all():
+    from app.ingestion.jellyfin_dates import partition_by_ledger
+    albums = [{"album_id": "A1", "year": 1990}]
+    to_process, skipped = partition_by_ledger(albums, {"A1": 1990}, force=True)
+    assert skipped == 0 and len(to_process) == 1

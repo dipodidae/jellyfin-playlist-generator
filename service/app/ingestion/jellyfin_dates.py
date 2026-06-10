@@ -207,17 +207,72 @@ def _load_eligible_albums() -> list[dict]:
     ]
 
 
-async def fix_release_dates(progress_callback=None) -> dict:
-    """Push resolved original dates onto matching Jellyfin albums. Album-level, locked."""
+def load_applied_ledger() -> dict[str, int]:
+    """Return {app_album_id: applied_year} of dates already written to Jellyfin."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT album_id, applied_year FROM jellyfin_date_applied")
+            return {str(r[0]): r[1] for r in cur.fetchall()}
+
+
+def record_applied(album_id: str, jellyfin_album_id: str, year: int) -> None:
+    """Mark an album as fixed at ``year`` so future runs skip it (idempotency ledger)."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO jellyfin_date_applied
+                    (album_id, jellyfin_album_id, applied_year, applied_at)
+                VALUES (%s, %s, %s, now())
+                ON CONFLICT (album_id) DO UPDATE
+                    SET jellyfin_album_id = EXCLUDED.jellyfin_album_id,
+                        applied_year = EXCLUDED.applied_year,
+                        applied_at = now()
+                """,
+                (album_id, jellyfin_album_id, int(year)),
+            )
+
+
+def partition_by_ledger(albums: list[dict], ledger: dict[str, int], force: bool = False):
+    """Split eligible albums into (to_process, already_applied_count).
+
+    An album is skipped when ``force`` is False AND it was already written at the
+    SAME ``year`` (the ledger value matches its current resolved original_year).
+    Albums whose resolved year changed since last write are re-processed.
+    """
+    if force:
+        return list(albums), 0
+    to_process: list[dict] = []
+    skipped = 0
+    for a in albums:
+        if ledger.get(a["album_id"]) == a["year"]:
+            skipped += 1
+        else:
+            to_process.append(a)
+    return to_process, skipped
+
+
+async def fix_release_dates(progress_callback=None, force: bool = False) -> dict:
+    """Push resolved original dates onto matching Jellyfin albums. Album-level, locked.
+
+    Idempotent: albums already written at their current resolved year are skipped
+    via the ``jellyfin_date_applied`` ledger (no Jellyfin call), so re-runs are short
+    maintenance bursts touching only new/changed albums. ``force=True`` re-applies all.
+    """
     if not settings.jellyfin_url or not settings.jellyfin_api_key:
         return {"error": "Jellyfin not configured (set jellyfin_url + jellyfin_api_key)"}
 
     albums = _load_eligible_albums()
+    ledger = load_applied_ledger()
+    to_process, already_applied = partition_by_ledger(albums, ledger, force)
+
     stats = {
-        "eligible": len(albums), "matched": 0, "updated": 0,
+        "eligible": len(albums), "already_applied": already_applied,
+        "matched": 0, "updated": 0,
         "skipped_no_jellyfin_match": 0, "failed": 0, "errors": [],
     }
-    if not albums:
+    # Nothing new/changed → skip the (expensive) Jellyfin library fetch entirely.
+    if not to_process:
         return stats
 
     lp = settings.local_path_prefix or "/music"
@@ -226,12 +281,12 @@ async def fix_release_dates(progress_callback=None) -> dict:
     async with httpx.AsyncClient(timeout=60.0) as client:
         audio_items = await fetch_audio_items(client)
         mapping, unresolved = resolve_album_id_map(
-            [{"album_id": a["album_id"], "track_paths": a["track_paths"]} for a in albums],
+            [{"album_id": a["album_id"], "track_paths": a["track_paths"]} for a in to_process],
             audio_items, lp, jp,
         )
         if unresolved:
             jf_albums = await fetch_album_items(client)
-            by_id = {a["album_id"]: a for a in albums}
+            by_id = {a["album_id"]: a for a in to_process}
             for aid in unresolved:
                 a = by_id[aid]
                 jf_id = match_by_name(a["title"], a["artist_name"], jf_albums)
@@ -239,15 +294,16 @@ async def fix_release_dates(progress_callback=None) -> dict:
                     mapping[aid] = jf_id
 
         stats["matched"] = len(mapping)
-        stats["skipped_no_jellyfin_match"] = len(albums) - len(mapping)
+        stats["skipped_no_jellyfin_match"] = len(to_process) - len(mapping)
 
         total = len(mapping)
-        by_id = {a["album_id"]: a for a in albums}
+        by_id = {a["album_id"]: a for a in to_process}
         for i, (app_id, jf_id) in enumerate(mapping.items()):
             a = by_id[app_id]
             try:
                 premiere = build_premiere_date(a["year"], a["month"], a["day"], a["precision"])
                 await update_album_date(client, jf_id, premiere, a["year"])
+                record_applied(app_id, jf_id, a["year"])  # ledger: don't touch again
                 stats["updated"] += 1
             except Exception as e:  # noqa: BLE001 — per-album failure must not abort the run
                 stats["failed"] += 1

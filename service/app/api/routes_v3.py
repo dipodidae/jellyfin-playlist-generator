@@ -1150,8 +1150,12 @@ _jellyfin_dates_lock = asyncio.Lock()
 
 
 @router.post("/jellyfin/fix-release-dates")
-async def jellyfin_fix_release_dates(request: Request):
-    """Push resolved original release dates onto matching Jellyfin albums (SSE progress)."""
+async def jellyfin_fix_release_dates(request: Request, force: bool = False):
+    """Push resolved original release dates onto matching Jellyfin albums (SSE progress).
+
+    Idempotent by default: albums already written at their current year are skipped
+    via the applied ledger (short maintenance bursts). Pass ``?force=true`` to re-apply all.
+    """
     if _jellyfin_dates_lock.locked():
         raise HTTPException(status_code=409, detail="A release-date fix is already running")
 
@@ -1173,7 +1177,9 @@ async def jellyfin_fix_release_dates(request: Request):
 
             async def run():
                 try:
-                    result_holder["stats"] = await fix_release_dates(progress_callback=progress_cb)
+                    result_holder["stats"] = await fix_release_dates(
+                        progress_callback=progress_cb, force=force,
+                    )
                 except Exception as e:  # noqa: BLE001
                     result_holder["error"] = str(e)
                 finally:

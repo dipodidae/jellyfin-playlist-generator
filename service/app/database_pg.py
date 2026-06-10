@@ -546,6 +546,16 @@ def init_database() -> None:
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_album_release_dates_year ON album_release_dates(original_year)")
 
+            # Idempotency ledger for the Jellyfin release-date fixer (skip already-applied albums).
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS jellyfin_date_applied (
+                    album_id          UUID PRIMARY KEY REFERENCES albums(id) ON DELETE CASCADE,
+                    jellyfin_album_id TEXT,
+                    applied_year      INTEGER,
+                    applied_at        TIMESTAMPTZ DEFAULT now()
+                )
+            """)
+
             logger.info("Database schema initialized")
 
 
