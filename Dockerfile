@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
     apache2-utils \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python requirements and install
