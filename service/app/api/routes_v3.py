@@ -1146,6 +1146,62 @@ async def get_release_dates_status():
     }
 
 
+_jellyfin_dates_lock = asyncio.Lock()
+
+
+@router.post("/jellyfin/fix-release-dates")
+async def jellyfin_fix_release_dates(request: Request):
+    """Push resolved original release dates onto matching Jellyfin albums (SSE progress)."""
+    if _jellyfin_dates_lock.locked():
+        raise HTTPException(status_code=409, detail="A release-date fix is already running")
+
+    async def generate_events() -> AsyncGenerator[str, None]:
+        def emit(stage: str, progress: int, message: str, **extra) -> str:
+            return f"data: {json.dumps({'stage': stage, 'progress': progress, 'message': message, **extra})}\n\n"
+
+        async with _jellyfin_dates_lock:
+            yield emit("start", 0, "Fetching Jellyfin library and matching albums...")
+            from app.ingestion.jellyfin_dates import fix_release_dates
+
+            queue: asyncio.Queue = asyncio.Queue()
+
+            def progress_cb(current: int, total: int, message: str):
+                pct = int((current / total) * 100) if total else 0
+                queue.put_nowait(emit("updating", pct, message))
+
+            result_holder: dict = {}
+
+            async def run():
+                try:
+                    result_holder["stats"] = await fix_release_dates(progress_callback=progress_cb)
+                except Exception as e:  # noqa: BLE001
+                    result_holder["error"] = str(e)
+                finally:
+                    queue.put_nowait(None)
+
+            task = asyncio.create_task(run())
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield item
+            await task
+
+            if "error" in result_holder:
+                yield emit("error", 0, result_holder["error"], error=result_holder["error"], done=True)
+            else:
+                stats = result_holder.get("stats", {})
+                if stats.get("error"):
+                    yield emit("error", 0, stats["error"], error=stats["error"], done=True)
+                else:
+                    msg = (f"Done: {stats.get('updated', 0)} updated, "
+                           f"{stats.get('skipped_no_jellyfin_match', 0)} unmatched, "
+                           f"{stats.get('failed', 0)} failed")
+                    yield emit("complete", 100, msg, stats=stats, done=True)
+
+    return StreamingResponse(generate_events(), media_type="text/event-stream")
+
+
 # ============================================================================
 # Combined Sync (scan + all enrichment in one shot)
 # ============================================================================
