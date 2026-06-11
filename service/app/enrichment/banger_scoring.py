@@ -73,3 +73,40 @@ def sonic_score(energy, danceability, loudness_norm, bpm, valence, dark) -> floa
         total = sum(weights.values())
         weights = {k: w / total for k, w in weights.items()}
     return _clamp01(sum(terms[k] * weights[k] for k in terms))
+
+
+GROUP_WEIGHTS = {"popularity": 0.45, "sonic": 0.35, "replay": 0.20}
+
+
+def percentile_of(value, sorted_values) -> float:
+    """Fraction of sorted_values <= value. sorted_values MUST be pre-sorted asc."""
+    if not sorted_values:
+        return 0.0
+    return bisect.bisect_right(sorted_values, value) / len(sorted_values)
+
+
+def composite_banger_score(popularity=None, sonic=None, replay=None) -> float:
+    """Blend present groups; renormalize weights over whichever are not None."""
+    parts = {}
+    if popularity is not None:
+        parts["popularity"] = popularity
+    if sonic is not None:
+        parts["sonic"] = sonic
+    if replay is not None:
+        parts["replay"] = replay
+    if not parts:
+        return 0.0
+    wsum = sum(GROUP_WEIGHTS[k] for k in parts)
+    score = sum(parts[k] * GROUP_WEIGHTS[k] for k in parts) / wsum
+    return _clamp01(score)
+
+
+def confidence_score(n_groups, strong_signals, score) -> float:
+    """Confidence from group coverage + signal agreement (preserves v1 shape)."""
+    if strong_signals >= 2:
+        return round(min(1.0, 0.85 + min(0.15, score * 0.15)), 4)
+    if strong_signals == 1 or n_groups >= 2:
+        return round(0.55 + min(0.25, score * 0.25), 4)
+    if score > 0.3:
+        return round(0.25 + min(0.25, score * 0.25), 4)
+    return round(max(0.05, score * 0.5), 4)

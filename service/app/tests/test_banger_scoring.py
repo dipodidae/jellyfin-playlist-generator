@@ -1,5 +1,6 @@
 from app.enrichment.banger_scoring import (
     tempo_score, energy_proxy, is_dark_genre, sonic_score,
+    percentile_of, composite_banger_score, confidence_score,
 )
 
 
@@ -62,3 +63,39 @@ def test_sonic_dark_drops_valence_no_penalty():
     assert round(light, 3) == 0.90
     # Dark track redistributes -> the four maxed terms give full 1.0
     assert round(dark, 3) == 1.0
+
+
+def test_percentile_of():
+    vals = [0.0, 1.0, 2.0, 3.0, 4.0]   # must be pre-sorted
+    assert percentile_of(4.0, vals) == 1.0
+    assert percentile_of(2.0, vals) == 0.6   # 3 of 5 are <= 2.0
+    assert percentile_of(-1.0, vals) == 0.0
+    assert percentile_of(1.0, []) == 0.0
+
+
+def test_composite_all_groups():
+    # 0.45*1 + 0.35*0 + 0.20*0 = 0.45
+    s = composite_banger_score(popularity=1.0, sonic=0.0, replay=0.0)
+    assert round(s, 4) == 0.45
+
+
+def test_composite_renormalizes_missing_sonic():
+    # popularity+replay only -> weights 0.45/0.20 renormalize to 0.692/0.308
+    s = composite_banger_score(popularity=1.0, sonic=None, replay=0.0)
+    assert round(s, 3) == 0.692
+
+
+def test_composite_sonic_only():
+    s = composite_banger_score(popularity=None, sonic=0.8, replay=None)
+    assert round(s, 3) == 0.8
+
+
+def test_composite_empty():
+    assert composite_banger_score() == 0.0
+
+
+def test_confidence_tiers():
+    assert confidence_score(n_groups=3, strong_signals=2, score=1.0) == 1.0
+    assert confidence_score(n_groups=2, strong_signals=1, score=0.0) == 0.55
+    assert confidence_score(n_groups=1, strong_signals=0, score=0.4) > 0.25
+    assert confidence_score(n_groups=1, strong_signals=0, score=0.1) == 0.05
