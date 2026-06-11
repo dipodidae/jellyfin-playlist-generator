@@ -45,3 +45,31 @@ def is_dark_genre(tags) -> bool:
         if any(g in tl for g in DARK_GENRES):
             return True
     return False
+
+
+_SONIC_WEIGHTS = {
+    "energy": 0.30,
+    "dance": 0.30,
+    "loud": 0.15,
+    "tempo": 0.15,
+    "valence": 0.10,
+}
+
+
+def sonic_score(energy, danceability, loudness_norm, bpm, valence, dark) -> float:
+    """Weighted sonic composite. For dark genres the valence term is dropped and
+    its weight redistributed proportionally across the remaining four terms."""
+    terms = {
+        "energy": _clamp01(energy),
+        "dance": _clamp01(danceability),
+        "loud": _clamp01(loudness_norm),
+        "tempo": tempo_score(bpm),
+        "valence": _clamp01(valence),
+    }
+    weights = dict(_SONIC_WEIGHTS)
+    if dark:
+        del terms["valence"]
+        del weights["valence"]
+        total = sum(weights.values())
+        weights = {k: w / total for k, w in weights.items()}
+    return _clamp01(sum(terms[k] * weights[k] for k in terms))

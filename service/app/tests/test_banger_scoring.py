@@ -1,5 +1,5 @@
 from app.enrichment.banger_scoring import (
-    tempo_score, energy_proxy, is_dark_genre,
+    tempo_score, energy_proxy, is_dark_genre, sonic_score,
 )
 
 
@@ -37,3 +37,28 @@ def test_is_dark_genre():
     assert is_dark_genre(["Darkwave"]) is True
     assert is_dark_genre(["Synthpop", "Dream Pop"]) is False
     assert is_dark_genre([]) is False
+
+
+def test_sonic_all_max():
+    # energy=dance=loud=tempo(110)=valence=1.0 -> 1.0
+    s = sonic_score(energy=1.0, danceability=1.0, loudness_norm=1.0,
+                    bpm=110, valence=1.0, dark=False)
+    assert round(s, 4) == 1.0
+
+
+def test_sonic_weights_sum_correctly():
+    # only energy=1.0, everything else 0, valence=0 -> 0.30
+    s = sonic_score(energy=1.0, danceability=0.0, loudness_norm=0.0,
+                    bpm=0, valence=0.0, dark=False)
+    assert round(s, 3) == 0.30
+
+
+def test_sonic_dark_drops_valence_no_penalty():
+    # Dark track, low valence: valence term removed, other 4 reweighted to sum 1.
+    # energy=1, dance=1, loud=1, tempo(110)=1, valence=0
+    light = sonic_score(1.0, 1.0, 1.0, 110, valence=0.0, dark=False)
+    dark = sonic_score(1.0, 1.0, 1.0, 110, valence=0.0, dark=True)
+    # Light track loses the 0.10 valence contribution (valence=0) -> 0.90
+    assert round(light, 3) == 0.90
+    # Dark track redistributes -> the four maxed terms give full 1.0
+    assert round(dark, 3) == 1.0
