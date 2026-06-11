@@ -487,9 +487,12 @@ def analyze_library(
 
         stats["processed"] += 1
 
+        # Emit progress every track so the SSE stream never idles long enough
+        # to trip the reverse-proxy read timeout (a single slow file can take
+        # ~20s; a 100-track batch can exceed 300s). Log less often.
+        if progress_callback:
+            progress_callback(i + 1, total, f"Analyzed {i + 1}/{total} tracks")
         if (i + 1) % batch_size == 0:
-            if progress_callback:
-                progress_callback(i + 1, total, f"Analyzed {i + 1}/{total} tracks")
             logger.info(f"Audio analysis progress: {i + 1}/{total}")
 
     if progress_callback:
