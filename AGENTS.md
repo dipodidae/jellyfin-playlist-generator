@@ -116,7 +116,8 @@ playlist-generator/
 │   │   │   ├── studio_scores.py  # Backfill track_studio_scores from title/album metadata
 │   │   │   └── jellyfin_dates.py # Push resolved original release dates to Jellyfin (path-based album matching, locked fields)
 │   │   ├── enrichment/
-│   │   │   └── banger_detector.py # Banger detection from Last.fm popularity
+│   │   │   ├── banger_detector.py # Composite banger detection (DB orchestration)
+│   │   │   └── banger_scoring.py   # Pure banger scoring math (popularity/sonic/replay)
 │   │   ├── profiles/
 │   │   │   └── generator.py # Semantic track profiles (4D: energy, darkness, tempo, texture) + RYM data
 │   │   ├── export/
@@ -268,7 +269,7 @@ extension_score = (
 - **Studio/live preference**: `version_classifier.py` classifies each track as `studio` (score 1.0), `live` (0.35), `demo` (0.50), `session` (0.55), `acoustic` (0.65), `remix` (0.70), or `bonus` (0.75), stored in `track_studio_scores`. By default a soft penalty (`_w_studio=0.08`) down-ranks non-studio cuts; `detect_prefer_live()` inverts it for prompts containing live/acoustic/unplugged cues.
 - **Per-segment genre waypoints**: For multi-genre journeys, the LLM emits per-waypoint `genres`; `build_phase_queries()` retrieves each segment's genre, a DB genre pool guarantees those styles are present, and `generate_position_pools()` scores `genre_match` per position against that position's segment genres (`PlaylistIntent.segment_genres_at()`) — so "ambient → doom" actually opens ambient and closes doom.
 - **Genre Manifold System (GMS)**: Probabilistic genre identity vectors (`genre_probs`) loaded from `track_genre_probabilities` table; used for `compute_genre_probability_score()` (replaces Jaccard when available), `compute_genre_drift_penalty()` in beam search, STRICT mode hard filter, and hybrid query embedding construction
-- **Curation scoring**: Combined signal from banger detection (Last.fm popularity), Metal Archives album legitimacy (percentile-normalized), and RYM album ratings; weighted by `impact_preference`
+- **Curation scoring**: Combined signal from banger detection (composite: Last.fm popularity + sonic audio profile + replay ratio), Metal Archives album legitimacy (percentile-normalized), and RYM album ratings; weighted by `impact_preference`
 - **RYM genre enrichment**: High-resolution RYM genres supplement Jaccard genre matching and BM25 search vectors; RYM descriptors feed negative constraint checking
 - **True original release dates**: Multi-source (Discogs/MusicBrainz/file) verified dates used for year scoring (stronger signal than file metadata) and 5D era trajectory dimension
 - **BM25 search vectors**: Composed of track title + artist (Weight A), file genres + Last.fm tags + RYM genres (Weight B), RYM descriptors (Weight C)
@@ -448,7 +449,7 @@ css: ['~/assets/css/main.css'],
 6. **Embed**: tracks + RYM data → sentence-transformers → pgvector (embeddings)
 7. **Profile**: tags → heuristics → PostgreSQL (energy, darkness, tempo, texture)
 8. **Cluster**: artist embeddings → KMeans → scene_clusters, artist_clusters
-9. **Banger Detection**: Last.fm playcount/listeners → within-artist rank + global percentile → track_banger_flags
+9. **Banger Detection**: composite → track_banger_flags. Three groups (weights renormalized over those present): popularity 0.45 (Last.fm within-artist rank + global percentile), sonic 0.35 (track_audio_features energy/dance/loudness/tempo/valence; valence dropped for dark genres), replay 0.20 (log playcount/listeners percentile)
 10. **Genre Manifold**: kNN voting → track_genre_probabilities + genre centroids
 11. **Search Vectors**: BM25 tsvector (title/artist/genres + Last.fm tags + RYM genres/descriptors)
 12. **Audio Analysis** (`/enrich/audio`): librosa → BPM, loudness, brightness + valence, danceability, pulse_clarity, onset_rate, instrumentalness, acousticness, MFCC timbre → track_audio_features (migration 013; re-runs for rows missing new metrics)

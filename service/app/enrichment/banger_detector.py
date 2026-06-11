@@ -1,10 +1,16 @@
-"""Banger detection from existing Last.fm popularity data.
+"""Banger detection — composite score from data the stack already holds.
 
-Computes per-track banger scores using two independent signals:
-1. Within-artist rank — log(playcount) rank vs same artist's other tracks
-2. Global listener percentile — log(listeners) percentile across library
+Blends three signal groups (weights renormalized over whichever are present):
+  - popularity (0.45): within-artist log(playcount) rank + global log(listeners)
+    percentile, from lastfm_stats.
+  - sonic (0.35): librosa-derived energy/danceability/loudness/tempo/valence from
+    track_audio_features, with valence dropped for dark genres (metal, doom,
+    industrial, darkwave, goth, noise).
+  - replay (0.20): percentile of log(playcount/listeners) — repeat-play ratio.
 
-No external API calls needed — works entirely from lastfm_stats table.
+All scoring math lives in the pure, unit-tested banger_scoring module; this file
+is the DB orchestration (query + persist to track_banger_flags). No external API
+calls. See docs/superpowers/specs/2026-06-11-banger-factor-v2-design.md.
 """
 
 import json
