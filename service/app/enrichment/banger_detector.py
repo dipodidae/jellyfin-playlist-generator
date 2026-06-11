@@ -1,10 +1,16 @@
-"""Banger detection from existing Last.fm popularity data.
+"""Banger detection — composite score from data the stack already holds.
 
-Computes per-track banger scores using two independent signals:
-1. Within-artist rank — log(playcount) rank vs same artist's other tracks
-2. Global listener percentile — log(listeners) percentile across library
+Blends three signal groups (weights renormalized over whichever are present):
+  - popularity (0.45): within-artist log(playcount) rank + global log(listeners)
+    percentile, from lastfm_stats.
+  - sonic (0.35): librosa-derived energy/danceability/loudness/tempo/valence from
+    track_audio_features, with valence dropped for dark genres (metal, doom,
+    industrial, darkwave, goth, noise).
+  - replay (0.20): percentile of log(playcount/listeners) — repeat-play ratio.
 
-No external API calls needed — works entirely from lastfm_stats table.
+All scoring math lives in the pure, unit-tested banger_scoring module; this file
+is the DB orchestration (query + persist to track_banger_flags). No external API
+calls. See docs/superpowers/specs/2026-06-11-banger-factor-v2-design.md.
 """
 
 import json
@@ -13,6 +19,14 @@ import math
 from typing import Any
 
 from app.database_pg import get_connection
+from app.enrichment.banger_scoring import (
+    composite_banger_score,
+    confidence_score,
+    energy_proxy,
+    is_dark_genre,
+    percentile_of,
+    sonic_score,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +45,29 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
     """
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # Fetch all tracks with Last.fm stats and their primary artist
+            # Fetch all tracks with Last.fm stats + primary artist + audio
+            # features + genre tags. Tag names need a two-hop join
+            # (track_lastfm_tags.tag_id -> lastfm_tags.name).
             cur.execute("""
                 SELECT ls.track_id, ls.playcount, ls.listeners,
-                       ta.artist_id, a.name as artist_name
+                       ta.artist_id, a.name as artist_name,
+                       af.bpm, af.loudness_norm, af.onset_rate_norm,
+                       af.pulse_clarity, af.danceability, af.valence,
+                       COALESCE(
+                           array_agg(DISTINCT lft.name)
+                               FILTER (WHERE lft.name IS NOT NULL),
+                           ARRAY[]::text[]
+                       ) AS tags
                 FROM lastfm_stats ls
                 JOIN track_artists ta ON ls.track_id = ta.track_id AND ta.role = 'primary'
                 JOIN artists a ON ta.artist_id = a.id
+                LEFT JOIN track_audio_features af ON ls.track_id = af.track_id
+                LEFT JOIN track_lastfm_tags tlt ON ls.track_id = tlt.track_id
+                LEFT JOIN lastfm_tags lft ON tlt.tag_id = lft.id
                 WHERE ls.playcount > 0 OR ls.listeners > 0
+                GROUP BY ls.track_id, ls.playcount, ls.listeners, ta.artist_id,
+                         a.name, af.bpm, af.loudness_norm, af.onset_rate_norm,
+                         af.pulse_clarity, af.danceability, af.valence
             """)
             rows = cur.fetchall()
 
@@ -51,7 +80,13 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
     artist_tracks: dict[str, list[dict]] = {}  # artist_id -> [track_data]
     all_listeners: list[float] = []
 
-    for track_id, playcount, listeners, artist_id, artist_name in rows:
+    for (track_id, playcount, listeners, artist_id, artist_name,
+         bpm, loudness_norm, onset_rate_norm, pulse_clarity,
+         danceability, valence, tags) in rows:
+        # Audio features present only if the track has been analyzed. Any of
+        # the core sonic inputs being non-null counts as "analyzed".
+        has_audio = any(v is not None for v in (
+            bpm, loudness_norm, onset_rate_norm, danceability, valence))
         td = {
             "track_id": str(track_id),
             "playcount": playcount or 0,
@@ -60,6 +95,14 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
             "artist_name": artist_name,
             "log_playcount": math.log1p(playcount or 0),
             "log_listeners": math.log1p(listeners or 0),
+            "has_audio": has_audio,
+            "bpm": bpm,
+            "loudness_norm": loudness_norm,
+            "onset_rate_norm": onset_rate_norm,
+            "pulse_clarity": pulse_clarity,
+            "danceability": danceability,
+            "valence": valence,
+            "tags": list(tags or []),
         }
         tracks.append(td)
         artist_tracks.setdefault(str(artist_id), []).append(td)
@@ -77,6 +120,13 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
 
     global_max_log_listeners = max(all_listeners) if all_listeners else 1.0
 
+    # Replay signal: library-wide distribution of log1p(playcount/listeners),
+    # used to percentile-normalize each track's repeat-play ratio.
+    replay_log_sorted = sorted(
+        math.log1p(t["playcount"] / t["listeners"])
+        for t in tracks if t["listeners"] > 0
+    )
+
     # Compute within-artist rankings
     artist_rankings: dict[str, dict[str, float]] = {}  # artist_id -> {track_id -> rank_score}
     for artist_id, atracks in artist_tracks.items():
@@ -86,7 +136,6 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
         # Sort by log_playcount descending
         sorted_tracks = sorted(atracks, key=lambda t: t["log_playcount"], reverse=True)
         n = len(sorted_tracks)
-        top_n = max(1, int(n * _WITHIN_ARTIST_TOP_FRACTION))
 
         rankings = {}
         for rank, t in enumerate(sorted_tracks):
@@ -135,22 +184,46 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
                 "percentile": round(global_listener_score * 100, 1),
             })
 
-        # Composite banger score (independent signals)
-        banger_score = (
-            within_artist_score * 0.60 +
-            global_listener_score * 0.40
-        )
-        banger_score = min(1.0, max(0.0, banger_score))
+        # Group 1: popularity (within-artist rank 0.60 + global percentile 0.40).
+        # Always present here — every row in this query has Last.fm data.
+        popularity = within_artist_score * 0.60 + global_listener_score * 0.40
 
-        # Confidence based on signal agreement
-        if has_artist_signal and has_global_signal:
-            confidence = 0.85 + min(0.15, banger_score * 0.15)
-        elif has_artist_signal or has_global_signal:
-            confidence = 0.55 + min(0.25, banger_score * 0.25)
-        elif banger_score > 0.3:
-            confidence = 0.25 + min(0.25, banger_score * 0.25)
-        else:
-            confidence = max(0.05, banger_score * 0.5)
+        # Group 2: sonic profile (only when the track has been audio-analyzed).
+        sonic = None
+        if t["has_audio"]:
+            dark = is_dark_genre(t["tags"])
+            sonic = sonic_score(
+                energy=energy_proxy(
+                    t["loudness_norm"], t["onset_rate_norm"], t["pulse_clarity"]),
+                danceability=t["danceability"],
+                loudness_norm=t["loudness_norm"],
+                bpm=t["bpm"],
+                valence=t["valence"],
+                dark=dark,
+            )
+            sources.append({
+                "type": "sonic_audio",
+                "value": round(sonic, 3),
+                "valence_corrected": dark,
+            })
+
+        # Group 3: replay ratio (only when global listeners > 0).
+        replay = None
+        if t["listeners"] > 0:
+            ratio = t["playcount"] / t["listeners"]
+            replay = percentile_of(math.log1p(ratio), replay_log_sorted)
+            sources.append({
+                "type": "lastfm_replay_ratio",
+                "value": round(replay, 3),
+                "ratio": round(ratio, 2),
+            })
+
+        banger_score = composite_banger_score(
+            popularity=popularity, sonic=sonic, replay=replay)
+
+        n_groups = sum(x is not None for x in (popularity, sonic, replay))
+        strong_signals = int(has_artist_signal) + int(has_global_signal)
+        confidence = confidence_score(n_groups, strong_signals, banger_score)
 
         results.append({
             "track_id": t["track_id"],

@@ -84,7 +84,7 @@ playlist-generator/
     app/audio/            Librosa audio feature analysis
     app/embeddings/       Sentence-transformer embedding generation (+ RYM data)
     app/profiles/         4D semantic profile generation (+ RYM data)
-    app/enrichment/       Banger detection from Last.fm popularity
+    app/enrichment/       Composite banger detection (popularity + sonic + replay)
     app/export/           M3U and Jellyfin exporters
     app/ingestion/        File scanner, Last.fm, MusicBrainz, Metal Archives, Discogs, release dates
     app/api/              API routes and Pydantic schemas
@@ -215,7 +215,7 @@ screen -S rebuild ./rebuild-library.sh
 ./rebuild-library.sh --help
 ```
 
-The pipeline runs 13 steps: **flush** (truncate tables), **scan** (read music files), **musicbrainz** (resolve MBIDs), **lastfm** (enrich from Last.fm), **metal_archives** (album legitimacy), **release_dates** (true original years), **embeddings** (sentence-transformers), **profiles** (4D semantic profiles), **clusters** (scene/artist grouping), **banger_flags** (popularity detection), **audio** (librosa analysis), **genre_manifold** (GMS vectors), **search_vectors** (BM25 tsvector rebuild).
+The pipeline runs 13 steps: **flush** (truncate tables), **scan** (read music files), **musicbrainz** (resolve MBIDs), **lastfm** (enrich from Last.fm), **metal_archives** (album legitimacy), **release_dates** (true original years), **embeddings** (sentence-transformers), **profiles** (4D semantic profiles), **clusters** (scene/artist grouping), **banger_flags** (composite: popularity + sonic + replay), **audio** (librosa analysis), **genre_manifold** (GMS vectors), **search_vectors** (BM25 tsvector rebuild).
 
 Safe to interrupt and re-run -- it picks up where it left off via checkpoint files in `~/.local/state/playlist-generator/rebuild/`.
 
@@ -294,7 +294,7 @@ Each enrichment type has a fire-and-forget endpoint and an SSE streaming variant
 | POST | `/enrich/embeddings[/stream]` | Sentence-transformer embedding generation |
 | POST | `/enrich/profiles[/stream]` | 4D semantic profile generation |
 | POST | `/enrich/clusters[/stream]` | Scene and artist clustering |
-| POST | `/enrich/banger-flags[/stream]` | Banger detection from Last.fm popularity |
+| POST | `/enrich/banger-flags[/stream]` | Composite banger detection (Last.fm popularity + sonic audio profile + replay ratio) |
 | POST | `/enrich/audio[/stream]` | Audio feature analysis (BPM, loudness, brightness) |
 | POST | `/enrich/genre-manifold[/stream]` | Genre Manifold probability vectors |
 | POST | `/enrich/rym[/stream]` | RateYourMusic album data scraping |

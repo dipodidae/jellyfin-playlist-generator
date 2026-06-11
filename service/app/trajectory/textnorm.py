@@ -16,11 +16,21 @@ _VERSION_KEYWORDS = (
     "mono", "stereo", "instrumental", "acoustic", "bonus", "reissue",
     "outtake", "take", "alt", "alternate", "rehearsal", "rerecorded",
     "re-recorded", "extended", "club mix", "tibet mix",
+    "orchestral", "anniversary", "deluxe", "expanded",
+    "re-recording", "rerecording",
 )
 
 _GROUP_RE = re.compile(r"\s*[\(\[]([^()\[\]]*)[\)\]]\s*$")
 _FEAT_RE = re.compile(r"\s*(?:\(?\s*(?:feat|ft|featuring)\.?\s+[^)]*\)?)\s*$",
                       re.IGNORECASE)
+# Trailing " - <segment>" / ": <segment>" (em/en-dash too). Requires a space
+# after the separator so hyphenated words ("Spider-Man") are left intact.
+_TRAIL_DASH_RE = re.compile(r"\s*[-–—:]\s+([^-–—:]+)$")
+# A 4-digit year anywhere in a segment (e.g. "2017 Remaster", "2017").
+_YEAR_RE = re.compile(r"\b\d{4}\b")
+# Trailing apostrophe-year tag ("Tormentor '88"); needs leading whitespace so
+# mid-word apostrophes ("Rock 'n' Roll") are untouched.
+_APOS_YEAR_RE = re.compile(r"\s+['’]\d{2}\b.*$")
 _PUNCT_RE = re.compile(r"[^\w\s]", re.UNICODE)
 _WS_RE = re.compile(r"\s+")
 
@@ -53,18 +63,38 @@ def normalize_title(title: str | None) -> str:
     # Strip a trailing "feat. ..." clause.
     text = _FEAT_RE.sub("", text).strip()
 
-    # Repeatedly strip trailing (...) / [...] groups that look like versions.
+    # Repeatedly strip trailing version markers — parenthetical/bracket groups,
+    # " - "/": " dash-delimited segments, and apostrophe-year tags — until the
+    # title stabilizes (handles e.g. "X (Live) - 2017 Remaster"). A strip is
+    # skipped if it would empty the title (e.g. "[untitled]").
+    def _is_version_segment(seg: str) -> bool:
+        return any(kw in seg for kw in _VERSION_KEYWORDS) or bool(_YEAR_RE.search(seg))
+
     while True:
+        prev = text
+
         m = _GROUP_RE.search(text)
-        if not m:
-            break
-        inner = m.group(1).strip()
-        if any(kw in inner for kw in _VERSION_KEYWORDS):
+        if m and any(kw in m.group(1).strip() for kw in _VERSION_KEYWORDS):
             stripped = text[: m.start()].strip()
-            if not stripped:
-                break  # don't collapse e.g. "[untitled]" to empty
-            text = stripped
-        else:
+            if stripped:
+                text = stripped
+                continue
+
+        d = _TRAIL_DASH_RE.search(text)
+        if d and _is_version_segment(d.group(1).strip().lower()):
+            stripped = text[: d.start()].strip()
+            if stripped:
+                text = stripped
+                continue
+
+        a = _APOS_YEAR_RE.search(text)
+        if a:
+            stripped = text[: a.start()].strip()
+            if stripped:
+                text = stripped
+                continue
+
+        if text == prev:
             break
 
     text = _PUNCT_RE.sub(" ", text)

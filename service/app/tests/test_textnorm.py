@@ -29,3 +29,30 @@ def test_normalize_title_strips_featuring():
 
 def test_normalize_title_untitled_does_not_collapse_to_empty():
     assert normalize_title("[untitled]") != ""
+
+
+def test_normalize_title_strips_dash_delimited_versions():
+    base = normalize_title("Tormentor")
+    assert normalize_title("Tormentor - Live") == base
+    assert normalize_title("Tormentor - 2017 Remaster") == base
+    assert normalize_title("Tormentor - Remastered 2017") == base
+    assert normalize_title("Tormentor: Live at Wacken") == base
+    assert normalize_title("Tormentor - 2017") == base
+
+
+def test_normalize_title_strips_apostrophe_year():
+    assert normalize_title("Tormentor '88") == normalize_title("Tormentor")
+
+
+def test_normalize_title_strips_extra_parenthetical_versions():
+    base = normalize_title("Tormentor")
+    assert normalize_title("Tormentor (Orchestral)") == base
+    assert normalize_title("Tormentor (Anniversary Edition)") == base
+    assert normalize_title("Tormentor (Deluxe)") == base
+
+
+def test_normalize_title_does_not_overcollapse_distinct_songs():
+    # Sequels / parts / non-version dash suffixes must stay distinct.
+    assert normalize_title("Tormentor (Part II)") != normalize_title("Tormentor")
+    assert normalize_title("Heartwork - Part 1") != normalize_title("Heartwork")
+    assert normalize_title("Damage: Inc.") != normalize_title("Damage")

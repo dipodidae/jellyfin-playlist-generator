@@ -912,16 +912,12 @@ async def trigger_audio_analysis_stream(request: Request):
                 stop_event=stop_event,
             )
 
-    async def watch_disconnect():
-        """Signal stop_event when the client disconnects."""
-        while not stop_event.is_set():
-            if await request.is_disconnected():
-                stop_event.set()
-                return
-            await asyncio.sleep(2)
-
-        asyncio.create_task(watch_disconnect())
-
+    # NOTE: intentionally NO disconnect-driven cancellation here. Audio analysis
+    # is a multi-hour job; a browser tab close or proxy timeout must NOT abort
+    # it, otherwise coverage never drains past the first run. The job runs under
+    # _audio_analysis_lock and completes server-side regardless of the client.
+    # (The previous watch_disconnect() was dead code — never awaited — and is
+    # removed rather than fixed, since cancelling on disconnect is wrong here.)
     return _make_enrichment_stream(
         "Audio analysis",
         analyze_library_async,
@@ -1221,7 +1217,7 @@ async def jellyfin_fix_release_dates(request: Request, force: bool = False):
 async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_audio: bool = True):
     """Run incremental scan followed by all enrichment steps in sequence.
 
-    Chains: scan → MusicBrainz → Last.fm → Metal Archives → release dates → embeddings → profiles → clusters → banger flags → search vectors.
+    Chains: scan → MusicBrainz → Last.fm → Metal Archives → release dates → embeddings → profiles → clusters → banger flags → genre manifold → (audio) → search vectors.
     Each step is incremental — only new/unprocessed tracks are touched.
     Streams SSE progress events throughout the entire pipeline.
 
@@ -1628,6 +1624,24 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
             yield emit("banger_flags", 95, f"Banger detection complete: {banger_result.get('tracks_saved', 0)} flagged")
         except Exception as exc:
             yield emit("banger_flags", 95, f"Banger detection failed (continuing): {exc}")
+
+        # --- Stage 5c: Genre manifold (GMS) ---
+        # Whole-library kNN over embeddings — must rebuild every sync so new
+        # embeddings are reflected. Was previously only reachable via the manual
+        # UI button, which let coverage go stale (froze after a bulk re-embed).
+        # Soft-fail; skip if a manual build holds the lock.
+        yield emit("genre_manifold", 95, "Building genre manifold...")
+        if _genre_manifold_lock.locked():
+            yield emit("genre_manifold", 96, "Genre manifold already running — skipping")
+        else:
+            try:
+                from app.genre.manifold import build_genre_manifold
+                async with _genre_manifold_lock:
+                    gms_result = await asyncio.to_thread(build_genre_manifold)
+                pipeline_stats["genre_manifold"] = gms_result
+                yield emit("genre_manifold", 96, "Genre manifold complete")
+            except Exception as exc:
+                yield emit("genre_manifold", 96, f"Genre manifold failed (continuing): {exc}")
 
         # --- Stage 6: Audio analysis (optional) ---
         if not skip_audio:
