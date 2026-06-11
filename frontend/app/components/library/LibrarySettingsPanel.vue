@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { LibraryStats } from '~/types/library'
 
 const props = defineProps<{
@@ -14,6 +14,18 @@ const emit = defineEmits<{
 
 const onCompleted = () => emit('refresh-stats')
 
+// One-click consolidated pipeline: scan → all enrichment steps in dependency
+// order (incremental). Backed by the /sync/full-pipeline SSE endpoint.
+const fullPipeline = useEnrichmentStream({ onCompleted })
+const includeAudio = ref(false)
+
+function runFullPipeline() {
+  const endpoint = includeAudio.value
+    ? '/api/sync/full-pipeline?skip_audio=false'
+    : '/api/sync/full-pipeline'
+  fullPipeline.run(endpoint, 'Full pipeline')
+}
+
 const lastfm = useEnrichmentStream({ onCompleted })
 const lastfmTracks = useEnrichmentStream({ onCompleted })
 const embeddings = useEnrichmentStream({ onCompleted })
@@ -26,7 +38,8 @@ const musicbrainz = useEnrichmentStream({ onCompleted })
 const rym = useEnrichmentStream({ onCompleted })
 
 const anyRunning = computed(() =>
-  lastfm.isRunning.value || lastfmTracks.isRunning.value || embeddings.isRunning.value
+  fullPipeline.isRunning.value
+  || lastfm.isRunning.value || lastfmTracks.isRunning.value || embeddings.isRunning.value
   || profiles.isRunning.value || clusters.isRunning.value || audio.isRunning.value
   || genreManifold.isRunning.value || metalArchives.isRunning.value
   || musicbrainz.isRunning.value || rym.isRunning.value,
@@ -64,6 +77,7 @@ const coverageTextClass: Record<CoverageLevel, string> = {
 }
 
 const activeJob = computed(() => {
+  if (fullPipeline.isRunning.value) return fullPipeline
   if (musicbrainz.isRunning.value) return musicbrainz
   if (lastfm.isRunning.value) return lastfm
   if (lastfmTracks.isRunning.value) return lastfmTracks
@@ -78,7 +92,7 @@ const activeJob = computed(() => {
 })
 
 const latestOutcome = computed(() => {
-  const jobs = [musicbrainz, lastfm, lastfmTracks, embeddings, profiles, clusters, audio, genreManifold, metalArchives, rym]
+  const jobs = [fullPipeline, musicbrainz, lastfm, lastfmTracks, embeddings, profiles, clusters, audio, genreManifold, metalArchives, rym]
   const failedJob = jobs.find(job => job.status.value === 'error' && job.error.value)
   if (failedJob) {
     return {
@@ -197,6 +211,7 @@ const metrics = computed(() => [
         <div class="mt-3 rounded-xl border border-(--ui-border) bg-(--ui-bg-elevated)/40 p-4 space-y-4 text-xs text-(--ui-text-muted)">
           <div>
             <div class="font-semibold text-white mb-1">Recommended order</div>
+            <div class="mb-1"><code class="font-mono text-acid-300">Run Full Pipeline</code> does all of the steps below in order, incrementally — use it for routine refreshes. The individual buttons are for re-running a single step.</div>
             <div>1. Run <code class="font-mono text-acid-300">Full Sync</code> if the library is missing tracks or paths changed.</div>
             <div>2. Run <code class="font-mono text-acid-300">MusicBrainz</code> to resolve canonical IDs for artists and albums.</div>
             <div>3. Run <code class="font-mono text-acid-300">Last.fm</code> to fetch artist tags and similarities.</div>
@@ -318,7 +333,31 @@ const metrics = computed(() => [
       :description="latestOutcome.message"
     />
 
-    <!-- Action buttons -->
+    <!-- One-click consolidated pipeline -->
+    <div class="rounded-xl border border-acid-400/25 bg-acid-400/5 p-3 flex flex-wrap items-center gap-3">
+      <UButton
+        :loading="fullPipeline.isRunning.value"
+        :disabled="anyRunning || isSyncing"
+        color="primary"
+        variant="solid"
+        size="sm"
+        icon="i-lucide-play"
+        @click="runFullPipeline"
+      >
+        Run Full Pipeline
+      </UButton>
+      <USwitch
+        v-model="includeAudio"
+        :disabled="anyRunning"
+        size="sm"
+        label="Include audio analysis"
+      />
+      <span class="text-[11px] text-(--ui-text-dimmed) leading-tight">
+        Runs scan + every enrichment step in order. Audio is slow (hours) and off by default.
+      </span>
+    </div>
+
+    <!-- Action buttons (advanced — re-run a single step) -->
     <div class="flex flex-wrap gap-2 pt-1">
       <UButton
         :loading="isSyncing"
