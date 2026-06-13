@@ -25,6 +25,116 @@ logger = logging.getLogger(__name__)
 AUDIO_EXTENSIONS = {'.flac', '.mp3', '.ogg', '.m4a', '.opus', '.wav', '.aiff', '.aif'}
 IGNORE_EXTENSIONS = {'.cue', '.log', '.jpg', '.jpeg', '.png', '.txt', '.nfo', '.m3u', '.m3u8', '.pdf'}
 
+# Orphan reconciliation: a scan that would delete more than this fraction of the
+# library in one run is treated as a suspicious wipe (e.g. partially-mounted
+# share) and aborted unless force_prune is set.
+PRUNE_MAX_FRACTION = 0.20
+
+
+def evaluate_prune_guard(
+    orphan_count: int,
+    total_tracks: int,
+    files_found: int,
+    force_prune: bool = False,
+    max_fraction: float = PRUNE_MAX_FRACTION,
+) -> tuple[bool, str | None]:
+    """Decide whether to skip orphan deletion. Pure (no I/O) for testability.
+
+    Returns (should_skip, reason). ``reason`` is None when not skipping.
+    """
+    # Zero files on disk while tracks exist in the DB is almost certainly an
+    # unmounted/empty library, not a real mass deletion. Never overridable.
+    if files_found == 0 and total_tracks > 0:
+        return True, "zero_files"
+    if orphan_count == 0:
+        return False, None
+    if force_prune:
+        return False, None
+    if total_tracks > 0 and orphan_count > max_fraction * total_tracks:
+        return True, "over_threshold"
+    return False, None
+
+
+def find_orphan_track_ids(cur) -> list[str]:
+    """Return ids (as text) of tracks with no present file on disk.
+
+    A track is orphaned when every one of its ``track_files`` rows is marked
+    missing, or it has no files at all. Multi-file tracks with at least one
+    present file are kept.
+    """
+    cur.execute(
+        """
+        SELECT t.id::text FROM tracks t
+        WHERE NOT EXISTS (
+            SELECT 1 FROM track_files tf
+            WHERE tf.track_id = t.id AND tf.missing_since IS NULL
+        )
+        """
+    )
+    return [row[0] for row in cur.fetchall()]
+
+
+def reconcile_orphans(cur, files_found: int, force_prune: bool = False) -> dict:
+    """Hard-delete orphaned tracks (and emptied albums/artists), guarded.
+
+    Operates on the passed cursor inside the caller's transaction. Relies on
+    ON DELETE CASCADE to clean up child rows. Returns a stats dict.
+    """
+    result = {
+        "tracks_removed": 0,
+        "albums_removed": 0,
+        "artists_removed": 0,
+        "prune_skipped": False,
+        "prune_skipped_reason": None,
+    }
+
+    cur.execute("SELECT count(*) FROM tracks")
+    total_tracks = cur.fetchone()[0]
+    orphan_ids = find_orphan_track_ids(cur)
+    orphan_count = len(orphan_ids)
+
+    skip, reason = evaluate_prune_guard(
+        orphan_count, total_tracks, files_found, force_prune
+    )
+    if skip:
+        result["prune_skipped"] = True
+        result["prune_skipped_reason"] = reason
+        logger.warning(
+            "Orphan prune SKIPPED (%s): %d orphan tracks / %d total, "
+            "files_found=%d, force_prune=%s",
+            reason, orphan_count, total_tracks, files_found, force_prune,
+        )
+        return result
+
+    if orphan_count == 0:
+        return result
+
+    removed = 0
+    for start in range(0, orphan_count, 1000):
+        chunk = orphan_ids[start:start + 1000]
+        cur.execute("DELETE FROM tracks WHERE id = ANY(%s::uuid[])", (chunk,))
+        removed += cur.rowcount
+    result["tracks_removed"] = removed
+
+    cur.execute(
+        "DELETE FROM albums a "
+        "WHERE NOT EXISTS (SELECT 1 FROM track_albums ta WHERE ta.album_id = a.id)"
+    )
+    result["albums_removed"] = cur.rowcount
+
+    cur.execute(
+        "DELETE FROM artists ar "
+        "WHERE NOT EXISTS (SELECT 1 FROM track_artists ta WHERE ta.artist_id = ar.id) "
+        "AND NOT EXISTS (SELECT 1 FROM album_artists aa WHERE aa.artist_id = ar.id)"
+    )
+    result["artists_removed"] = cur.rowcount
+
+    logger.info(
+        "Orphan prune: removed %d tracks, %d albums, %d artists",
+        result["tracks_removed"], result["albums_removed"], result["artists_removed"],
+    )
+    return result
+
 
 def compute_file_hash(size: int, mtime: float) -> str:
     """Fast change detection for files."""
@@ -444,13 +554,16 @@ def get_existing_file_hashes(cur) -> dict[str, tuple[str, str]]:
 
 async def scan_library(
     progress_callback: callable = None,
-    full_scan: bool = False
+    full_scan: bool = False,
+    force_prune: bool = False,
 ) -> dict[str, int]:
     """Scan music library for new/changed files.
 
     Args:
         progress_callback: Optional callback(current, total, message)
         full_scan: If True, rescan all files regardless of hash
+        force_prune: If True, bypass the orphan-prune safety threshold (the
+            zero-files abort is never bypassed)
 
     Returns:
         Stats dict with counts of processed/added/updated files
@@ -462,6 +575,11 @@ async def scan_library(
         "tracks_added": 0,
         "tracks_updated": 0,
         "files_missing": 0,
+        "tracks_removed": 0,
+        "albums_removed": 0,
+        "artists_removed": 0,
+        "prune_skipped": False,
+        "prune_skipped_reason": None,
         "errors": 0,
     }
 
@@ -611,6 +729,15 @@ async def scan_library(
                         WHERE path = %s AND missing_since IS NULL
                     """, (path,))
                     stats["files_missing"] += 1
+
+            # Reconcile deletions: hard-delete tracks whose files are all gone,
+            # plus albums/artists left empty. Guarded against a mass wipe from a
+            # bad scan. Runs in this transaction so it commits atomically with
+            # the mark-missing pass above.
+            prune = reconcile_orphans(
+                cur, files_found=stats["files_found"], force_prune=force_prune
+            )
+            stats.update(prune)
 
     logger.info(f"Scan complete: {stats}")
     report_progress(len(scanned_metadata) and "complete" or "complete", len(scanned_metadata), len(scanned_metadata), "Scan complete")

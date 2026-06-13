@@ -35,7 +35,8 @@ async def cmd_scan(args):
             print(f"\r  {message}", end="", flush=True)
 
     logger.info(f"Scanning music library {'(full)' if args.full else '(incremental)'}...")
-    stats = await scan_library(progress_callback=progress, full_scan=args.full)
+    stats = await scan_library(progress_callback=progress, full_scan=args.full,
+                               force_prune=getattr(args, "force_prune", False))
     print()
     logger.info(f"Scan complete: {json.dumps(stats, indent=2)}")
 
@@ -319,6 +320,9 @@ def main():
     # scan
     scan_parser = subparsers.add_parser("scan", help="Scan music library")
     scan_parser.add_argument("--full", action="store_true", help="Force full scan")
+    scan_parser.add_argument("--force-prune", action="store_true",
+                             help="Bypass the orphan-prune safety threshold "
+                                  "(zero-files abort still applies)")
 
     # enrich-lastfm
     subparsers.add_parser("enrich-lastfm", help="Enrich artists from Last.fm")

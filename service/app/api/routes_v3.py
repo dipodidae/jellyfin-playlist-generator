@@ -495,7 +495,7 @@ async def get_scan_status():
 
 
 @router.post("/scan")
-async def trigger_scan(full: bool = False):
+async def trigger_scan(full: bool = False, force_prune: bool = False):
     """Trigger a library scan (non-streaming)."""
     active_job = _get_active_scan_job()
     if active_job:
@@ -512,7 +512,9 @@ async def trigger_scan(full: bool = False):
         _set_operation_state(job_state)
 
     try:
-        stats = await scan_library(progress_callback=progress_callback, full_scan=full)
+        stats = await scan_library(
+            progress_callback=progress_callback, full_scan=full, force_prune=force_prune
+        )
         final_payload = {
             "stage": "complete",
             "current": stats.get("files_scanned", 0) + stats.get("files_skipped", 0),
@@ -545,7 +547,7 @@ async def trigger_scan(full: bool = False):
 
 
 @router.post("/scan/stream")
-async def trigger_scan_stream(full: bool = False):
+async def trigger_scan_stream(full: bool = False, force_prune: bool = False):
     """Trigger a library scan with SSE progress."""
     active_job = _get_active_scan_job()
     if active_job:
@@ -568,7 +570,10 @@ async def trigger_scan_stream(full: bool = False):
 
         async def run_scan():
             try:
-                stats = await scan_library(progress_callback=progress_callback, full_scan=full)
+                stats = await scan_library(
+                    progress_callback=progress_callback, full_scan=full,
+                    force_prune=force_prune,
+                )
                 scan_result["stats"] = stats
                 final_payload = {
                     "stage": "complete",
@@ -1214,7 +1219,10 @@ async def jellyfin_fix_release_dates(request: Request, force: bool = False):
 # ============================================================================
 
 @router.post("/sync/full-pipeline")
-async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_audio: bool = True):
+async def sync_full_pipeline(
+    request: Request, skip_lastfm: bool = False, skip_audio: bool = True,
+    force_prune: bool = False,
+):
     """Run incremental scan followed by all enrichment steps in sequence.
 
     Chains: scan → MusicBrainz → Last.fm → Metal Archives → release dates → embeddings → profiles → clusters → banger flags → genre manifold → (audio) → search vectors.
@@ -1258,7 +1266,10 @@ async def sync_full_pipeline(request: Request, skip_lastfm: bool = False, skip_a
 
             async def do_scan():
                 try:
-                    stats = await scan_library(progress_callback=scan_progress, full_scan=False)
+                    stats = await scan_library(
+                        progress_callback=scan_progress, full_scan=False,
+                        force_prune=force_prune,
+                    )
                     scan_result["stats"] = stats
                 except Exception as exc:
                     scan_result["error"] = str(exc)

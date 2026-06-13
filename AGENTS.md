@@ -151,8 +151,8 @@ playlist-generator/
 | `/health` | GET | Health check |
 | `/stats` | GET | Library statistics |
 | `/scan/status` | GET | Check scan progress |
-| `/scan` | POST | Trigger library scan |
-| `/scan/stream` | POST | Scan with SSE progress |
+| `/scan` | POST | Trigger library scan (`?full`, `?force_prune`) |
+| `/scan/stream` | POST | Scan with SSE progress (`?full`, `?force_prune`) |
 | `/enrich/musicbrainz` | POST | Resolve MusicBrainz IDs for artists & albums |
 | `/enrich/lastfm` | POST | Enrich artists from Last.fm |
 | `/enrich/metal-archives` | POST | Enrich album legitimacy from Metal Archives |
@@ -165,7 +165,7 @@ playlist-generator/
 | `/enrich/genre-manifold` | POST | Build genre probability vectors |
 | `/enrich/rym` | POST | Scrape RateYourMusic album data |
 | `/rebuild-search-vectors` | POST | Rebuild BM25 search vectors |
-| `/sync/full-pipeline` | POST | Incremental scan + all enrichment (SSE) |
+| `/sync/full-pipeline` | POST | Incremental scan + all enrichment (SSE) (`?force_prune`) |
 | `/path-mappings` | GET/POST | Manage path mappings |
 | `/path-mappings/{name}` | DELETE | Delete path mapping |
 | `/generate-playlist` | POST | Generate playlist |

@@ -101,6 +101,18 @@ gated on a `find -newer` new-file check. Installed in the NAS crontab: `10 */6`
 `~/nas/logs/playlist_sync.log`. It supersedes the manual `sync-new-tracks.sh`,
 which still points at the defunct native `:8000` backend.
 
+**Scans reconcile deletions.** Every scan (`scan_library`, used by `app.cli_v3
+scan`, `/scan`, `/scan/stream`, and `/sync/full-pipeline`) hard-deletes tracks
+whose files are all gone — i.e. every `track_files` row is `missing_since` — plus
+the albums/artists left empty (cascades via `ON DELETE CASCADE`). A safety guard
+**aborts the prune** if a scan finds zero files while tracks exist, or would
+delete more than `PRUNE_MAX_FRACTION` (20%) of the library in one run — this
+protects against an unmounted/partially-mounted `/mnt/drive` wiping the DB. Pass
+`force_prune=true` (query param) / `--force-prune` (CLI) to bypass the 20%
+threshold; the zero-files abort is never bypassable. Skip/removal counts surface
+in the scan stats (`tracks_removed`, `albums_removed`, `artists_removed`,
+`prune_skipped`).
+
 ## Gotchas
 
 1. **DB-backed settings (singleton overlay)**: App-level settings (API keys, enrichment toggles, Jellyfin config, library paths, clustering params) live in the `app_settings` Postgres table. At startup and on every `/settings` save, `settings_store.reload_settings()` overlays the DB values onto the pydantic `settings` singleton via `setattr`. This works because the app runs as a **single uvicorn process** — no cache invalidation, TTL, or inter-process sync is needed. If you ever move to multi-worker mode this assumption breaks. `.env` values for these keys are **seed-only**: they are written to the DB on first boot (when the key is absent) and then ignored; editing `.env` after first boot has no effect on a live instance. Only `DATABASE_URL` and `NUXT_AUTH_*` / `NUXT_SESSION_PASSWORD` remain strictly env-driven.
