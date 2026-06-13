@@ -21,6 +21,7 @@ from bs4 import BeautifulSoup
 
 from app.config import settings
 from app.database_pg import get_connection
+from app.ingestion.album_tags import save_album_tags
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,8 @@ def _parse_album_page(html: str) -> dict[str, Any] | None:
             if num_match:
                 data["rym_lists"] = int(num_match.group(1).replace(",", ""))
 
-    # Rating standard deviation (if available)
+    # Rating standard deviation: RYM does not expose a per-release rating stdev
+    # in the public page markup, so it stays None (no reliable selector exists).
     data["rating_std"] = None
 
     if data["rym_rating"] is None and data["rym_votes"] == 0 and not genres:
@@ -208,6 +210,14 @@ def _save_rym_album(cur, album_id: str, rym_url: str, data: dict[str, Any]) -> N
                 """,
                 [album_id, row[0], position],
             )
+
+    # P2: mirror RYM genres into the unified album_tags store (ordered) so the
+    # scoring layer can read every source's genres from one place.
+    save_album_tags(
+        cur, album_id, "rym",
+        [{"name": g, "position": i} for i, g in enumerate(data.get("genres", []))],
+        kind="genre",
+    )
 
 
 # ---------------------------------------------------------------------------

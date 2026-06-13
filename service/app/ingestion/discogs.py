@@ -319,6 +319,10 @@ async def resolve_discogs_release_date(
         "source": "discogs",
         "master_id": master_id,
         "confidence": search_result["confidence"],
+        # Genres/styles from the master (P2: persisted into album_tags by the
+        # release-date orchestrator, reusing this already-fetched call).
+        "genres": (master or {}).get("genres", []),
+        "styles": (master or {}).get("styles", []),
     }
 
     # Prefer master year (authoritative), fall back to earliest release

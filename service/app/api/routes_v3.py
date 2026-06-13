@@ -17,7 +17,11 @@ from pydantic import BaseModel
 from app.config import settings
 from app.database_pg import get_stats, get_cursor, get_connection, init_database, rebuild_search_vectors
 from app.ingestion.scanner import scan_library
-from app.ingestion.lastfm import enrich_artists_from_lastfm, enrich_tracks_from_lastfm
+from app.ingestion.lastfm import (
+    enrich_albums_from_lastfm_tags,
+    enrich_artists_from_lastfm,
+    enrich_tracks_from_lastfm,
+)
 from app.ingestion.metal_archives import enrich_albums_from_metal_archives
 from app.ingestion.musicbrainz import resolve_musicbrainz_ids
 from app.ingestion.rym import enrich_albums_from_rym
@@ -803,6 +807,35 @@ async def trigger_lastfm_track_enrichment_stream(max_tracks: int | None = None):
     )
 
 
+@router.post("/enrich/lastfm-album-tags")
+async def trigger_lastfm_album_tag_enrichment(
+    background_tasks: BackgroundTasks,
+    max_albums: int | None = None,
+    force: bool = False,
+):
+    """Fetch album.getTopTags for albums into album_tags (P2)."""
+    background_tasks.add_task(
+        enrich_albums_from_lastfm_tags, max_albums=max_albums, force=force
+    )
+    return {
+        "status": "started",
+        "message": f"Last.fm album-tag enrichment started (max_albums={max_albums})",
+    }
+
+
+@router.post("/enrich/lastfm-album-tags/stream")
+async def trigger_lastfm_album_tag_enrichment_stream(
+    max_albums: int | None = None, force: bool = False
+):
+    """Fetch album-level Last.fm tags with SSE progress."""
+    return _make_enrichment_stream(
+        "Last.fm album-tag enrichment",
+        lambda cb: enrich_albums_from_lastfm_tags(
+            max_albums=max_albums, force=force, progress_callback=cb
+        ),
+    )
+
+
 @router.get("/enrich/lastfm-tracks/status")
 async def lastfm_track_enrichment_status():
     """Return Last.fm track enrichment coverage stats."""
@@ -1430,6 +1463,42 @@ async def sync_full_pipeline(
 
             except Exception as exc:
                 yield emit("lastfm_tracks", 36, f"Last.fm track enrichment failed (continuing): {exc}")
+
+            # --- Stage 2b: Last.fm album-tag enrichment (P2) ---
+            yield emit("lastfm_albums", 36, "Starting Last.fm album-tag enrichment...")
+            try:
+                lfma_done = asyncio.Event()
+                lfma_result: dict = {}
+
+                def lfma_progress(current: int, total: int, message: str):
+                    lfma_result["last_event"] = emit("lastfm_albums", 36, message)
+
+                async def do_lastfm_albums():
+                    try:
+                        result = await enrich_albums_from_lastfm_tags(
+                            progress_callback=lfma_progress
+                        )
+                        lfma_result["stats"] = result
+                    except Exception as exc:
+                        lfma_result["error"] = str(exc)
+                    finally:
+                        lfma_done.set()
+
+                asyncio.create_task(do_lastfm_albums())
+
+                while not lfma_done.is_set():
+                    if "last_event" in lfma_result:
+                        yield lfma_result.pop("last_event")
+                    await asyncio.sleep(0.4)
+
+                if "error" in lfma_result:
+                    _e = lfma_result["error"]
+                    yield emit("lastfm_albums", 37, f"Last.fm album-tag enrichment failed: {_e}")
+                else:
+                    pipeline_stats["lastfm_albums"] = lfma_result.get("stats", {})
+                    yield emit("lastfm_albums", 37, "Last.fm album-tag enrichment complete")
+            except Exception as exc:
+                yield emit("lastfm_albums", 37, f"Last.fm album-tag enrichment failed: {exc}")
 
         else:
             yield emit("lastfm", 36, "Last.fm enrichment skipped")

@@ -67,6 +67,15 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 2. Add schema in `service/app/api/schemas.py` if needed
 3. Add proxy route in `frontend/server/api/`
 
+### Album-level genres/tags (`album_tags`)
+Unified store (migration `016_album_tags.sql`) collecting album genres/tags from
+every source into one table — `(album_id, source, kind, tag, weight, position)`.
+Populated by: Discogs + MusicBrainz genres during release-date resolution (no
+extra calls beyond one MB genre lookup); a dedicated Last.fm `album.getTopTags`
+pass (`/enrich/lastfm-album-tags`, also stage 2b of `/sync/full-pipeline`); the
+Metal Archives scrape (best-effort genre field); and RYM (mirrored from its
+scrape). Pure collection — scoring does not read it yet (that is a later change).
+
 ### Modifying the database schema
 1. Add a migration file in `service/app/migrations/` (numbered, e.g. `012_my_change.sql`)
 2. Apply it: `psql $DATABASE_URL -f service/app/migrations/012_my_change.sql`

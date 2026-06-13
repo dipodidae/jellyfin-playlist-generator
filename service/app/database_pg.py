@@ -517,6 +517,22 @@ def init_database() -> None:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_rym_adjacency_a ON rym_album_adjacency(album_a_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_rym_adjacency_b ON rym_album_adjacency(album_b_id)")
 
+            # Unified album-level tags/genres from all sources (P2). One row per
+            # (album, source, kind, tag); weight/position are source-native.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS album_tags (
+                    album_id UUID NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+                    source   VARCHAR(20) NOT NULL,
+                    tag      VARCHAR NOT NULL,
+                    kind     VARCHAR(10) NOT NULL DEFAULT 'genre',
+                    weight   REAL,
+                    position INTEGER,
+                    PRIMARY KEY (album_id, source, kind, tag)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_album_tags_album ON album_tags(album_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_album_tags_tag ON album_tags(tag)")
+
             # RYM scrape cache (raw HTML)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS rym_scrape_cache (

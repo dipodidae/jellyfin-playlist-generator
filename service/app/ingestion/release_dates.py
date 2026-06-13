@@ -24,7 +24,11 @@ import httpx
 
 from app.config import settings
 from app.database_pg import get_connection
-from app.ingestion.musicbrainz import extract_release_date_from_mb
+from app.ingestion.album_tags import save_album_tags
+from app.ingestion.musicbrainz import (
+    extract_release_date_from_mb,
+    fetch_release_group_genres,
+)
 from app.ingestion.discogs import discogs_configured, resolve_discogs_release_date
 
 logger = logging.getLogger(__name__)
@@ -250,6 +254,37 @@ def _save_release_date(album_id: str, data: dict[str, Any]) -> None:
             ])
 
 
+def _save_album_genres(
+    album_id: str,
+    discogs_result: dict[str, Any] | None,
+    mb_genres: list[dict[str, Any]] | None,
+) -> None:
+    """Persist genres collected during release-date resolution into album_tags.
+
+    Reuses the Discogs master / MB release-group data already fetched above —
+    no extra API calls beyond the one MB genre lookup. Best-effort: never
+    raises into the resolution flow.
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                if discogs_result:
+                    save_album_tags(
+                        cur, album_id, "discogs",
+                        discogs_result.get("genres") or [], kind="genre",
+                    )
+                    save_album_tags(
+                        cur, album_id, "discogs",
+                        discogs_result.get("styles") or [], kind="style",
+                    )
+                if mb_genres:
+                    save_album_tags(
+                        cur, album_id, "musicbrainz", mb_genres, kind="genre",
+                    )
+    except Exception as e:
+        logger.debug(f"album_tags persist failed for {album_id}: {e}")
+
+
 async def resolve_album_release_date(
     album_id: str,
     album_title: str,
@@ -263,6 +298,8 @@ async def resolve_album_release_date(
     Queries all available sources, cross-references, and stores the result.
     """
     sources: list[dict[str, Any]] = []
+    discogs_result: dict[str, Any] | None = None
+    mb_genres: list[dict[str, Any]] = []
 
     # Source 1: MusicBrainz (if we have an MBID)
     if musicbrainz_id:
@@ -275,6 +312,13 @@ async def resolve_album_release_date(
                 logger.debug(f"MB: '{album_title}' → year={mb_result['year']}")
         except Exception as e:
             logger.debug(f"MB release date failed for '{album_title}': {e}")
+        # Genres (one extra MB call); failures are swallowed inside the helper.
+        try:
+            mb_genres = await asyncio.to_thread(
+                fetch_release_group_genres, musicbrainz_id
+            )
+        except Exception as e:
+            logger.debug(f"MB genre fetch failed for '{album_title}': {e}")
 
     # Source 2: Discogs (if client available and credentials configured)
     if discogs_client and discogs_configured():
@@ -287,6 +331,10 @@ async def resolve_album_release_date(
                 logger.debug(f"Discogs: '{album_title}' → year={discogs_result['year']}")
         except Exception as e:
             logger.debug(f"Discogs release date failed for '{album_title}': {e}")
+
+    # P2: persist album-level genres collected above (no extra calls beyond MB
+    # genres). Independent of whether a release date is ultimately resolved.
+    _save_album_genres(album_id, discogs_result, mb_genres)
 
     # Source 3: File metadata
     try:

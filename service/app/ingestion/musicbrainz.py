@@ -312,6 +312,43 @@ def extract_release_date_from_mb(mbid: str) -> dict[str, Any] | None:
     }
 
 
+def parse_mb_genres(rg_response: dict[str, Any]) -> list[dict[str, Any]]:
+    """Pure parse of a release-group response's genre-list into tag items.
+
+    MusicBrainz returns ``genre-list`` entries shaped like {"name", "count"}.
+    Returns ``[{"name", "weight"}]`` with the user vote count as weight.
+    """
+    rg = (rg_response or {}).get("release-group", {})
+    out = []
+    for g in rg.get("genre-list", []):
+        name = g.get("name")
+        if not name:
+            continue
+        count = g.get("count")
+        try:
+            weight = float(count) if count is not None else None
+        except (TypeError, ValueError):
+            weight = None
+        out.append({"name": name, "weight": weight})
+    return out
+
+
+def fetch_release_group_genres(mbid: str) -> list[dict[str, Any]]:
+    """Fetch genres (with vote counts) for a release group from MusicBrainz.
+
+    Separate from ``extract_release_date_from_mb`` (which uses
+    ``includes=["releases"]``) so neither path disturbs the other; costs one
+    extra MB call per album with a resolved MBID. Returns ``[]`` on any failure.
+    """
+    _ensure_init()
+    try:
+        rg = musicbrainzngs.get_release_group_by_id(mbid, includes=["genres"])
+    except Exception as e:
+        logger.debug(f"MB genre fetch failed for {mbid}: {e}")
+        return []
+    return parse_mb_genres(rg)
+
+
 def _save_album_mbid(cur, album_id: str, rg: dict[str, Any]) -> None:
     """Store MBID on album row, cache release group, and cache lookup."""
     cur.execute(

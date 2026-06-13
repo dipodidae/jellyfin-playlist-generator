@@ -289,6 +289,7 @@ Each enrichment type has a fire-and-forget endpoint and an SSE streaming variant
 |--------|----------|-------------|
 | POST | `/enrich/musicbrainz[/stream]` | MusicBrainz ID resolution for artists & albums |
 | POST | `/enrich/lastfm[/stream]` | Last.fm artist tag enrichment |
+| POST | `/enrich/lastfm-album-tags[/stream]` | Album-level Last.fm tags into `album_tags` (`?max_albums`, `?force`) |
 | POST | `/enrich/metal-archives[/stream]` | Metal Archives album legitimacy scoring |
 | POST | `/enrich/release-dates[/stream]` | True original release date resolution (multi-source) |
 | POST | `/enrich/embeddings[/stream]` | Sentence-transformer embedding generation |

@@ -6,6 +6,7 @@ import pylast
 
 from app.config import settings
 from app.database_pg import get_connection
+from app.ingestion.album_tags import save_album_tags
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,25 @@ async def fetch_artist_tags(network: pylast.LastFMNetwork, artist_name: str) -> 
         return []
     except Exception as e:
         logger.warning(f"Error fetching tags for artist {artist_name}: {e}")
+        return []
+
+
+async def fetch_album_tags(
+    network: pylast.LastFMNetwork, artist_name: str, album_title: str
+) -> list[dict[str, Any]]:
+    """Fetch top tags for an album from Last.fm (album.getTopTags)."""
+    try:
+        album = network.get_album(artist_name, album_title)
+        top_tags = await asyncio.to_thread(album.get_top_tags, limit=10)
+        return [{"name": tag.item.name.lower(), "weight": int(tag.weight)} for tag in top_tags]
+    except pylast.WSError as e:
+        if "Album not found" in str(e):
+            logger.debug(f"Album not found on Last.fm: {artist_name} - {album_title}")
+        else:
+            logger.warning(f"Last.fm error for album {artist_name} - {album_title}: {e}")
+        return []
+    except Exception as e:
+        logger.warning(f"Error fetching tags for album {artist_name} - {album_title}: {e}")
         return []
 
 
@@ -312,5 +332,69 @@ async def enrich_tracks_from_lastfm(
 
     if progress_callback:
         progress_callback(total, total, f"Last.fm track enrichment complete: {total} tracks processed")
+
+    return stats
+
+
+async def enrich_albums_from_lastfm_tags(
+    delay_between_requests: float = 0.2,
+    max_albums: int | None = None,
+    force: bool = False,
+    progress_callback: Any = None,
+) -> dict[str, int]:
+    """Fetch album.getTopTags for albums and store them in album_tags (P2).
+
+    The album's artist is derived from its tracks' primary artist. Albums
+    already having Last.fm album tags are skipped unless ``force``.
+    """
+    network = get_lastfm_network()
+
+    query = """
+        SELECT al.id, al.title,
+               (SELECT ar.name
+                  FROM track_albums tal
+                  JOIN track_artists ta
+                    ON ta.track_id = tal.track_id AND ta.role = 'primary'
+                  JOIN artists ar ON ar.id = ta.artist_id
+                  WHERE tal.album_id = al.id
+                  LIMIT 1) AS artist_name
+        FROM albums al
+    """
+    if not force:
+        query += (
+            " WHERE NOT EXISTS (SELECT 1 FROM album_tags at "
+            "WHERE at.album_id = al.id AND at.source = 'lastfm')"
+        )
+    query += " ORDER BY al.id"
+    if max_albums:
+        query += f" LIMIT {max_albums}"
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            albums = cur.fetchall()
+
+    stats: dict[str, int] = {"albums_processed": 0, "albums_tagged": 0, "tags_added": 0}
+    total = len(albums)
+    logger.info(f"Enriching {total} albums with Last.fm tags")
+
+    for i, (album_id, title, artist_name) in enumerate(albums):
+        if artist_name and title:
+            tags = await fetch_album_tags(network, artist_name, title)
+            if tags:
+                with get_connection() as conn:
+                    with conn.cursor() as cur:
+                        added = save_album_tags(cur, str(album_id), "lastfm", tags, kind="tag")
+                stats["tags_added"] += added
+                stats["albums_tagged"] += 1
+        stats["albums_processed"] += 1
+
+        if progress_callback and (i + 1) % 20 == 0:
+            progress_callback(i + 1, total, f"Enriched {i + 1}/{total} albums")
+
+        await asyncio.sleep(delay_between_requests)
+
+    if progress_callback:
+        progress_callback(total, total, f"Last.fm album-tag enrichment complete: {total} albums")
 
     return stats

@@ -170,6 +170,36 @@ def _match_album_title(target: str, candidate: str, artist: str = "") -> float:
     return overlap * 0.7
 
 
+def split_ma_genres(genre_text: str) -> list:
+    """Split an MA genre string into individual genres (P2, pure).
+
+    e.g. 'Death/Doom Metal (early), Gothic Metal (later)' ->
+    ['death/doom metal', 'gothic metal'] with era annotations stripped.
+    """
+    if not genre_text:
+        return []
+    cleaned = re.sub(r"\([^)]*\)", " ", genre_text)  # drop (early)/(later)
+    parts = re.split(r"[,;]", cleaned)
+    return [p.strip().lower() for p in parts if p.strip()]
+
+
+def parse_ma_genre(soup) -> "str | None":
+    """Best-effort: read a 'Genre' dt/dd from an MA page. None if absent.
+
+    MA genre is primarily a band attribute and may not appear on the album
+    page; when it isn't found this returns None and nothing is stored (no
+    regression vs. prior behaviour).
+    """
+    for dt in soup.find_all("dt"):
+        if "genre" in dt.get_text().lower():
+            dd = dt.find_next_sibling("dd")
+            if dd:
+                txt = dd.get_text(strip=True)
+                if txt:
+                    return txt
+    return None
+
+
 def scrape_album_rating(artist: str, album: str) -> Optional[Dict[str, any]]:
     """
     Scrape album rating directly from Metal Archives web page.
@@ -333,6 +363,9 @@ def scrape_album_rating(artist: str, album: str) -> Optional[Dict[str, any]]:
                 except ValueError:
                     pass
 
+        # Genre (P2, best-effort; band-level attribute, may be absent here)
+        genre = parse_ma_genre(album_soup)
+
         # Combined match confidence: band * album
         match_confidence = round(band_confidence * best_album_score, 3)
         logger.info(
@@ -345,6 +378,7 @@ def scrape_album_rating(artist: str, album: str) -> Optional[Dict[str, any]]:
             "rating": rating,
             "review_count": review_count,
             "year": year,
+            "genre": genre,
             "match_confidence": match_confidence,
             "error": None
         }
@@ -590,6 +624,7 @@ def get_album_legitimacy_data(artist: str, album: str) -> Dict[str, any]:
         "rating": album_data["rating"] if album_data else None,
         "review_count": album_data["review_count"] if album_data else None,
         "year": album_data.get("year") if album_data else None,
+        "genre": album_data.get("genre") if album_data else None,
         "is_classic": is_classic,
         "error": album_data.get("error") if album_data else None
     }
@@ -654,6 +689,7 @@ async def enrich_albums_from_metal_archives(
         Dict with enrichment stats.
     """
     from app.database_pg import get_connection
+    from app.ingestion.album_tags import save_album_tags
 
     # Gather albums needing enrichment
     with get_connection() as conn:
@@ -712,6 +748,13 @@ async def enrich_albums_from_metal_archives(
                         data.get("review_count", 0),
                         data.get("match_confidence", 0.0),
                     ))
+                    # P2: persist MA genre (best-effort) into album_tags
+                    ma_genres = split_ma_genres(data.get("genre") or "")
+                    if ma_genres:
+                        save_album_tags(
+                            cur, str(album_id), "metal_archives",
+                            ma_genres, kind="genre",
+                        )
                     conn.commit()
             enriched += 1
         except Exception as e:

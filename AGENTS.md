@@ -67,7 +67,7 @@ A prompt-driven playlist generation system that creates intelligent, curated pla
 │  track_genre_probabilities, genre_manifold, track_banger_flags, │
 │  album_legitimacy, rym_albums, album_release_dates,             │
 │  lastfm_stats, musicbrainz_artists, musicbrainz_albums,         │
-│  app_settings                                                    │
+│  album_tags, app_settings                                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -155,6 +155,7 @@ playlist-generator/
 | `/scan/stream` | POST | Scan with SSE progress (`?full`, `?force_prune`) |
 | `/enrich/musicbrainz` | POST | Resolve MusicBrainz IDs for artists & albums |
 | `/enrich/lastfm` | POST | Enrich artists from Last.fm |
+| `/enrich/lastfm-album-tags` | POST | Album-level Last.fm tags → `album_tags` |
 | `/enrich/metal-archives` | POST | Enrich album legitimacy from Metal Archives |
 | `/enrich/release-dates` | POST | Resolve true original release dates |
 | `/enrich/embeddings` | POST | Generate track embeddings |
