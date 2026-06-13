@@ -10,6 +10,7 @@ Implements the v4 architecture:
 
 import logging
 import math
+import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
@@ -19,11 +20,17 @@ import numpy as np
 from app.database_pg import get_connection
 from app.trajectory.candidates import CandidateTrack
 from app.trajectory.gravity import compute_bridge_bonus
+from app.trajectory.harmony import harmonic_compat, parse_key
 from app.trajectory.intent import _ALIAS_TO_FAMILY, _RELATED_FAMILIES
 from app.trajectory.textnorm import normalize_artist as _norm_artist_impl
 from app.trajectory.textnorm import normalize_title
 
 logger = logging.getLogger(__name__)
+
+# C4 harmonic-continuity term: opt-in (see score_transition for the rationale).
+_HARMONIC_CONTINUITY_ENABLED = os.environ.get(
+    "HARMONIC_CONTINUITY_ENABLED", "false"
+).lower() in ("1", "true", "yes")
 
 
 @lru_cache(maxsize=4096)
@@ -374,6 +381,23 @@ def score_transition(
         acurr = getattr(curr_track, "acousticness", None)
         if aprev is not None and acurr is not None:
             acoustic_parts.append((1.0 - min(abs(aprev - acurr) * 2, 1.0), 0.05))
+
+        # Harmonic continuity (P3, C4): circle-of-fifths compatibility between
+        # tonal centers. OFF by default — a deterministic A/B (2026-06-13) showed
+        # that at a safe 0.10 sub-weight it is dominated by the stronger
+        # energy/tempo/genre/era continuity terms (generated orderings sit
+        # *below* random on key adjacency), so it does not measurably smooth key
+        # transitions. The code, key loading, and tests stay in place; enabling
+        # it usefully needs weight tuning + a baseline eval. Toggle with
+        # HARMONIC_CONTINUITY_ENABLED=true.
+        if _HARMONIC_CONTINUITY_ENABLED:
+            kprev = parse_key(getattr(prev_track, "key_estimate", None))
+            kcurr = parse_key(getattr(curr_track, "key_estimate", None))
+            if kprev is not None and kcurr is not None:
+                acoustic_parts.append((
+                    harmonic_compat(prev_track.key_estimate, curr_track.key_estimate),
+                    0.10,
+                ))
 
         wsum = sum(w for _, w in acoustic_parts)
         acoustic_score = sum(s * w for s, w in acoustic_parts) / wsum

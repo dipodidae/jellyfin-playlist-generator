@@ -28,20 +28,33 @@ never read. Add a harmonic-compatibility term to `score_transition`
 
 - **Field:** add `key_estimate: str | None = None` to `CandidateTrack`; load
   `taf.key_estimate` in the candidate SQL (semantic + keyword search paths).
+- **Data note:** stored `key_estimate` is a bare tonic pitch class ("E", "D#",
+  …) with **no major/minor mode**, so Camelot/relative-minor logic is not
+  possible. Harmonic compatibility is therefore **circle-of-fifths distance
+  between tonal centers**.
 - **Pure helpers** (new module `trajectory/harmony.py`, fully unit-tested):
-  - `parse_key(s)` → `(pitch_class:int 0-11, mode:'maj'|'min')` or None.
-  - `camelot(pitch_class, mode)` → Camelot code (1A–12B).
-  - `harmonic_compat(key_a, key_b)` → score in [0,1]: 1.0 same key; ~0.9 adjacent
-    on the Camelot wheel or relative major/minor; mid for a perfect-fifth move;
-    low for distant keys. Returns a neutral 0.5 when either key is missing/unparseable.
+  - `parse_key(s)` → pitch class `int 0-11` (handles sharps and flats) or None.
+  - `harmonic_compat(key_a, key_b)` → score in [0,1] from circle-of-fifths
+    distance: 1.0 same tonic, tapering to ~0.4 at a tritone (distance 6).
+    Returns a neutral 0.5 when either key is missing/unparseable.
 - **Integration:** append `(harmonic_compat(prev.key_estimate, curr.key_estimate), W_KEY)`
   to `acoustic_parts`. To keep the change conservative and the existing acoustic
   weights' relative balance intact, use `W_KEY = 0.10` and let the existing
   weighted-average normalization (`wsum`) absorb it — no other weights change.
   When a key is missing the term contributes a neutral 0.5 (doesn't dominate).
-- **Eval:** rebuild + `BACKEND_URL=http://localhost:8080 ./eval_loop.py --multi
-  --max-iter 2`; keep only if non-regressive vs the baseline table. A short
-  single-prompt run first for a sanity check.
+- **Eval outcome (2026-06-13): shipped OFF by default.** A deterministic A/B over
+  3 prompts measured mean adjacent-track harmonic compatibility of the generated
+  ordering vs a random-permutation baseline of the same tracks:
+  `0.604 vs 0.693`, `0.667 vs 0.715`, `0.537 vs 0.683` — the orderings are
+  **below random** on key adjacency, i.e. at a safe 0.10 sub-weight the harmonic
+  term is dominated by the stronger energy/tempo/genre/era continuity objectives
+  and does not measurably smooth key transitions. A single LLM-judge run scored
+  the playlist arc=7/genre=8/transition=6/fidelity=7/curation=6 (weighted 6.80).
+  Conclusion: do not ship enabled. The term is gated behind
+  `HARMONIC_CONTINUITY_ENABLED` (default false); code/loading/tests remain.
+  Enabling it usefully is a follow-up: raise the weight materially and run a full
+  `eval_loop.py --multi` A/B against the historical baseline to tune the
+  energy-vs-harmony trade-off.
 
 ## C2 — Album genres into genre match + GMS (DORMANT until album_tags backfill)
 
@@ -70,28 +83,27 @@ vote counts). In the GMS album loader, weight each album genre by a normalized
 on by multiple sources / high vote counts contributes more than a single weak
 tag. Implemented as part of the C2 album loader — no separate integration point.
 
-## C1 — Positive mood term from track tags + RYM descriptors (WIRED, data-limited)
+## C1 — Positive mood term from track tags + RYM descriptors (DEFERRED — data-gated)
 
-Today `track.rym_descriptors` is read only by
-`compute_negative_constraint_penalty` (`candidates.py:257`) and
-`track_lastfm_tags` aren't loaded onto the candidate at all.
+**Decision: deferred, not implemented in this pass.** The signal it would consume
+is effectively absent — `track_lastfm_tags` cover 163 / 38,007 tracks (0.4%) and
+RYM `descriptors` is empty (RYM scraping disabled by default). The tags are
+"idle" largely *because* they are barely collected; activating a positive mood
+dimension is only meaningful **after** Last.fm track-tag and RYM enrichment have
+real coverage. Adding a new weighted `total_score` term now would be an untunable
+change (nothing to eval against) that dilutes every other weight.
 
-- **Intent:** add positive mood/descriptor extraction to intent parsing (sibling
-  to `extract_avoid_keywords`, `intent.py:859`), producing a `mood_terms` set
-  from the prompt (the descriptive adjectives that aren't genres or avoid-terms).
-- **Candidate:** load `track_lastfm_tags` (names) onto `CandidateTrack`; expose
-  `rym_descriptors` (already loaded for the negative path).
-- **Score:** new `compute_mood_match(track, mood_terms)` → [0,1] over the union
-  of track tags + RYM descriptors; add `+ mood_match * _w_mood` to `total_score`
-  with a small `_w_mood` (≈0.08). Neutral 0 when no mood terms or no tags.
-- **Honesty:** with present coverage (163 tracks tagged, 0 descriptors) this moves
-  almost nothing. It is correct wiring that pays off once Last.fm track-tag and
-  RYM enrichment are run. Because it can change output for the 163 tagged tracks,
-  it is included in the C4 eval run.
+**Prerequisite (ops/data, not code):** run Last.fm track-tag enrichment
+(`/enrich/lastfm-tracks`) and, if desired, enable + run RYM scraping across the
+library. Once coverage is meaningful, C1 becomes its own small spec: intent
+positive-mood extraction (sibling to `extract_avoid_keywords`,
+`intent.py:859`), load `track_lastfm_tags` onto the candidate, a pure
+`compute_mood_match(track, mood_terms)` → [0,1], a small `_w_mood` term, and an
+eval run to tune the weight. Tracked as a follow-up.
 
 ## Eval plan & gating
 
-1. Implement C4 + C1 (both can change output now) and C2/C3 (dormant).
+1. Implement C4 (changes output now) and C2/C3 (dormant). C1 deferred.
 2. Rebuild: `docker compose --profile unified up -d --build app`.
 3. Sanity: `BACKEND_URL=http://localhost:8080 ./eval_loop.py --prompt "dark
    atmospheric post-punk" --max-iter 1`.

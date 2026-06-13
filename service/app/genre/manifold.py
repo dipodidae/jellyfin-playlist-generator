@@ -370,6 +370,37 @@ def _load_track_direct_genres() -> dict[str, dict[str, float]]:
     return out
 
 
+def _load_track_album_genres() -> dict[str, dict[str, float]]:
+    """track_id → {genre_family: normalised_weight} from album_tags (P3 C2/C3).
+
+    Album-level genres collected from all sources, weighted by album_tags.weight
+    (consensus: agreeing sources / high vote counts contribute more); a floor of
+    1.0 is used when a source provides no weight. Empty until the album_tags
+    backfill runs, so this component is dormant (contributes nothing) until then.
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT tal.track_id::text, at.tag, at.weight
+                FROM track_albums tal
+                JOIN album_tags at ON at.album_id = tal.album_id
+            """)
+            rows = cur.fetchall()
+
+    result: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    for track_id, tag_name, weight in rows:
+        family = _ALIAS_TO_FAMILY.get(tag_name.lower())
+        if family:
+            result[track_id][family] += float(weight) if weight is not None else 1.0
+
+    out: dict[str, dict[str, float]] = {}
+    for tid, dist in result.items():
+        total = sum(dist.values())
+        if total > 0:
+            out[tid] = {k: v / total for k, v in dist.items()}
+    return out
+
+
 def _load_audio_features() -> dict[str, dict]:
     """track_id → {bpm, loudness, brightness} (all 0-1 normalised)."""
     with get_connection() as conn:
@@ -486,15 +517,24 @@ def _ensemble(
     lastfm: dict[str, dict[str, float]],
     direct: dict[str, dict[str, float]],
     audio: dict[str, dict],
+    album: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, float]:
-    """Weighted ensemble of all genre signals for one track."""
+    """Weighted ensemble of all genre signals for one track.
+
+    Weights (sum to 1.0): kNN 0.30, Last.fm artist tags 0.25, direct track
+    genres 0.25, album_tags genres 0.10 (P3/C2 — dormant until backfill), audio
+    heuristics 0.10.
+    """
+    album = album or {}
     ensemble: dict[str, float] = defaultdict(float)
     for fam, w in knn.items():
-        ensemble[fam] += 0.35 * w
-    for fam, w in lastfm.get(track_id, {}).items():
         ensemble[fam] += 0.30 * w
+    for fam, w in lastfm.get(track_id, {}).items():
+        ensemble[fam] += 0.25 * w
     for fam, w in direct.get(track_id, {}).items():
         ensemble[fam] += 0.25 * w
+    for fam, w in album.get(track_id, {}).items():
+        ensemble[fam] += 0.10 * w
     if track_id in audio:
         for fam, w in _audio_heuristic_genres(audio[track_id]).items():
             ensemble[fam] += 0.10 * w
@@ -536,6 +576,9 @@ def build_genre_manifold(progress_callback: Callable | None = None) -> dict:
     report(8, 100, "Loading direct genre tags...")
     direct = _load_track_direct_genres()
 
+    report(9, 100, "Loading album-level genres...")
+    album = _load_track_album_genres()
+
     report(10, 100, "Loading audio features...")
     audio = _load_audio_features()
 
@@ -547,7 +590,7 @@ def build_genre_manifold(progress_callback: Callable | None = None) -> dict:
 
     report(75, 100, "Building ensemble genre probabilities...")
     track_probs: dict[str, dict[str, float]] = {
-        tid: _ensemble(tid, knn_votes.get(tid, {}), lastfm, direct, audio)
+        tid: _ensemble(tid, knn_votes.get(tid, {}), lastfm, direct, audio, album)
         for tid in track_ids
     }
 

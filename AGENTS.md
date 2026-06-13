@@ -252,9 +252,19 @@ extension_score = (
 # added when available:
 #   danceability delta (w=0.10), pulse_clarity delta (w=0.05),
 #   mfcc_continuity — euclidean distance of 12-d MFCC timbre vectors (w=0.10),
-#   vocal_jump_score — instrumentalness jump penalty (w=0.10)
+#   vocal_jump_score — instrumentalness jump penalty (w=0.10),
+#   harmonic_compat — circle-of-fifths key compatibility (w=0.10) — OFF by
+#     default (HARMONIC_CONTINUITY_ENABLED); dominated by stronger terms at this
+#     weight, see trajectory/harmony.py
 # all weights renormalized to sum=1 so missing terms don't deflate the score
 ```
+
+**Genre signals (P3):** `compute_genre_match_score` unions per-track `genres`
+with album-level genres from `album_tags` (all sources) and RYM genres before
+Jaccard scoring (`_w_genre=0.20`). The Genre Manifold ensemble
+(`genre/manifold.py:_ensemble`) is kNN 0.30 / Last.fm artist tags 0.25 / direct
+track genres 0.25 / **album_tags genres 0.10** / audio heuristics 0.10. The
+album component is dormant until the `album_tags` backfill runs.
 
 ### Key V4 Features
 - **Single semantic search**: Query once, re-score per position

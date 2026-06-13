@@ -82,6 +82,7 @@ class CandidateTrack:
 
     # Genre tags (for genre continuity and Jaccard scoring)
     genres: list = field(default_factory=list)  # list[str]
+    album_genres: list = field(default_factory=list)  # list[str] — unified album_tags (P3/C2)
 
     # Genre Manifold System: probabilistic genre identity vector
     genre_probs: dict = field(default_factory=dict)  # {genre_family: probability}
@@ -95,6 +96,7 @@ class CandidateTrack:
     instrumentalness: float | None = None
     acousticness: float | None = None
     mfcc: list | None = None  # 12 floats
+    key_estimate: str | None = None  # tonic pitch class, e.g. "E" (harmonic continuity)
     playcount: int = 0
     listeners: int = 0
 
@@ -215,7 +217,20 @@ def compute_genre_match_score(
                     if len(token) >= 3:
                         rym_set_raw.add(token)
 
-    combined_raw = genre_set_raw | rym_set_raw
+    # Album-level genres collected from all sources (P3/C2). Dormant until the
+    # album_tags backfill runs; with no album genres this set is empty and the
+    # score is unchanged. Tokenized like RYM genres for partial matching.
+    album_set_raw = set()
+    if track.album_genres:
+        for ag in track.album_genres:
+            ag_lower = ag.lower().strip()
+            if ag_lower:
+                album_set_raw.add(ag_lower)
+                for token in ag_lower.split():
+                    if len(token) >= 3:
+                        album_set_raw.add(token)
+
+    combined_raw = genre_set_raw | rym_set_raw | album_set_raw
     if not combined_raw:
         return 0.0
 
@@ -226,14 +241,15 @@ def compute_genre_match_score(
             genre_set_with_families.add(family)
 
     weight_sum = 0.0
-    n_tags = len(genre_set_raw) if genre_set_raw else len(rym_set_raw)
+    n_tags = len(genre_set_raw) or len(rym_set_raw) or len(album_set_raw)
     for genre_name in genre_set_with_families:
         if genre_name not in hint_set:
             continue
         if genre_name in _BROAD_GENRES:
             weight_sum += 0.25
         elif genre_name in primary_hint_set:
-            # Full weight for primary tag matches, slight discount for RYM-only matches
+            # Full weight for primary (file/Last.fm) matches; slight discount for
+            # supplementary RYM/album-only matches.
             if genre_name in genre_set_raw:
                 weight_sum += 1.0
             else:
@@ -417,7 +433,12 @@ def semantic_search(
                     taf.danceability, taf.pulse_clarity, taf.instrumentalness,
                     taf.acousticness, taf.mfcc,
                     COALESCE(tss.studio_score, 1.0) as studio_score,
-                    COALESCE(tss.version_type, 'studio') as version_type
+                    COALESCE(tss.version_type, 'studio') as version_type,
+                    taf.key_estimate,
+                    ARRAY(
+                        SELECT DISTINCT at2.tag FROM album_tags at2
+                        WHERE at2.album_id = tal.album_id
+                    ) AS album_genres
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
@@ -485,6 +506,8 @@ def semantic_search(
             mfcc=list(row[35]) if row[35] is not None else None,
             studio_score=float(row[36]) if row[36] is not None else 1.0,
             version_type=str(row[37]) if row[37] is not None else "studio",
+            key_estimate=row[38],
+            album_genres=list(row[39]) if row[39] else [],
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -629,7 +652,12 @@ def keyword_search(
                     taf.danceability, taf.pulse_clarity, taf.instrumentalness,
                     taf.acousticness, taf.mfcc,
                     COALESCE(tss.studio_score, 1.0) as studio_score,
-                    COALESCE(tss.version_type, 'studio') as version_type
+                    COALESCE(tss.version_type, 'studio') as version_type,
+                    taf.key_estimate,
+                    ARRAY(
+                        SELECT DISTINCT at2.tag FROM album_tags at2
+                        WHERE at2.album_id = tal.album_id
+                    ) AS album_genres
                 FROM tracks t
                 LEFT JOIN track_profiles tp ON t.id = tp.track_id
                 LEFT JOIN track_files tf ON t.id = tf.track_id
@@ -696,6 +724,8 @@ def keyword_search(
             mfcc=list(row[34]) if row[34] is not None else None,
             studio_score=float(row[35]) if row[35] is not None else 1.0,
             version_type=str(row[36]) if row[36] is not None else "studio",
+            key_estimate=row[37],
+            album_genres=list(row[38]) if row[38] else [],
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
