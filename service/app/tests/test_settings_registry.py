@@ -18,7 +18,7 @@ def test_registry_keys_are_unique():
 def test_registry_covers_expected_keys():
     keys = registry_by_key()
     # Spot-check one from each group plus the new OAuth fields.
-    for k in ["lastfm_api_key", "discogs_oauth_token", "rym_scrape_enabled",
+    for k in ["lastfm_api_key", "discogs_oauth_token", "harmonic_continuity_enabled",
               "jellyfin_url", "scan_threads", "cluster_min_samples"]:
         assert k in keys
     # Bootstrap/deprecated keys must NOT be settable.

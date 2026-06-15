@@ -15,7 +15,7 @@ prompt --> LLM intent parsing --> 6D trajectory curves --> semantic+BM25 search
                 |                        |                        |
           (keyword fallback              v                        v
            if no API key)        beam search sequencing --> curation scoring
-                                 dual-anchor gravity        banger + MA + RYM
+                                 dual-anchor gravity        banger + MA
                                  cluster bridge scoring     year + era scoring
                                  acoustic continuity              |
                                                                   v
@@ -28,7 +28,7 @@ A user prompt like *"start ambient and dreamy, build through post-rock, end with
 
 2. **Trajectory generation** -- The extracted intent is converted into a 6D trajectory curve (energy, tempo, darkness, texture, era, valence) using spline interpolation across the playlist length. Seven arc types shape the curve: `rise`, `fall`, `peak`, `steady`, `journey`, `wave`, and `valley`. The era dimension enables temporal trajectories (chronological, reverse, locked). The valence dimension is opt-in and activates when mood words like "uplifting" or "melancholic" appear in the prompt.
 
-3. **Candidate selection** -- Semantic search (pgvector) + BM25 keyword search produce a global candidate pool. Candidates are enriched with curation signals (banger score from Last.fm popularity, Metal Archives album legitimacy, RYM ratings/genres/descriptors, verified original release dates). They're then re-scored per trajectory position using the 5D target at each point.
+3. **Candidate selection** -- Semantic search (pgvector) + BM25 keyword search produce a global candidate pool. Candidates are enriched with curation signals (banger score from Last.fm popularity, Metal Archives album legitimacy, multi-source album genres, verified original release dates). They're then re-scored per trajectory position using the 5D target at each point.
 
 4. **Sequencing** -- Beam search with lookahead optimizes the track order. Dual-anchor gravity wells (prompt centroid + weighted scene centroid) prevent stylistic drift. Auto-bridge scoring rewards tracks that smooth transitions between distant clusters. Acoustic continuity scoring uses BPM, loudness, brightness, danceability, pulse clarity, MFCC timbre distance, and an instrumental-vs-vocal jump penalty (all terms degrade gracefully to no-op when data is absent). Era coherence penalizes jarring temporal jumps.
 
@@ -54,7 +54,7 @@ Frontend (Nuxt 4, SSR)  -->  Backend (FastAPI)  -->  PostgreSQL 16 + pgvector
   Nuxt UI v4                   sentence-transformers    tracks, embeddings,
   SSE streaming                GPT-4o-mini              profiles, clusters,
   M3U export UI                5D trajectory engine     audio features,
-                               curation scoring          banger flags, RYM,
+                               curation scoring          banger flags,
                                era coherence             release dates, GMS
 ```
 
@@ -82,8 +82,8 @@ playlist-generator/
     app/genre/            Genre Manifold System (probabilistic genre identity vectors)
     app/clustering/       Scene and artist clustering
     app/audio/            Librosa audio feature analysis
-    app/embeddings/       Sentence-transformer embedding generation (+ RYM data)
-    app/profiles/         4D semantic profile generation (+ RYM data)
+    app/embeddings/       Sentence-transformer embedding generation
+    app/profiles/         4D semantic profile generation
     app/enrichment/       Composite banger detection (popularity + sonic + replay)
     app/export/           M3U and Jellyfin exporters
     app/ingestion/        File scanner, Last.fm, MusicBrainz, Metal Archives, Discogs, release dates
@@ -298,7 +298,6 @@ Each enrichment type has a fire-and-forget endpoint and an SSE streaming variant
 | POST | `/enrich/banger-flags[/stream]` | Composite banger detection (Last.fm popularity + sonic audio profile + replay ratio) |
 | POST | `/enrich/audio[/stream]` | Audio feature analysis (BPM, loudness, brightness) |
 | POST | `/enrich/genre-manifold[/stream]` | Genre Manifold probability vectors |
-| POST | `/enrich/rym[/stream]` | RateYourMusic album data scraping |
 
 ### Playlist Generation
 

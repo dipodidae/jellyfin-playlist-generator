@@ -100,17 +100,11 @@ class CandidateTrack:
     playcount: int = 0
     listeners: int = 0
 
-    # Curation signals (album legitimacy + banger detection + RYM culture)
+    # Curation signals (album legitimacy + banger detection)
     banger_score: float = 0.0
     album_legitimacy_score: float = 0.0  # percentile-normalized at pool level
     _raw_ma_rating: float = 0.0          # raw MA rating (0-100), for percentile normalization
     _raw_ma_review_count: int = 0        # raw MA review count, for confidence weighting
-
-    # RYM cultural data (from rym_albums table)
-    rym_rating: float | None = None      # 0.0-5.0 scale, None = no data
-    rym_votes: int = 0
-    rym_genres: list = field(default_factory=list)  # list[str] — high-resolution RYM genres
-    rym_descriptors: list = field(default_factory=list)  # list[str]
 
     # Scoring components (all normalized 0-1)
     semantic_score: float = 0.0   # combined retrieval: 0.65*cosine + 0.35*keyword
@@ -152,23 +146,8 @@ class CandidateTrack:
 
     @property
     def curation_score(self) -> float:
-        """Combined curation signal from banger detection + album legitimacy + RYM culture."""
-        ma_signal = self.album_legitimacy_score
-
-        # RYM quality prior: rating + vote confidence
-        rym_signal = 0.0
-        has_rym = self.rym_rating is not None and self.rym_rating > 0
-        if has_rym:
-            vote_confidence = min(1.0, math.log1p(self.rym_votes) / math.log1p(100))
-            rym_signal = (self.rym_rating / 5.0) * 0.7 + vote_confidence * 0.3
-
-        # Weighted combination with graceful degradation
-        if has_rym and ma_signal > 0:
-            return self.banger_score * 0.40 + ma_signal * 0.25 + rym_signal * 0.35
-        elif has_rym:
-            return self.banger_score * 0.50 + rym_signal * 0.50
-        else:
-            return self.banger_score * 0.65 + ma_signal * 0.35
+        """Combined curation signal from banger detection + album legitimacy."""
+        return self.banger_score * 0.65 + self.album_legitimacy_score * 0.35
 
     @property
     def total_score(self) -> float:
@@ -202,24 +181,9 @@ def compute_genre_match_score(
     # Primary genre tags (Last.fm / file metadata)
     genre_set_raw = {g.lower() for g in track.genres} if track.genres else set()
 
-    # Supplement with high-resolution RYM genres when available.
-    # RYM genres are often more specific (e.g. "ethereal wave", "atmospheric
-    # sludge metal") and catch matches that coarse Last.fm tags miss.
-    rym_set_raw = set()
-    if track.rym_genres:
-        for rg in track.rym_genres:
-            # RYM genres can be multi-word; normalize and also add individual tokens
-            rg_lower = rg.lower().strip()
-            if rg_lower:
-                rym_set_raw.add(rg_lower)
-                # Also add individual words for partial matching (e.g. "sludge" from "atmospheric sludge metal")
-                for token in rg_lower.split():
-                    if len(token) >= 3:
-                        rym_set_raw.add(token)
-
     # Album-level genres collected from all sources (P3/C2). Dormant until the
     # album_tags backfill runs; with no album genres this set is empty and the
-    # score is unchanged. Tokenized like RYM genres for partial matching.
+    # score is unchanged. Tokenized for partial matching.
     album_set_raw = set()
     if track.album_genres:
         for ag in track.album_genres:
@@ -230,7 +194,7 @@ def compute_genre_match_score(
                     if len(token) >= 3:
                         album_set_raw.add(token)
 
-    combined_raw = genre_set_raw | rym_set_raw | album_set_raw
+    combined_raw = genre_set_raw | album_set_raw
     if not combined_raw:
         return 0.0
 
@@ -241,7 +205,7 @@ def compute_genre_match_score(
             genre_set_with_families.add(family)
 
     weight_sum = 0.0
-    n_tags = len(genre_set_raw) or len(rym_set_raw) or len(album_set_raw)
+    n_tags = len(genre_set_raw) or len(album_set_raw)
     for genre_name in genre_set_with_families:
         if genre_name not in hint_set:
             continue
@@ -249,7 +213,7 @@ def compute_genre_match_score(
             weight_sum += 0.25
         elif genre_name in primary_hint_set:
             # Full weight for primary (file/Last.fm) matches; slight discount for
-            # supplementary RYM/album-only matches.
+            # supplementary album-only matches.
             if genre_name in genre_set_raw:
                 weight_sum += 1.0
             else:
@@ -269,8 +233,7 @@ def compute_negative_constraint_penalty(
 
     haystack_parts = [track.title or "", track.artist_name or "", track.album_name or ""]
     haystack_parts.extend(track.genres or [])
-    haystack_parts.extend(track.rym_genres or [])
-    haystack_parts.extend(track.rym_descriptors or [])
+    haystack_parts.extend(track.album_genres or [])
     haystack = " ".join(haystack_parts).lower()
     haystack_tokens = {token for token in re.findall(r"[a-z0-9]+", haystack) if len(token) >= 2}
 
@@ -425,8 +388,6 @@ def semantic_search(
                     COALESCE(tbf.banger_score, 0) as banger_score,
                     COALESCE(al_leg.ma_rating, 0) as ma_rating,
                     COALESCE(al_leg.ma_review_count, 0) as ma_review_count,
-                    ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
-                    ra.genres as rym_genres, ra.descriptors as rym_descriptors,
                     tal.album_id,
                     ard.original_year,
                     COALESCE(taf.valence, 0.5) as valence,
@@ -454,7 +415,6 @@ def semantic_search(
                 LEFT JOIN track_banger_flags tbf ON t.id = tbf.track_id
                 LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
                     AND al_leg.match_confidence >= 0.7
-                LEFT JOIN rym_albums ra ON tal.album_id = ra.album_id
                 LEFT JOIN track_studio_scores tss ON tss.track_id = t.id
                 WHERE te.embedding IS NOT NULL
                 {year_filter}
@@ -492,22 +452,18 @@ def semantic_search(
             album_legitimacy_score=0.0,  # percentile-normalized after pool assembly
             _raw_ma_rating=float(row[22] or 0),
             _raw_ma_review_count=int(row[23] or 0),
-            rym_rating=float(row[24]) if row[24] is not None else None,
-            rym_votes=int(row[25] or 0),
-            rym_genres=list(row[26]) if row[26] else [],
-            rym_descriptors=list(row[27]) if row[27] else [],
-            album_id=str(row[28]) if row[28] else None,
-            original_year=row[29],
-            valence=float(row[30]) if row[30] is not None else 0.5,
-            danceability=row[31],
-            pulse_clarity=row[32],
-            instrumentalness=row[33],
-            acousticness=row[34],
-            mfcc=list(row[35]) if row[35] is not None else None,
-            studio_score=float(row[36]) if row[36] is not None else 1.0,
-            version_type=str(row[37]) if row[37] is not None else "studio",
-            key_estimate=row[38],
-            album_genres=list(row[39]) if row[39] else [],
+            album_id=str(row[24]) if row[24] else None,
+            original_year=row[25],
+            valence=float(row[26]) if row[26] is not None else 0.5,
+            danceability=row[27],
+            pulse_clarity=row[28],
+            instrumentalness=row[29],
+            acousticness=row[30],
+            mfcc=list(row[31]) if row[31] is not None else None,
+            studio_score=float(row[32]) if row[32] is not None else 1.0,
+            version_type=str(row[33]) if row[33] is not None else "studio",
+            key_estimate=row[34],
+            album_genres=list(row[35]) if row[35] else [],
         ))
 
     logger.info(f"Semantic search returned {len(candidates)} candidates")
@@ -644,8 +600,6 @@ def keyword_search(
                     COALESCE(tbf.banger_score, 0) as banger_score,
                     COALESCE(al_leg.ma_rating, 0) as ma_rating,
                     COALESCE(al_leg.ma_review_count, 0) as ma_review_count,
-                    ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
-                    ra.genres as rym_genres, ra.descriptors as rym_descriptors,
                     tal.album_id,
                     ard.original_year,
                     COALESCE(taf.valence, 0.5) as valence,
@@ -673,7 +627,6 @@ def keyword_search(
                 LEFT JOIN track_banger_flags tbf ON t.id = tbf.track_id
                 LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
                     AND al_leg.match_confidence >= 0.7
-                LEFT JOIN rym_albums ra ON tal.album_id = ra.album_id
                 LEFT JOIN album_release_dates ard ON tal.album_id = ard.album_id
                 LEFT JOIN track_studio_scores tss ON tss.track_id = t.id
                 WHERE t.search_vector @@ to_tsquery('simple', %s)
@@ -710,22 +663,18 @@ def keyword_search(
             album_legitimacy_score=0.0,
             _raw_ma_rating=float(row[21] or 0),
             _raw_ma_review_count=int(row[22] or 0),
-            rym_rating=float(row[23]) if row[23] is not None else None,
-            rym_votes=int(row[24] or 0),
-            rym_genres=list(row[25]) if row[25] else [],
-            rym_descriptors=list(row[26]) if row[26] else [],
-            album_id=str(row[27]) if row[27] else None,
-            original_year=row[28],
-            valence=float(row[29]) if row[29] is not None else 0.5,
-            danceability=row[30],
-            pulse_clarity=row[31],
-            instrumentalness=row[32],
-            acousticness=row[33],
-            mfcc=list(row[34]) if row[34] is not None else None,
-            studio_score=float(row[35]) if row[35] is not None else 1.0,
-            version_type=str(row[36]) if row[36] is not None else "studio",
-            key_estimate=row[37],
-            album_genres=list(row[38]) if row[38] else [],
+            album_id=str(row[23]) if row[23] else None,
+            original_year=row[24],
+            valence=float(row[25]) if row[25] is not None else 0.5,
+            danceability=row[26],
+            pulse_clarity=row[27],
+            instrumentalness=row[28],
+            acousticness=row[29],
+            mfcc=list(row[30]) if row[30] is not None else None,
+            studio_score=float(row[31]) if row[31] is not None else 1.0,
+            version_type=str(row[32]) if row[32] is not None else "studio",
+            key_estimate=row[33],
+            album_genres=list(row[34]) if row[34] else [],
         ))
 
     logger.info(f"BM25 keyword search returned {len(candidates)} candidates")
@@ -764,8 +713,6 @@ def _fetch_candidates_by_ids(
                     COALESCE(tbf.banger_score, 0) as banger_score,
                     COALESCE(al_leg.ma_rating, 0) as ma_rating,
                     COALESCE(al_leg.ma_review_count, 0) as ma_review_count,
-                    ra.rym_rating, COALESCE(ra.rym_votes, 0) as rym_votes,
-                    ra.genres as rym_genres, ra.descriptors as rym_descriptors,
                     tal.album_id,
                     ard.original_year
                 FROM tracks t
@@ -784,7 +731,6 @@ def _fetch_candidates_by_ids(
                 LEFT JOIN track_banger_flags tbf ON t.id = tbf.track_id
                 LEFT JOIN album_legitimacy al_leg ON tal.album_id = al_leg.album_id
                     AND al_leg.match_confidence >= 0.7
-                LEFT JOIN rym_albums ra ON tal.album_id = ra.album_id
                 WHERE t.id = ANY(%s::uuid[])
             """, (track_ids,))
             rows = cur.fetchall()
@@ -815,12 +761,8 @@ def _fetch_candidates_by_ids(
             album_legitimacy_score=0.0,
             _raw_ma_rating=float(row[20] or 0),
             _raw_ma_review_count=int(row[21] or 0),
-            rym_rating=float(row[22]) if row[22] is not None else None,
-            rym_votes=int(row[23] or 0),
-            rym_genres=list(row[24]) if row[24] else [],
-            rym_descriptors=list(row[25]) if row[25] else [],
-            album_id=str(row[26]) if row[26] else None,
-            original_year=row[27],
+            album_id=str(row[22]) if row[22] else None,
+            original_year=row[23],
             semantic_score=0.0,
         ))
 

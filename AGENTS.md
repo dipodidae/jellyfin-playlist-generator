@@ -43,7 +43,7 @@ A prompt-driven playlist generation system that creates intelligent, curated pla
 │  │ Curation Signals │  │ Release Date Resolution              │ │
 │  │ - Banger detect  │  │ - Discogs / MusicBrainz / file meta  │ │
 │  │ - MA legitimacy  │  │ - Multi-source cross-reference       │ │
-│  │ - RYM culture    │  │ - Confidence scoring                 │ │
+│  │ - Album genres   │  │ - Confidence scoring                 │ │
 │  └──────────────────┘  └──────────────────────────────────────┘ │
 │                              │                                   │
 │  ┌──────────────────┐  ┌──────────────────────────────────────┐ │
@@ -65,7 +65,7 @@ A prompt-driven playlist generation system that creates intelligent, curated pla
 │  track_studio_scores (version_type, studio_score — mig. 014),  │
 │  track_usage, playlist_generation_log,                          │
 │  track_genre_probabilities, genre_manifold, track_banger_flags, │
-│  album_legitimacy, rym_albums, album_release_dates,             │
+│  album_legitimacy, album_release_dates,                         │
 │  lastfm_stats, musicbrainz_artists, musicbrainz_albums,         │
 │  album_tags, app_settings                                        │
 └─────────────────────────────────────────────────────────────────┘
@@ -119,7 +119,7 @@ playlist-generator/
 │   │   │   ├── banger_detector.py # Composite banger detection (DB orchestration)
 │   │   │   └── banger_scoring.py   # Pure banger scoring math (popularity/sonic/replay)
 │   │   ├── profiles/
-│   │   │   └── generator.py # Semantic track profiles (4D: energy, darkness, tempo, texture) + RYM data
+│   │   │   └── generator.py # Semantic track profiles (4D: energy, darkness, tempo, texture)
 │   │   ├── export/
 │   │   │   └── m3u.py       # M3U playlist exporter
 │   │   ├── migrations/      # Database migrations
@@ -164,7 +164,6 @@ playlist-generator/
 | `/enrich/banger-flags` | POST | Compute banger detection flags |
 | `/enrich/audio` | POST | Analyze audio features |
 | `/enrich/genre-manifold` | POST | Build genre probability vectors |
-| `/enrich/rym` | POST | Scrape RateYourMusic album data |
 | `/rebuild-search-vectors` | POST | Rebuild BM25 search vectors |
 | `/sync/full-pipeline` | POST | Incremental scan + all enrichment (SSE) (`?force_prune`) |
 | `/path-mappings` | GET/POST | Manage path mappings |
@@ -224,7 +223,7 @@ total_score = (
     - gravity_penalty * w_gravity  +   # all types: 0.15
     - duration_penalty * w_duration    # all types: 0.10
     - tourist_match_penalty            # 0.50 when genre hint present + zero genre match
-    - negative_constraint_penalty      # avoid_keywords violations (checks genres + RYM data)
+    - negative_constraint_penalty      # avoid_keywords violations (checks genres + album genres)
     - usage_penalty                    # time-decayed track reuse penalty
     - studio_penalty * _w_studio       # _w_studio=0.08; penalizes (1-studio_score) by default,
                                        # or studio_score when prefer_live (inverted for live/acoustic prompts)
@@ -233,7 +232,7 @@ total_score = (
 # trajectory_score also includes a valence term when DimensionWeights.valence > 0
 # (opt-in: parse_valence_target raises it to ~0.25 when mood words are detected in the prompt)
 
-# curation_score = banger_score * w1 + album_legitimacy * w2 + rym_signal * w3
+# curation_score = banger_score * 0.65 + album_legitimacy * 0.35
 # (graceful degradation when data sources are partially available)
 
 # Beam extension score (sequencer)
@@ -261,7 +260,7 @@ extension_score = (
 ```
 
 **Genre signals (P3):** `compute_genre_match_score` unions per-track `genres`
-with album-level genres from `album_tags` (all sources) and RYM genres before
+with album-level genres from `album_tags` (all sources) before
 Jaccard scoring (`_w_genre=0.20`). The Genre Manifold ensemble
 (`genre/manifold.py:_ensemble`) is kNN 0.30 / Last.fm artist tags 0.25 / direct
 track genres 0.25 / **album_tags genres 0.10** / audio heuristics 0.10. The
@@ -281,10 +280,10 @@ album component is dormant until the `album_tags` backfill runs.
 - **Studio/live preference**: `version_classifier.py` classifies each track as `studio` (score 1.0), `live` (0.35), `demo` (0.50), `session` (0.55), `acoustic` (0.65), `remix` (0.70), or `bonus` (0.75), stored in `track_studio_scores`. By default a soft penalty (`_w_studio=0.08`) down-ranks non-studio cuts; `detect_prefer_live()` inverts it for prompts containing live/acoustic/unplugged cues.
 - **Per-segment genre waypoints**: For multi-genre journeys, the LLM emits per-waypoint `genres`; `build_phase_queries()` retrieves each segment's genre, a DB genre pool guarantees those styles are present, and `generate_position_pools()` scores `genre_match` per position against that position's segment genres (`PlaylistIntent.segment_genres_at()`) — so "ambient → doom" actually opens ambient and closes doom.
 - **Genre Manifold System (GMS)**: Probabilistic genre identity vectors (`genre_probs`) loaded from `track_genre_probabilities` table; used for `compute_genre_probability_score()` (replaces Jaccard when available), `compute_genre_drift_penalty()` in beam search, STRICT mode hard filter, and hybrid query embedding construction
-- **Curation scoring**: Combined signal from banger detection (composite: Last.fm popularity + sonic audio profile + replay ratio), Metal Archives album legitimacy (percentile-normalized), and RYM album ratings; weighted by `impact_preference`
-- **RYM genre enrichment**: High-resolution RYM genres supplement Jaccard genre matching and BM25 search vectors; RYM descriptors feed negative constraint checking
+- **Curation scoring**: Combined signal from banger detection (composite: Last.fm popularity + sonic audio profile + replay ratio) and Metal Archives album legitimacy (percentile-normalized); weighted by `impact_preference`
+- **Album genre enrichment**: Album-level genres from `album_tags` (Discogs/MusicBrainz/Last.fm/Metal Archives) supplement Jaccard genre matching, the Genre Manifold ensemble, and BM25 search vectors
 - **True original release dates**: Multi-source (Discogs/MusicBrainz/file) verified dates used for year scoring (stronger signal than file metadata) and 5D era trajectory dimension
-- **BM25 search vectors**: Composed of track title + artist (Weight A), file genres + Last.fm tags + RYM genres (Weight B), RYM descriptors (Weight C)
+- **BM25 search vectors**: Composed of track title + artist (Weight A), file genres + Last.fm tags (Weight B), album_tags genres (Weight B)
 
 ## Environment Variables
 
@@ -458,12 +457,12 @@ css: ['~/assets/css/main.css'],
 3. **Last.fm**: Enrich artists with tags, similarity; fetch per-track play/listener counts
 4. **Metal Archives**: Scrape album ratings → album_legitimacy (match_confidence ≥ 0.7)
 5. **Release Dates**: Multi-source (Discogs/MusicBrainz/file) → album_release_dates (true original year)
-6. **Embed**: tracks + RYM data → sentence-transformers → pgvector (embeddings)
+6. **Embed**: tracks → sentence-transformers → pgvector (embeddings)
 7. **Profile**: tags → heuristics → PostgreSQL (energy, darkness, tempo, texture)
 8. **Cluster**: artist embeddings → KMeans → scene_clusters, artist_clusters
 9. **Banger Detection**: composite → track_banger_flags. Three groups (weights renormalized over those present): popularity 0.45 (Last.fm within-artist rank + global percentile), sonic 0.35 (track_audio_features energy/dance/loudness/tempo/valence; valence dropped for dark genres), replay 0.20 (log playcount/listeners percentile)
 10. **Genre Manifold**: kNN voting → track_genre_probabilities + genre centroids
-11. **Search Vectors**: BM25 tsvector (title/artist/genres + Last.fm tags + RYM genres/descriptors)
+11. **Search Vectors**: BM25 tsvector (title/artist/genres + Last.fm tags + album_tags genres)
 12. **Audio Analysis** (`/enrich/audio`): librosa → BPM, loudness, brightness + valence, danceability, pulse_clarity, onset_rate, instrumentalness, acousticness, MFCC timbre → track_audio_features (migration 013; re-runs for rows missing new metrics)
 13. **Studio Scores** (`ingestion/studio_scores.py backfill_studio_scores()`): title + album cues → (version_type, studio_score) → track_studio_scores (migration 014; fast — pure metadata, no I/O)
 14. **Generate (v4)**: prompt → 6D trajectory → semantic+BM25 search → curation + studio scoring → position pools → beam search → M3U export

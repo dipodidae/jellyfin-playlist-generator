@@ -1,7 +1,7 @@
 export interface SettingField {
   key: string
   type: 'str' | 'secret' | 'bool' | 'int' | 'float' | 'csv'
-  group: 'credentials' | 'enrichment' | 'jellyfin' | 'library' | 'advanced'
+  group: 'credentials' | 'jellyfin' | 'library' | 'advanced'
   label: string
   description?: string
   secret: boolean

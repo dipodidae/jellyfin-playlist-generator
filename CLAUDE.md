@@ -5,8 +5,8 @@
 This is a playlist generator that creates intelligent playlists from a Jellyfin music library using:
 - Semantic embeddings for understanding prompts
 - 6D trajectory-based composition (energy, tempo, darkness, texture, era, valence)
-- Multi-source enrichment: Last.fm (tags, similarity, play stats), MusicBrainz (IDs), Metal Archives (legitimacy), Discogs (release dates), RYM (ratings, genres, descriptors)
-- Curation scoring: banger detection + album legitimacy + RYM cultural signal + studio/live preference
+- Multi-source enrichment: Last.fm (tags, similarity, play stats), MusicBrainz (IDs), Metal Archives (legitimacy), Discogs (release dates + album genres)
+- Curation scoring: banger detection + album legitimacy + studio/live preference
 - Genre Manifold System (GMS): probabilistic genre identity vectors
 - Extended audio features: BPM, loudness, brightness, valence, danceability, pulse clarity, onset rate, instrumentalness, acousticness, MFCC timbre (heuristic proxies via librosa)
 - OpenAI for creative playlist titles
@@ -72,9 +72,9 @@ Unified store (migration `016_album_tags.sql`) collecting album genres/tags from
 every source into one table — `(album_id, source, kind, tag, weight, position)`.
 Populated by: Discogs + MusicBrainz genres during release-date resolution (no
 extra calls beyond one MB genre lookup); a dedicated Last.fm `album.getTopTags`
-pass (`/enrich/lastfm-album-tags`, also stage 2b of `/sync/full-pipeline`); the
-Metal Archives scrape (best-effort genre field); and RYM (mirrored from its
-scrape). Pure collection — scoring does not read it yet (that is a later change).
+pass (`/enrich/lastfm-album-tags`, also stage 2b of `/sync/full-pipeline`); and
+the Metal Archives scrape (best-effort genre field). Read by genre matching, the
+Genre Manifold ensemble, and the BM25 search vector (dormant until backfilled).
 
 ### Modifying the database schema
 1. Add a migration file in `service/app/migrations/` (numbered, e.g. `012_my_change.sql`)

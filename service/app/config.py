@@ -61,11 +61,6 @@ class Settings(BaseSettings):
     discogs_oauth_token: str = ""          # set by the in-app OAuth flow
     discogs_oauth_token_secret: str = ""   # set by the in-app OAuth flow
 
-    # RateYourMusic (scraping)
-    rym_scrape_delay_min: float = 2.0
-    rym_scrape_delay_max: float = 5.0
-    rym_scrape_enabled: bool = False  # explicit opt-in
-
     # Sequencing: harmonic-continuity (key matching) term — experimental, off by
     # default. See trajectory/harmony.py and the settings registry description.
     harmonic_continuity_enabled: bool = False

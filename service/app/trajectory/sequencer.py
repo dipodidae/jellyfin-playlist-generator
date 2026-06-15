@@ -585,35 +585,6 @@ def _update_cumulative_genre_dist(
     return new_dist
 
 
-def load_album_adjacency_cache(album_ids: set[str]) -> dict[tuple[str, str], int]:
-    """Pre-load RYM album co-occurrence data for a set of album IDs.
-
-    Returns dict mapping (album_a_id, album_b_id) -> co_occurrence count.
-    Only loads pairs where both albums are in the provided set.
-    """
-    if not album_ids:
-        return {}
-    try:
-        id_list = list(album_ids)
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT album_a_id::text, album_b_id::text, co_occurrence
-                    FROM rym_album_adjacency
-                    WHERE album_a_id = ANY(%s::uuid[])
-                      AND album_b_id = ANY(%s::uuid[])
-                """, (id_list, id_list))
-                rows = cur.fetchall()
-        cache: dict[tuple[str, str], int] = {}
-        for a, b, co in rows:
-            cache[(a, b)] = co
-            cache[(b, a)] = co  # symmetric
-        return cache
-    except Exception as e:
-        logger.debug(f"Album adjacency cache load failed: {e}")
-        return {}
-
-
 def _extend_single_path(
     path: BeamPath,
     candidates: list[CandidateTrack],
@@ -628,7 +599,6 @@ def _extend_single_path(
     skip_lookahead: bool = False,
     trajectory_targets: list[tuple[float, float]] | None = None,
     target_genre_dist: dict[str, float] | None = None,
-    album_adjacency: dict[tuple[str, str], int] | None = None,
 ) -> tuple[list[tuple[BeamPath, float]], int]:
     """Extend one beam path at *position*.
 
@@ -712,19 +682,11 @@ def _extend_single_path(
             except Exception:
                 pass
 
-        # Album adjacency bonus: tracks from albums that co-occur in RYM lists
-        adjacency_bonus = 0.0
-        if album_adjacency and prev_track and prev_track.album_id and candidate.album_id:
-            co_occ = album_adjacency.get((prev_track.album_id, candidate.album_id), 0)
-            if co_occ > 0:
-                adjacency_bonus = min(0.15, 0.05 * math.log1p(co_occ))
-
         extension_score = (
             candidate.total_score +
             trans_score * 0.40 +
             lookahead * config.lookahead_weight +
             bridge_bonus * config.bridge_bonus_weight +
-            adjacency_bonus +
             trans_bonus -
             direction_penalty -
             genre_drift_penalty
@@ -809,7 +771,6 @@ def sequence_playlist(
     transition_bonuses: dict | None = None,
     trajectory_targets: list[tuple[float, float]] | None = None,
     target_genre_dist: dict[str, float] | None = None,
-    album_adjacency: dict[tuple[str, str], int] | None = None,
 ) -> tuple[list[CandidateTrack], dict[str, Any]]:
     """
     Sequence playlist using beam search through position pools.
@@ -837,18 +798,6 @@ def sequence_playlist(
     total_constraint_rejections = 0
     total_beam_dead_ends = 0
     total_relaxations = 0
-
-    # Pre-load album adjacency cache if not provided
-    if album_adjacency is None:
-        all_album_ids: set[str] = set()
-        for pool in position_pools:
-            for c in pool:
-                if c.album_id:
-                    all_album_ids.add(c.album_id)
-        if all_album_ids:
-            album_adjacency = load_album_adjacency_cache(all_album_ids)
-            if album_adjacency:
-                logger.info(f"Album adjacency cache: {len(album_adjacency)} pairs from {len(all_album_ids)} albums")
 
     # Initialize beam with empty path
     beam: list[BeamPath] = [BeamPath()]
@@ -907,7 +856,6 @@ def sequence_playlist(
                     skip_lookahead=skip_lookahead,
                     trajectory_targets=trajectory_targets,
                     target_genre_dist=target_genre_dist,
-                    album_adjacency=album_adjacency,
                 )
                 total_constraint_rejections += rejections
 

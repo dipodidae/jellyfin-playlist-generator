@@ -27,8 +27,6 @@ export interface LibraryStats {
   albums_with_legitimacy?: number
   artists_with_mbid?: number
   albums_with_mbid?: number
-  albums_with_rym?: number
-  rym_adjacency_pairs?: number
   vector_index_built?: boolean
   cold_start?: ColdStartStatus
 }

@@ -37,10 +37,6 @@ REGISTRY: list[SettingDef] = [
     SettingDef("discogs_oauth_token_secret", "secret", "credentials",
                "Discogs OAuth token secret", secret=True),
     SettingDef("musicbrainz_contact", "str", "credentials", "MusicBrainz contact email"),
-    # enrichment
-    SettingDef("rym_scrape_enabled", "bool", "enrichment", "Enable RYM scraping"),
-    SettingDef("rym_scrape_delay_min", "float", "enrichment", "RYM delay min (s)"),
-    SettingDef("rym_scrape_delay_max", "float", "enrichment", "RYM delay max (s)"),
     # jellyfin
     SettingDef("jellyfin_url", "str", "jellyfin", "Jellyfin URL"),
     SettingDef("jellyfin_api_key", "secret", "jellyfin", "Jellyfin API key", secret=True),

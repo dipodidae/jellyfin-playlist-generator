@@ -2,7 +2,7 @@
 
 Uses musicbrainzngs to resolve local artists/albums to canonical MusicBrainz IDs
 (MBIDs). These serve as universal join keys for all external enrichment sources
-(Last.fm, RYM, Metal Archives, etc.).
+(Last.fm, Discogs, Metal Archives, etc.).
 
 Rate-limited to 1 request/second per MB API terms of service.
 """

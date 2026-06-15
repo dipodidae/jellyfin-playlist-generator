@@ -4,7 +4,7 @@ V4 Playlist Composer - Main orchestration module.
 Ties together all v4 components:
 1. Intent parsing with 5D trajectories (energy, tempo, darkness, texture, era)
 2. Gravity anchor computation
-3. Position-based candidate pools with curation scoring (banger + MA + RYM)
+3. Position-based candidate pools with curation scoring (banger + MA)
 4. Beam search sequencing with acoustic continuity + era coherence
 5. Automatic bridge scoring
 """

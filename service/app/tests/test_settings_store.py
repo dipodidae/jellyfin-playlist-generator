@@ -4,10 +4,10 @@ from app.config import settings
 
 def test_apply_overlays_typed_values_onto_singleton(monkeypatch):
     monkeypatch.setattr(settings, "scan_threads", 8, raising=False)
-    monkeypatch.setattr(settings, "rym_scrape_enabled", False, raising=False)
-    settings_store._apply_rows({"scan_threads": "16", "rym_scrape_enabled": "true"})
+    monkeypatch.setattr(settings, "harmonic_continuity_enabled", False, raising=False)
+    settings_store._apply_rows({"scan_threads": "16", "harmonic_continuity_enabled": "true"})
     assert settings.scan_threads == 16
-    assert settings.rym_scrape_enabled is True
+    assert settings.harmonic_continuity_enabled is True
 
 
 def test_apply_ignores_unknown_keys(monkeypatch):

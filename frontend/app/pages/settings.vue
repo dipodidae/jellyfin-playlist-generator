@@ -14,7 +14,6 @@ const testResults = reactive<Record<string, string>>({})
 
 const GROUPS: { key: SettingField['group'], label: string, icon: string, advanced?: boolean }[] = [
   { key: 'credentials', label: 'Credentials', icon: 'i-lucide-key-round' },
-  { key: 'enrichment', label: 'Enrichment', icon: 'i-lucide-sparkles' },
   { key: 'jellyfin', label: 'Jellyfin', icon: 'i-lucide-tv-2' },
   { key: 'library', label: 'Library', icon: 'i-lucide-library' },
   { key: 'advanced', label: 'Advanced', icon: 'i-lucide-sliders-horizontal', advanced: true },

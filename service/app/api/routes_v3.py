@@ -24,7 +24,6 @@ from app.ingestion.lastfm import (
 )
 from app.ingestion.metal_archives import enrich_albums_from_metal_archives
 from app.ingestion.musicbrainz import resolve_musicbrainz_ids
-from app.ingestion.rym import enrich_albums_from_rym
 from app.ingestion.release_dates import resolve_release_dates
 from app.enrichment.banger_detector import compute_banger_flags
 from app.embeddings.generator import generate_track_embeddings, search_tracks_by_text
@@ -1068,55 +1067,6 @@ async def trigger_musicbrainz_enrichment_stream(force: bool = False):
     return _make_enrichment_stream("MusicBrainz resolution", run_async)
 
 
-_rym_lock = asyncio.Lock()
-
-
-@router.post("/enrich/rym")
-async def trigger_rym_enrichment(
-    background_tasks: BackgroundTasks,
-    force: bool = False,
-    max_albums: int | None = None,
-):
-    """Trigger RateYourMusic album scraping (runs in background). Disabled by default."""
-    background_tasks.add_task(enrich_albums_from_rym, force=force, max_albums=max_albums)
-    return {"status": "started", "message": "RYM enrichment started in background"}
-
-
-@router.post("/enrich/rym/stream")
-async def trigger_rym_enrichment_stream(force: bool = False, max_albums: int | None = None):
-    """Scrape RateYourMusic album data with SSE progress. Disabled by default."""
-    if _rym_lock.locked():
-        raise HTTPException(status_code=409, detail="RYM enrichment is already running")
-
-    async def run_async(progress_callback):
-        async with _rym_lock:
-            return await enrich_albums_from_rym(
-                force=force, max_albums=max_albums, progress_callback=progress_callback,
-            )
-
-    return _make_enrichment_stream("RYM enrichment", run_async)
-
-
-@router.get("/enrich/rym/status")
-async def get_rym_status():
-    """Get RYM enrichment coverage stats."""
-    with get_cursor() as cur:
-        cur.execute("SELECT COUNT(*) FROM albums")
-        total_albums = (cur.fetchone() or [0])[0]
-        cur.execute("SELECT COUNT(*) FROM rym_albums")
-        rym_albums = (cur.fetchone() or [0])[0]
-        cur.execute("SELECT AVG(rym_rating), AVG(rym_votes) FROM rym_albums WHERE rym_rating IS NOT NULL")
-        row = cur.fetchone()
-        avg_rating = round(float(row[0]), 2) if row and row[0] else None
-        avg_votes = round(float(row[1]), 1) if row and row[1] else None
-    return {
-        "total_albums": total_albums,
-        "rym_albums": rym_albums,
-        "coverage_pct": round(rym_albums / max(1, total_albums) * 100, 1),
-        "avg_rating": avg_rating,
-        "avg_votes": avg_votes,
-        "scraping_enabled": settings.rym_scrape_enabled,
-    }
 
 
 _release_dates_lock = asyncio.Lock()
@@ -1861,7 +1811,6 @@ def _candidate_tracks_to_dicts(tracks) -> list[dict]:
                 "curation": round(t.curation_score, 3),
                 "banger": round(t.banger_score, 3),
                 "legitimacy": round(t.album_legitimacy_score, 3),
-                "rym_rating": round(t.rym_rating, 2) if t.rym_rating is not None else None,
                 "usage_penalty": round(t.usage_penalty, 3),
                 "negative_constraint_penalty": round(t.negative_constraint_penalty, 3),
                 "tourist_match_penalty": round(t.tourist_match_penalty, 3),

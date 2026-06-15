@@ -35,14 +35,13 @@ const audio = useEnrichmentStream({ onCompleted })
 const genreManifold = useEnrichmentStream({ onCompleted })
 const metalArchives = useEnrichmentStream({ onCompleted })
 const musicbrainz = useEnrichmentStream({ onCompleted })
-const rym = useEnrichmentStream({ onCompleted })
 
 const anyRunning = computed(() =>
   fullPipeline.isRunning.value
   || lastfm.isRunning.value || lastfmTracks.isRunning.value || embeddings.isRunning.value
   || profiles.isRunning.value || clusters.isRunning.value || audio.isRunning.value
   || genreManifold.isRunning.value || metalArchives.isRunning.value
-  || musicbrainz.isRunning.value || rym.isRunning.value,
+  || musicbrainz.isRunning.value,
 )
 
 function coveragePct(done: number | undefined, total: number): number {
@@ -60,7 +59,6 @@ const genreManifoldPct = computed(() => coveragePct(props.stats.tracks_with_genr
 const metalArchivesPct = computed(() => coveragePct(props.stats.albums_with_legitimacy, props.stats.albums))
 const mbArtistPct = computed(() => coveragePct(props.stats.artists_with_mbid, props.stats.artists))
 const mbAlbumPct = computed(() => coveragePct(props.stats.albums_with_mbid, props.stats.albums))
-const rymPct = computed(() => coveragePct(props.stats.albums_with_rym, props.stats.albums))
 
 type CoverageLevel = 'high' | 'mid' | 'low'
 
@@ -87,12 +85,11 @@ const activeJob = computed(() => {
   if (audio.isRunning.value) return audio
   if (genreManifold.isRunning.value) return genreManifold
   if (metalArchives.isRunning.value) return metalArchives
-  if (rym.isRunning.value) return rym
   return null
 })
 
 const latestOutcome = computed(() => {
-  const jobs = [fullPipeline, musicbrainz, lastfm, lastfmTracks, embeddings, profiles, clusters, audio, genreManifold, metalArchives, rym]
+  const jobs = [fullPipeline, musicbrainz, lastfm, lastfmTracks, embeddings, profiles, clusters, audio, genreManifold, metalArchives]
   const failedJob = jobs.find(job => job.status.value === 'error' && job.error.value)
   if (failedJob) {
     return {
@@ -176,18 +173,10 @@ const metrics = computed(() => [
   },
   {
     label: 'MusicBrainz',
-    title: 'MusicBrainz IDs resolved for artists and albums. Used as canonical join keys for RYM and other external data.',
+    title: 'MusicBrainz IDs resolved for artists and albums. Used as canonical join keys for release dates and other external data.',
     pct: mbArtistPct.value,
     countLabel: `${(props.stats.artists_with_mbid ?? 0).toLocaleString()} / ${props.stats.artists.toLocaleString()} artists · ${(props.stats.albums_with_mbid ?? 0).toLocaleString()} albums`,
     isRunning: musicbrainz.isRunning.value,
-  },
-  {
-    label: 'RateYourMusic',
-    title: 'Album ratings, genres, and descriptors from RateYourMusic. Enriches curation scoring, genre identity, and album adjacency transitions.',
-    pct: rymPct.value,
-    countLabel: `${(props.stats.albums_with_rym ?? 0).toLocaleString()} / ${props.stats.albums.toLocaleString()} albums`,
-    extra: (props.stats.rym_adjacency_pairs ?? 0) > 0 ? `· ${(props.stats.rym_adjacency_pairs ?? 0).toLocaleString()} adjacency pairs` : '',
-    isRunning: rym.isRunning.value,
   },
 ])
 </script>
@@ -222,7 +211,6 @@ const metrics = computed(() => [
             <div>7. Run <code class="font-mono text-acid-300">Audio Analysis</code> if you want BPM and loudness features.</div>
             <div>8. Run <code class="font-mono text-acid-300">Genre Manifold</code> after embeddings and clusters exist — required for genre fidelity constraints.</div>
             <div>9. Run <code class="font-mono text-acid-300">Metal Archives</code> to scrape album ratings — feeds into album legitimacy scoring.</div>
-            <div>10. Run <code class="font-mono text-acid-300">RYM</code> after MusicBrainz — scrapes album ratings, genres, and descriptors from RateYourMusic.</div>
           </div>
           <div>
             <div class="font-semibold text-white mb-1">What to expect</div>
@@ -233,11 +221,10 @@ const metrics = computed(() => [
           <div>
             <div class="font-semibold text-white mb-1">When to use each button</div>
             <div><code class="font-mono text-acid-300">Full Sync</code> rescans files and metadata from disk.</div>
-            <div><code class="font-mono text-acid-300">MusicBrainz</code> resolves canonical IDs — run before RYM or other external lookups.</div>
+            <div><code class="font-mono text-acid-300">MusicBrainz</code> resolves canonical IDs — run before release-date or other external lookups.</div>
             <div><code class="font-mono text-acid-300">Last.fm</code> enriches artist metadata and can take a while on large libraries.</div>
             <div><code class="font-mono text-acid-300">Embeddings</code> and <code class="font-mono text-acid-300">Profiles</code> improve prompt matching and trajectory quality.</div>
             <div><code class="font-mono text-acid-300">Rebuild Clusters</code> depends on embeddings.</div>
-            <div><code class="font-mono text-acid-300">RYM</code> scrapes album data from RateYourMusic — requires MusicBrainz IDs.</div>
             <div><code class="font-mono text-acid-300">Refresh</code> only reloads counters; it does not start work.</div>
           </div>
           <div>
@@ -251,8 +238,7 @@ const metrics = computed(() => [
               <div><span class="text-white font-medium">Audio Features</span> — Acoustic measurements (BPM, loudness, brightness) extracted directly from audio files. Optional — profiles already cover the same dimensions via semantic analysis, but audio features can sharpen accuracy.</div>
               <div><span class="text-white font-medium">Genre Manifold</span> — Probabilistic genre identity vectors per track, built from kNN neighborhood votes, Last.fm tags, and cluster membership. Powers strict genre filtering and prevents adjacent-genre drift (e.g. thrash staying thrash, not bleeding into NWOBHM).</div>
               <div><span class="text-white font-medium">Metal Archives</span> — Album ratings and review counts scraped from Encyclopaedia Metallum. Matched to local albums via fuzzy title + year comparison. Feeds into a curation score that gently favours well-reviewed releases.</div>
-              <div><span class="text-white font-medium">MusicBrainz</span> — Canonical artist and album IDs resolved from the MusicBrainz database. These serve as join keys for external data sources like RateYourMusic.</div>
-              <div><span class="text-white font-medium">RateYourMusic</span> — Album ratings, vote counts, genres, and descriptors scraped from RYM. Enriches curation scoring, embedding text, and builds an album adjacency graph used for transition bonuses during sequencing.</div>
+              <div><span class="text-white font-medium">MusicBrainz</span> — Canonical artist and album IDs resolved from the MusicBrainz database. These serve as join keys for external data sources and original release-date resolution.</div>
             </div>
           </div>
         </div>
@@ -459,16 +445,6 @@ const metrics = computed(() => [
         @click="musicbrainz.run('/api/enrich/musicbrainz/stream', 'MusicBrainz resolution')"
       >
         MusicBrainz
-      </UButton>
-      <UButton
-        :loading="rym.isRunning.value"
-        :disabled="anyRunning"
-        color="neutral"
-        variant="outline"
-        size="xs"
-        @click="rym.run('/api/enrich/rym/stream', 'RYM enrichment')"
-      >
-        RYM
       </UButton>
       <UButton
         variant="ghost"

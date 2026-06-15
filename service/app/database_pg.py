@@ -470,53 +470,6 @@ def init_database() -> None:
                 )
             """)
 
-            # RYM album-level data
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS rym_albums (
-                    album_id     UUID PRIMARY KEY REFERENCES albums(id) ON DELETE CASCADE,
-                    rym_url      VARCHAR,
-                    rym_rating   FLOAT,
-                    rym_votes    INTEGER DEFAULT 0,
-                    rym_lists    INTEGER DEFAULT 0,
-                    genres       JSONB DEFAULT '[]',
-                    descriptors  JSONB DEFAULT '[]',
-                    rating_std   FLOAT,
-                    fetched_at   TIMESTAMPTZ DEFAULT now()
-                )
-            """)
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_rym_albums_rating ON rym_albums(rym_rating)")
-
-            # RYM genre taxonomy
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS rym_genres (
-                    id           SERIAL PRIMARY KEY,
-                    name         VARCHAR UNIQUE NOT NULL,
-                    parent_name  VARCHAR,
-                    is_primary   BOOLEAN DEFAULT false
-                )
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS rym_album_genres (
-                    album_id     UUID REFERENCES albums(id) ON DELETE CASCADE,
-                    genre_id     INTEGER REFERENCES rym_genres(id) ON DELETE CASCADE,
-                    position     INTEGER DEFAULT 0,
-                    vote_count   INTEGER DEFAULT 0,
-                    PRIMARY KEY (album_id, genre_id)
-                )
-            """)
-
-            # Album co-occurrence from RYM user lists
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS rym_album_adjacency (
-                    album_a_id   UUID REFERENCES albums(id) ON DELETE CASCADE,
-                    album_b_id   UUID REFERENCES albums(id) ON DELETE CASCADE,
-                    co_occurrence INTEGER DEFAULT 1,
-                    PRIMARY KEY (album_a_id, album_b_id)
-                )
-            """)
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_rym_adjacency_a ON rym_album_adjacency(album_a_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_rym_adjacency_b ON rym_album_adjacency(album_b_id)")
-
             # Unified album-level tags/genres from all sources (P2). One row per
             # (album, source, kind, tag); weight/position are source-native.
             cur.execute("""
@@ -532,15 +485,6 @@ def init_database() -> None:
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_album_tags_album ON album_tags(album_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_album_tags_tag ON album_tags(tag)")
-
-            # RYM scrape cache (raw HTML)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS rym_scrape_cache (
-                    url          VARCHAR PRIMARY KEY,
-                    html         TEXT,
-                    fetched_at   TIMESTAMPTZ DEFAULT now()
-                )
-            """)
 
             # True original release dates (multi-source verified)
             cur.execute("""
@@ -678,19 +622,6 @@ def get_stats() -> dict:
             cur.execute("ROLLBACK TO SAVEPOINT sp_release_dates")
             stats["albums_with_release_dates"] = 0
             stats["albums_high_confidence_dates"] = 0
-
-        # RYM enrichment
-        cur.execute("SAVEPOINT sp_rym")
-        try:
-            cur.execute("SELECT COUNT(*) FROM rym_albums")
-            stats["albums_with_rym"] = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(*) FROM rym_album_adjacency")
-            stats["rym_adjacency_pairs"] = cur.fetchone()[0]
-            cur.execute("RELEASE SAVEPOINT sp_rym")
-        except Exception:
-            cur.execute("ROLLBACK TO SAVEPOINT sp_rym")
-            stats["albums_with_rym"] = 0
-            stats["rym_adjacency_pairs"] = 0
 
         # IVFFlat index status
         cur.execute("""
@@ -1701,8 +1632,7 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
     The vector is composed of:
       - Weight A: track title + primary artist name + genre names
       - Weight B: Last.fm tags (track-level if available, else artist-level fallback)
-                  + RYM genres (high-resolution subgenre terms)
-      - Weight C: RYM descriptors (mood/style terms like atmospheric, melancholic)
+                  + album_tags genres (multi-source album-level genres)
 
     Args:
         progress_callback: Optional (current, total, message) callback.
@@ -1740,8 +1670,7 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
 
             # 3. Populate search_vector using artist_lastfm_tags as fallback
             #    since track_lastfm_tags typically has 0 rows.
-            #    RYM genres added as Weight B (same level as Last.fm tags).
-            #    RYM descriptors added as Weight C (mood/style terms).
+            #    album_tags genres added as Weight B (same level as Last.fm tags).
             cur.execute("""
                 UPDATE tracks t
                 SET search_vector =
@@ -1781,19 +1710,11 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
                         ) sub2
                     ), '')), 'B') ||
                     setweight(to_tsvector('simple', coalesce((
-                        SELECT string_agg(g, ' ')
-                        FROM rym_albums ra
-                        JOIN track_albums tal ON tal.album_id = ra.album_id,
-                        LATERAL jsonb_array_elements_text(ra.genres) AS g
+                        SELECT string_agg(at2.tag, ' ')
+                        FROM album_tags at2
+                        JOIN track_albums tal ON tal.album_id = at2.album_id
                         WHERE tal.track_id = t.id
-                    ), '')), 'B') ||
-                    setweight(to_tsvector('simple', coalesce((
-                        SELECT string_agg(d, ' ')
-                        FROM rym_albums ra
-                        JOIN track_albums tal ON tal.album_id = ra.album_id,
-                        LATERAL jsonb_array_elements_text(ra.descriptors) AS d
-                        WHERE tal.track_id = t.id
-                    ), '')), 'C')
+                    ), '')), 'B')
             """)
             stats["updated"] = cur.rowcount
 
