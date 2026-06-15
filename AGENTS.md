@@ -254,7 +254,8 @@ extension_score = (
 #   mfcc_continuity — euclidean distance of 12-d MFCC timbre vectors (w=0.10),
 #   vocal_jump_score — instrumentalness jump penalty (w=0.10),
 #   harmonic_compat — circle-of-fifths key compatibility (w=0.10) — OFF by
-#     default (HARMONIC_CONTINUITY_ENABLED); dominated by stronger terms at this
+#     default (Advanced setting "Harmonic continuity" →
+#     settings.harmonic_continuity_enabled); dominated by stronger terms at this
 #     weight, see trajectory/harmony.py
 # all weights renormalized to sum=1 so missing terms don't deflate the score
 ```

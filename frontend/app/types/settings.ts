@@ -3,6 +3,7 @@ export interface SettingField {
   type: 'str' | 'secret' | 'bool' | 'int' | 'float' | 'csv'
   group: 'credentials' | 'enrichment' | 'jellyfin' | 'library' | 'advanced'
   label: string
+  description?: string
   secret: boolean
   value?: string | number | boolean | null
   is_set?: boolean

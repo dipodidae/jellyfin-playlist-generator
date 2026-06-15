@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     rym_scrape_delay_max: float = 5.0
     rym_scrape_enabled: bool = False  # explicit opt-in
 
+    # Sequencing: harmonic-continuity (key matching) term — experimental, off by
+    # default. See trajectory/harmony.py and the settings registry description.
+    harmonic_continuity_enabled: bool = False
+
     # Jellyfin integration
     jellyfin_url: str = ""
     jellyfin_api_key: str = ""

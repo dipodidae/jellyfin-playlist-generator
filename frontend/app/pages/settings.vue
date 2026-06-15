@@ -142,6 +142,7 @@ onMounted(async () => {
             v-for="f in fieldsFor(g.key)"
             :key="f.key"
             :label="f.label"
+            :description="f.description"
             class="space-y-1"
           >
             <!-- Bool toggle -->

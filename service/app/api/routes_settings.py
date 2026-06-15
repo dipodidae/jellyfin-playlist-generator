@@ -38,13 +38,13 @@ async def get_settings():
         if sdef.secret:
             fields.append({
                 "key": sdef.key, "type": sdef.type, "group": sdef.group,
-                "label": sdef.label, "secret": True,
+                "label": sdef.label, "description": sdef.description, "secret": True,
                 "is_set": bool(raw), "masked": mask_value(raw or ""),
             })
         else:
             fields.append({
                 "key": sdef.key, "type": sdef.type, "group": sdef.group,
-                "label": sdef.label, "secret": False,
+                "label": sdef.label, "description": sdef.description, "secret": False,
                 "value": coerce_value(sdef.type, raw) if raw != "" else current,
             })
     return {"fields": fields}

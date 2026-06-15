@@ -10,13 +10,13 @@ Implements the v4 architecture:
 
 import logging
 import math
-import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
 import numpy as np
 
+from app.config import settings
 from app.database_pg import get_connection
 from app.trajectory.candidates import CandidateTrack
 from app.trajectory.gravity import compute_bridge_bonus
@@ -26,11 +26,6 @@ from app.trajectory.textnorm import normalize_artist as _norm_artist_impl
 from app.trajectory.textnorm import normalize_title
 
 logger = logging.getLogger(__name__)
-
-# C4 harmonic-continuity term: opt-in (see score_transition for the rationale).
-_HARMONIC_CONTINUITY_ENABLED = os.environ.get(
-    "HARMONIC_CONTINUITY_ENABLED", "false"
-).lower() in ("1", "true", "yes")
 
 
 @lru_cache(maxsize=4096)
@@ -388,9 +383,9 @@ def score_transition(
         # energy/tempo/genre/era continuity terms (generated orderings sit
         # *below* random on key adjacency), so it does not measurably smooth key
         # transitions. The code, key loading, and tests stay in place; enabling
-        # it usefully needs weight tuning + a baseline eval. Toggle with
-        # HARMONIC_CONTINUITY_ENABLED=true.
-        if _HARMONIC_CONTINUITY_ENABLED:
+        # it usefully needs weight tuning + a baseline eval. Toggle via the
+        # "Harmonic continuity" setting (Advanced) -> settings.harmonic_continuity_enabled.
+        if settings.harmonic_continuity_enabled:
             kprev = parse_key(getattr(prev_track, "key_estimate", None))
             kcurr = parse_key(getattr(curr_track, "key_estimate", None))
             if kprev is not None and kcurr is not None:

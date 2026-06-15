@@ -20,6 +20,7 @@ class SettingDef:
     group: str
     label: str
     secret: bool = False
+    description: str = ""  # optional helper text shown under the field in the UI
 
 
 REGISTRY: list[SettingDef] = [
@@ -51,6 +52,20 @@ REGISTRY: list[SettingDef] = [
     SettingDef("scan_threads", "int", "library", "Scan threads"),
     SettingDef("m3u_output_dir", "str", "library", "M3U output directory"),
     # advanced
+    SettingDef(
+        "harmonic_continuity_enabled", "bool", "advanced",
+        "Harmonic continuity (key matching)",
+        description=(
+            "Experimental, off by default. When on, the sequencer adds a "
+            "circle-of-fifths key-compatibility term so consecutive tracks tend "
+            "to sit in harmonically related keys (harmonic mixing). In testing "
+            "this term was outweighed by the stronger energy/tempo/genre/era "
+            "continuity signals and did not measurably smooth key transitions at "
+            "its current weight, so leave it off unless you're tuning it. Only "
+            "affects tracks that have an analyzed musical key; re-check playlist "
+            "quality after enabling."
+        ),
+    ),
     SettingDef("public_base_url", "str", "advanced", "Public base URL (for OAuth callbacks, e.g. https://playlist-generator.4eva.me)"),
     SettingDef("musicbrainz_app_name", "str", "advanced", "MusicBrainz app name"),
     SettingDef("musicbrainz_app_version", "str", "advanced", "MusicBrainz app version"),
