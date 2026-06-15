@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 
+from app.config import settings
 from app.database_pg import get_connection
 from app.embeddings.generator import generate_embedding
 from app.trajectory.admission import is_admissible
@@ -258,6 +259,84 @@ def compute_negative_constraint_penalty(
             penalty += 0.10
 
     return min(0.45, penalty)
+
+
+def get_artist_seed_embedding(artist_names: list[str]) -> list[float] | None:
+    """Mean L2-normalized embedding of a referenced artist's tracks (PARSE_AUDIT P1).
+
+    Resolves artist names (case-insensitive exact match) to their tracks'
+    embeddings and returns the normalized centroid, or None when no named artist
+    exists in the library — so an absent "like <artist>" reference is ignored
+    gracefully rather than dropped silently. Used to bias the query embedding.
+    """
+    names = [n.lower().strip() for n in artist_names if n and n.strip()]
+    if not names:
+        return None
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT te.embedding
+                    FROM artists a
+                    JOIN track_artists ta ON ta.artist_id = a.id
+                    JOIN track_embeddings te ON te.track_id = ta.track_id
+                    WHERE LOWER(a.name) = ANY(%s) AND te.embedding IS NOT NULL
+                    LIMIT 500
+                    """,
+                    (names,),
+                )
+                rows = cur.fetchall()
+    except Exception as e:
+        logger.warning(f"Artist seed embedding lookup failed: {e}")
+        return None
+
+    vecs: list[np.ndarray] = []
+    for (raw,) in rows:
+        v = _coerce_embedding(raw)
+        if v:
+            vecs.append(np.asarray(v, dtype=np.float32))
+    if not vecs:
+        return None
+    mean = np.mean(vecs, axis=0)
+    norm = float(np.linalg.norm(mean))
+    if norm == 0:
+        return None
+    return (mean / norm).tolist()
+
+
+def compute_genre_exclusion(track: "CandidateTrack", hard_avoids: list[str]) -> bool:
+    """Hard-exclude a track when a strong avoid term matches one of its genres.
+
+    Only genre/family matches trigger exclusion (PARSE_AUDIT P5) so "no metal",
+    "without jazz" become reliable. Title/mood avoids stay soft (handled by
+    compute_negative_constraint_penalty). The call site guards with a pool floor
+    so an over-broad avoid never starves the sequencer.
+    """
+    if not hard_avoids:
+        return False
+    genre_strings = {g.lower() for g in (track.genres or [])}
+    genre_strings |= {g.lower() for g in (track.album_genres or [])}
+    if not genre_strings:
+        return False
+
+    families: set[str] = set()
+    for g in genre_strings:
+        families.add(g)
+        fam = _ALIAS_TO_FAMILY.get(g)
+        if fam:
+            families.add(fam)
+
+    for raw in hard_avoids:
+        term = raw.lower().strip()
+        if len(term) < 3:
+            continue
+        if term in families:
+            return True
+        # Token / substring match so "no metal" catches "thrash metal", etc.
+        if any(term == g or term in g.split() or term in g for g in genre_strings):
+            return True
+    return False
 
 
 def compute_tourist_match_penalty(
@@ -949,40 +1028,51 @@ def _normalize_album_legitimacy(candidates: list[CandidateTrack]) -> None:
 # Adaptive scoring weights per prompt type  (Phase 3b)
 # ---------------------------------------------------------------------------
 
-def get_adaptive_weights(prompt_type: PromptType) -> dict[str, float]:
-    """Return scoring weights tuned for the prompt classification.
+# Canonical weight vectors — the confident endpoints the blend interpolates
+# between (PARSE_AUDIT P7). Genre-focused boosts genre/semantic; arc-focused
+# boosts trajectory; mixed/uncertain stays balanced.
+_WEIGHTS_GENRE = {
+    "semantic": 0.29, "trajectory": 0.15, "genre": 0.23,
+    "gravity": 0.15, "duration": 0.10, "curation": 0.08,
+}
+_WEIGHTS_ARC = {
+    "semantic": 0.10, "trajectory": 0.45, "genre": 0.16,
+    "gravity": 0.15, "duration": 0.10, "curation": 0.04,
+}
+_WEIGHTS_MIXED = {
+    "semantic": 0.28, "trajectory": 0.26, "genre": 0.15,
+    "gravity": 0.15, "duration": 0.10, "curation": 0.06,
+}
 
-    Genre-focused prompts boost genre Jaccard + semantic (which includes BM25)
-    and reduce trajectory weight.  Arc-focused prompts do the opposite.
-    Curation weight draws from semantic + genre budgets (capped ≤ 0.08).
+
+def get_adaptive_weights(intent: "PlaylistIntent") -> dict[str, float]:
+    """Continuously interpolate scoring weights from parse confidence (P7).
+
+    Instead of a hard 3-way bucket on prompt_type, the weights are a blend of the
+    GENRE / ARC / MIXED endpoint vectors driven by:
+      - genre_strength = genre_confidence when genre hints exist, else 0
+      - arc_strength   = arc_confidence for a non-STEADY arc, else 0
+    A residual "balanced" mass (largest when both signals are weak) keeps the mix
+    sane. At high confidence this reduces to the old endpoint vectors, so the
+    historical baseline is preserved; a barely-detected arc or a low-confidence
+    (snapped) genre now gets proportionally softer weighting.
     """
-    if prompt_type == PromptType.GENRE:
-        return {
-            "semantic": 0.29,
-            "trajectory": 0.15,
-            "genre": 0.23,
-            "gravity": 0.15,
-            "duration": 0.10,
-            "curation": 0.08,
-        }
-    elif prompt_type == PromptType.ARC:
-        return {
-            "semantic": 0.10,
-            "trajectory": 0.45,
-            "genre": 0.16,
-            "gravity": 0.15,
-            "duration": 0.10,
-            "curation": 0.04,
-        }
-    else:  # MIXED
-        return {
-            "semantic": 0.28,
-            "trajectory": 0.26,
-            "genre": 0.15,
-            "gravity": 0.15,
-            "duration": 0.10,
-            "curation": 0.06,
-        }
+    genre_strength = float(intent.genre_confidence) if intent.genre_hints else 0.0
+    arc_strength = float(intent.arc_confidence) if intent.arc_type != ArcType.STEADY else 0.0
+    genre_strength = max(0.0, min(1.0, genre_strength))
+    arc_strength = max(0.0, min(1.0, arc_strength))
+
+    mixed_mass = max(0.15, 1.0 - max(genre_strength, arc_strength))
+    denom = genre_strength + arc_strength + mixed_mass
+
+    out: dict[str, float] = {}
+    for k in _WEIGHTS_MIXED:
+        out[k] = (
+            _WEIGHTS_GENRE[k] * genre_strength
+            + _WEIGHTS_ARC[k] * arc_strength
+            + _WEIGHTS_MIXED[k] * mixed_mass
+        ) / denom
+    return out
 
 
 def _dedupe_near_duplicates(
@@ -1046,8 +1136,8 @@ def generate_position_pools(
     # Scale global search limit based on playlist size
     global_limit = max(400, min(1000, pool_size * 3))
 
-    # Get adaptive scoring weights based on prompt type
-    weights = get_adaptive_weights(intent.prompt_type)
+    # Get adaptive scoring weights, interpolated from parse confidence (P7)
+    weights = get_adaptive_weights(intent)
     w_semantic = weights["semantic"]
     w_trajectory = weights["trajectory"]
     w_genre = weights["genre"]
@@ -1081,6 +1171,20 @@ def generate_position_pools(
         enhanced_query = f"{intent.raw_prompt} {genre_text}"
         search_embedding = generate_embedding(enhanced_query)
         logger.info(f"Enhanced semantic query for genre prompt: +'{genre_text}'")
+
+    # Blend in referenced artists ("like <artist>") so the seed actually anchors
+    # retrieval (PARSE_AUDIT P1). Absent artists are ignored gracefully.
+    if intent.artist_seeds:
+        seed_emb = get_artist_seed_embedding(intent.artist_seeds)
+        if seed_emb is not None:
+            w = getattr(settings, "artist_seed_weight", 0.35)
+            q = np.asarray(search_embedding, dtype=np.float32) + w * np.asarray(seed_emb, dtype=np.float32)
+            qn = float(np.linalg.norm(q))
+            if qn > 0:
+                search_embedding = (q / qn).tolist()
+            logger.info(f"Artist-seed blend (w={w}): seeds={intent.artist_seeds}")
+        else:
+            logger.info(f"Artist seeds not found in library, ignored: {intent.artist_seeds}")
 
     if intent.arc_type == ArcType.STEADY:
         semantic_candidates = semantic_search(
@@ -1370,6 +1474,21 @@ def generate_position_pools(
             has_genre_hints=has_hints,
         )
     ]
+
+    # Hard genre exclusion for strong avoids (P5), with a pool-floor guard so a
+    # too-aggressive avoid never starves the sequencer (then it stays soft).
+    if intent.hard_avoid_keywords:
+        kept = [t for t in admissible_candidates
+                if not compute_genre_exclusion(t, intent.hard_avoid_keywords)]
+        n_excluded = len(admissible_candidates) - len(kept)
+        if n_excluded:
+            if len(kept) >= intent.target_size:
+                logger.info(f"Hard genre exclusion removed {n_excluded} tracks "
+                            f"(avoid={intent.hard_avoid_keywords}); {len(kept)} remain")
+                admissible_candidates = kept
+            else:
+                logger.info(f"Hard genre exclusion skipped (would leave only "
+                            f"{len(kept)} < target {intent.target_size}); avoids stay soft")
 
     # STRICT genre mode: hard filter on probability threshold
     # Only applied when >=20% of candidates have genre_probs data.

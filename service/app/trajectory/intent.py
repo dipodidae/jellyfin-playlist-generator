@@ -18,6 +18,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from app.config import settings
@@ -161,6 +162,8 @@ class PlaylistIntent:
 
     # Constraints
     avoid_keywords: list[str] = field(default_factory=list)
+    # Strong exclusions only ("no X"/"without X"/"avoid X") for genre pre-filter (P5)
+    hard_avoid_keywords: list[str] = field(default_factory=list)
     year_range: tuple[int | None, int | None] = (None, None)
 
     # Temporal trajectory (era dimension)
@@ -175,6 +178,12 @@ class PlaylistIntent:
     # Genre Manifold System
     genre_mode: GenreMode = GenreMode.BALANCED
     genre_centroids: dict[str, list[float]] = field(default_factory=dict)
+
+    # Parse-confidence signals (PARSE_AUDIT P4/P7). genre_confidence is the mean
+    # grounding/snap confidence of the primary genre hints (1.0 = all known);
+    # parse_confidence is an overall trust score feeding the adaptive weights.
+    genre_confidence: float = 1.0
+    parse_confidence: float = 0.5
 
     def segment_genres_at(self, t_norm: float) -> list[str]:
         """Genres of the waypoint nearest to normalized position t_norm.
@@ -472,37 +481,6 @@ for _fam, _aliases in GENRE_ALIASES.items():
         _ALIAS_TO_FAMILY[_a.lower()] = _fam
 
 
-# Related genre families — bidirectional sibling relationships.
-# When a genre hint maps to one of these families, the related families'
-# primary aliases are added to the hint set (for Jaccard scoring and pool queries).
-_RELATED_FAMILIES: dict[str, list[str]] = {
-    "coldwave": ["darkwave", "post-punk", "synth-pop", "new wave"],
-    "darkwave": ["coldwave", "post-punk", "synth-pop"],
-    "post-punk": ["darkwave", "new wave", "gothic rock"],
-    "synth-pop": ["darkwave", "new wave", "coldwave"],
-    "new wave": ["post-punk", "synth-pop"],
-    "gothic rock": ["post-punk", "darkwave"],
-    "thrash metal": ["speed metal", "heavy metal"],
-    "speed metal": ["thrash metal", "heavy metal", "power metal"],
-    "heavy metal": ["nwobhm", "speed metal"],
-    "nwobhm": ["heavy metal", "speed metal"],
-    "power metal": ["heavy metal", "speed metal", "progressive metal"],
-    "progressive metal": ["power metal", "heavy metal"],
-    "glam metal": ["aor", "hard rock"],
-    "aor": ["glam metal"],
-    "black metal": ["death metal"],
-    "death metal": ["black metal", "thrash metal"],
-    "doom metal": ["heavy metal"],
-    "shoegaze": ["dream pop", "post-rock"],
-    "industrial": ["ebm", "industrial metal"],
-    "industrial metal": ["industrial"],
-    "grunge": ["alternative rock"],
-    "progressive rock": ["art rock", "krautrock"],
-    "punk": ["hardcore"],
-    "hardcore": ["punk"],
-}
-
-
 # Broad umbrella genres that should never be added via expansion and should
 # be discounted when scoring.  These match huge portions of the library and
 # dilute the specificity of a subgenre prompt.
@@ -515,27 +493,31 @@ _BROAD_GENRES: set[str] = {
 def expand_genre_hints(genre_hints: list[str]) -> list[str]:
     """Expand genre hints with closely related sibling genres.
 
-    Uses the _ALIAS_TO_FAMILY lookup and _RELATED_FAMILIES mapping to add
-    related genre families' primary names.  This ensures the Jaccard scoring
-    and genre pool queries cast a wider net for niche genres that have small
-    pools (e.g. coldwave → also pulls in darkwave, post-punk tracks).
+    Sibling families are derived from the single canonical genre graph
+    (``manifold.GENRE_GRAPH`` via ``get_related_families``) — PARSE_AUDIT P8,
+    replacing the former hand-kept ``_RELATED_FAMILIES`` copy. This ensures the
+    Jaccard scoring and genre pool queries cast a wider net for niche genres
+    that have small pools (e.g. coldwave → also pulls in darkwave, post-punk).
 
     The original hints are always preserved first, followed by expansions,
     deduplicated in order.  Broad umbrella genres (rock, pop, metal, etc.)
     are **never** added via expansion — they must come from the user's prompt
-    directly.
+    directly. Falls back to originals-only if the manifold module is
+    unavailable (expansion is an enhancement, not a hard dependency).
     """
     if not genre_hints:
         return genre_hints
+
+    try:
+        from app.genre.manifold import get_related_families  # lazy: avoids circular import
+    except Exception:
+        return list(genre_hints)
 
     expanded: list[str] = list(genre_hints)  # preserve originals first
     seen = {h.lower() for h in genre_hints}
 
     for hint in genre_hints:
-        # Resolve to canonical family
-        family = _ALIAS_TO_FAMILY.get(hint.lower(), hint.lower())
-        related = _RELATED_FAMILIES.get(family, [])
-        for rel_family in related:
+        for rel_family in get_related_families(hint):
             if rel_family not in seen and rel_family not in _BROAD_GENRES:
                 seen.add(rel_family)
                 expanded.append(rel_family)
@@ -559,6 +541,55 @@ def get_primary_genre_hints(genre_hints: list[str]) -> set[str]:
         primary.add(h.lower())
         primary.add(family)
     return primary
+
+
+def _is_taxonomy_known(label: str) -> bool:
+    """True if the label is a recognised alias in the built-in genre taxonomy."""
+    return label.lower() in _ALIAS_TO_FAMILY
+
+
+def _ground_and_expand_genres(
+    genre_hints_raw: list[str],
+) -> tuple[list[str], list[str], set[str], float]:
+    """Snap genres to the real library vocabulary (P4), then expand siblings (P8).
+
+    Returns (cleaned_raw, expanded_hints, primary_hint_set, genre_confidence):
+      - cleaned_raw: the post-snap primary hints (centroid / genre-mode input)
+      - expanded_hints: cleaned_raw + sibling families (pool / scoring input)
+      - primary_hint_set: lowercased pre-expansion hints + families
+      - genre_confidence: mean snap confidence of the primary hints (1.0 when
+        every hint was already a known taxonomy/library term)
+    """
+    if not genre_hints_raw:
+        return [], [], set(), 1.0
+
+    cleaned = list(genre_hints_raw)
+    confidence = 1.0
+
+    if getattr(settings, "genre_snapping_enabled", True):
+        try:
+            from app.trajectory.library_vocab import snap_genres
+            min_sim = getattr(settings, "genre_snap_min_similarity", 0.55)
+            snapped, conf_map = snap_genres(
+                genre_hints_raw, _is_taxonomy_known, min_similarity=min_sim,
+            )
+            if conf_map:
+                confidence = sum(conf_map.values()) / len(conf_map)
+            if snapped:
+                cleaned = snapped
+            else:
+                # Everything was dropped as out-of-vocab — keep the raw hints so a
+                # genre prompt never silently becomes genre-less, but flag low
+                # confidence so adaptive scoring trusts genre matching less (P7).
+                cleaned = list(genre_hints_raw)
+                confidence = 0.4
+        except Exception as e:  # pragma: no cover - vocab/DB unavailable
+            logger.debug(f"Genre snapping unavailable: {e}")
+            cleaned = list(genre_hints_raw)
+
+    primary = get_primary_genre_hints(cleaned)
+    expanded = expand_genre_hints(cleaned)
+    return cleaned, expanded, primary, confidence
 
 
 def detect_arc_type(
@@ -884,6 +915,38 @@ def extract_avoid_keywords(prompt: str) -> list[str]:
     return list(dict.fromkeys(expanded))
 
 
+def extract_hard_avoid_keywords(prompt: str) -> list[str]:
+    """Extract STRONG exclusions only ("no X", "without X", "avoid X").
+
+    Unlike extract_avoid_keywords, this deliberately omits the soft "not too X"
+    form — a soft preference must never become a hard genre filter (PARSE_AUDIT
+    P5; "not too dark" should not exclude darkwave). Used for pre-score genre
+    exclusion; the full avoid set still drives the graded penalty.
+    """
+    prompt_lower = prompt.lower()
+    patterns = [
+        r"(?:^|[\s,])no\s+([^,.;]+)",
+        r"avoid\s+([^,.;]+)",
+        r"without\s+([^,.;]+)",
+    ]
+    phrases: list[str] = []
+    for pattern in patterns:
+        phrases.extend(re.findall(pattern, prompt_lower))
+
+    expanded: list[str] = []
+    for phrase in phrases:
+        phrase = phrase.strip(" \"'()")
+        if not phrase:
+            continue
+        parts = re.split(r"\s+(?:and|or)\s+|,", phrase)
+        for part in parts:
+            cleaned = part.strip(" \"'()")
+            if len(cleaned) >= 2:
+                expanded.append(cleaned)
+
+    return list(dict.fromkeys(expanded))
+
+
 def classify_prompt_type(
     genre_hints: list[str],
     arc_type: ArcType,
@@ -1059,22 +1122,16 @@ If no arc intent, use 0.3.
   - 0.6-0.8: dense, layered, atmospheric
   - 0.9-1.0: wall of sound, maximalist
 
-- "genre_hints": Array of strings. Specific genres/subgenres detected. Use standard genre \
-names. IMPORTANT: For genre-focused prompts, ALWAYS include the primary genre AND its \
-closest sibling/related genres. For example:
-  - "coldwave" → ["coldwave", "darkwave", "minimal wave", "post-punk"]
-  - "thrash metal" → ["thrash metal", "speed metal", "heavy metal"]
-  - "doom metal" → ["doom metal", "stoner metal", "sludge metal"]
-  - "post-punk" → ["post-punk", "gothic rock", "darkwave", "new wave"]
-  - "black metal" → ["black metal", "atmospheric black metal"]
-  - "aor" → ["aor", "melodic rock", "arena rock", "glam metal"]
-  This ensures the playlist engine can find enough tracks in the right musical neighbourhood. \
-Include 2-4 related genres for the primary genre. Can be empty for non-genre prompts. \
-IMPORTANT: Do NOT include broad umbrella genres like "rock", "pop", "metal", "electronic" as \
-genre_hints unless the user is specifically asking for those broad categories. For example, \
-an AOR prompt should NOT include "rock" or "pop" — only specific subgenres like "melodic rock", \
-"arena rock", "soft rock". A thrash metal prompt should NOT include "metal" — only "thrash metal", \
-"speed metal", "heavy metal".
+- "genre_hints": Array of strings. The specific genres/subgenres the user named \
+or clearly implied. List ONLY the primary genre(s) the prompt is actually about — \
+do NOT pad the list with sibling/related genres, the engine expands to related \
+styles itself. If a "Library vocabulary" section is provided below, choose terms \
+ONLY from it (case-insensitive); pick the closest available term when the user's \
+wording differs, and omit a genre rather than invent a label that is not in the \
+list. Can be empty for non-genre prompts. \
+Do NOT include broad umbrella genres like "rock", "pop", "metal", "electronic" \
+unless the user specifically asks for that broad category — prefer the specific \
+subgenre (e.g. "thrash metal", not "metal"; "melodic rock", not "rock").
 
 - "artist_seeds": Array of strings. Any artist names mentioned or implied. Preserve exact \
 spelling and capitalisation as the user likely intends.
@@ -1134,51 +1191,193 @@ not temporal trajectories — keep era at 0.0 for those.
 - Return ONLY valid JSON, no other text."""
 
 
-def _parse_prompt_with_llm(prompt: str) -> dict | None:
-    """Parse a prompt using OpenAI gpt-4o-mini for rich intent extraction.
+# Bump when _LLM_INTENT_SCHEMA or the system prompt changes — invalidates the
+# normalized-prompt parse cache (P6) so stale shapes are never served.
+_INTENT_SCHEMA_VERSION = 2
 
-    Returns a dict of parsed fields, or None if LLM parsing fails/is unavailable.
+# Strict JSON Schema for OpenAI Structured Outputs (PARSE_AUDIT P3). Every field
+# is required; optionals use a null union. This replaces the old json_object
+# "JSON mode" so the model can no longer omit/mistype fields.
+_LLM_INTENT_SCHEMA: dict = {
+    "name": "playlist_intent",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "arc_type": {"type": "string",
+                         "enum": ["steady", "rise", "fall", "peak", "valley", "wave", "journey"]},
+            "arc_confidence": {"type": "number"},
+            "base_energy": {"type": "number"},
+            "base_darkness": {"type": "number"},
+            "base_tempo": {"type": "number"},
+            "base_texture": {"type": "number"},
+            "genre_hints": {"type": "array", "items": {"type": "string"}},
+            "artist_seeds": {"type": "array", "items": {"type": "string"}},
+            "mood_keywords": {"type": "array", "items": {"type": "string"}},
+            "avoid_keywords": {"type": "array", "items": {"type": "string"}},
+            "year_range": {"type": ["array", "null"], "items": {"type": "integer"}},
+            "target_duration_minutes": {"type": ["integer", "null"]},
+            "prompt_type": {"type": "string", "enum": ["genre", "arc", "mixed"]},
+            "genre_mode": {"type": "string", "enum": ["strict", "balanced", "exploratory"]},
+            "dimension_weights": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "energy": {"type": "number"},
+                    "tempo": {"type": "number"},
+                    "darkness": {"type": "number"},
+                    "texture": {"type": "number"},
+                    "era": {"type": "number"},
+                },
+                "required": ["energy", "tempo", "darkness", "texture", "era"],
+            },
+            "custom_waypoints": {
+                "type": ["array", "null"],
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "position": {"type": "number"},
+                        "energy": {"type": "number"},
+                        "darkness": {"type": "number"},
+                        "tempo": {"type": "number"},
+                        "texture": {"type": "number"},
+                        "era": {"type": "number"},
+                        "description": {"type": "string"},
+                        "genres": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["position", "energy", "darkness", "tempo",
+                                 "texture", "era", "description", "genres"],
+                },
+            },
+        },
+        "required": [
+            "arc_type", "arc_confidence", "base_energy", "base_darkness",
+            "base_tempo", "base_texture", "genre_hints", "artist_seeds",
+            "mood_keywords", "avoid_keywords", "year_range",
+            "target_duration_minutes", "prompt_type", "genre_mode",
+            "dimension_weights", "custom_waypoints",
+        ],
+    },
+}
+
+# Normalized-prompt → raw-JSON cache (PARSE_AUDIT P6). We cache the *raw* model
+# string (not the validated dict, which is mutated downstream) so each call
+# re-parses into fresh objects. Only successful responses are cached; transient
+# API failures are not, so they can recover on the next request.
+_RAW_PARSE_CACHE: dict[tuple[str, int], str] = {}
+_RAW_PARSE_CACHE_MAX = 512
+
+
+def _normalize_prompt(prompt: str) -> str:
+    """Lowercased, whitespace-collapsed prompt — the parse cache key (P6)."""
+    return re.sub(r"\s+", " ", prompt.strip().lower())
+
+
+@lru_cache(maxsize=512)
+def _cached_prompt_embedding(prompt: str) -> tuple[float, ...]:
+    """Memoized prompt embedding (P6). Tuple so it is hashable/cacheable."""
+    from app.embeddings.generator import generate_embedding  # lazy: heavy import
+    return tuple(generate_embedding(prompt))
+
+
+def _build_intent_system_prompt() -> str:
+    """System prompt, grounded with the live library vocabulary when enabled (P2)."""
+    base = _LLM_INTENT_SYSTEM_PROMPT
+    if not getattr(settings, "intent_grounding_enabled", True):
+        return base
+    try:
+        from app.trajectory.library_vocab import build_vocabulary_prompt_block
+        block = build_vocabulary_prompt_block()
+    except Exception as e:  # pragma: no cover - vocab/DB unavailable
+        logger.debug(f"Vocabulary grounding unavailable: {e}")
+        block = ""
+    return f"{base}\n\n{block}" if block else base
+
+
+def _call_intent_llm(prompt: str) -> str | None:
+    """Single OpenAI structured-output call. Returns raw JSON string or None."""
+    import openai
+    client = openai.OpenAI(api_key=settings.openai_api_key)
+    model = getattr(settings, "openai_intent_model", None) or "gpt-4o-mini"
+    seed = getattr(settings, "intent_parse_seed", 7)
+    system_content = _build_intent_system_prompt()
+    messages = [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": prompt},
+    ]
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            response_format={"type": "json_schema", "json_schema": _LLM_INTENT_SCHEMA},
+            max_tokens=800,
+            temperature=0.2,
+            seed=seed,
+        )
+    except Exception as e:
+        # Older SDK/model without json_schema support → degrade to JSON mode.
+        logger.warning(f"Structured-output call failed ({e}); retrying in JSON mode")
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            response_format={"type": "json_object"},
+            max_tokens=800,
+            temperature=0.2,
+            seed=seed,
+        )
+    return response.choices[0].message.content
+
+
+def _parse_prompt_with_llm(prompt: str) -> dict | None:
+    """Parse a prompt using OpenAI Structured Outputs for rich intent extraction.
+
+    Returns a dict of parsed (and validated/coerced) fields, or None if LLM
+    parsing fails/is unavailable. Results are cached on the normalized prompt
+    (PARSE_AUDIT P6); the cache stores the raw JSON so every caller gets fresh,
+    independently-mutable objects.
     """
     if not settings.openai_api_key:
         logger.debug("OpenAI not configured, skipping LLM intent parsing")
         return None
 
-    try:
-        import openai
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+    cache_on = getattr(settings, "intent_parse_cache_enabled", True)
+    key = (_normalize_prompt(prompt), _INTENT_SCHEMA_VERSION)
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": _LLM_INTENT_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            max_tokens=800,
-            temperature=0.3,
-        )
+    raw: str | None = _RAW_PARSE_CACHE.get(key) if cache_on else None
+    cached_hit = raw is not None
 
-        raw = response.choices[0].message.content
+    if raw is None:
+        try:
+            raw = _call_intent_llm(prompt)
+        except Exception as e:
+            logger.warning(f"LLM intent parsing failed: {e}")
+            return None
         if not raw:
             logger.warning("LLM intent parsing returned empty content")
             return None
+        if cache_on:
+            if len(_RAW_PARSE_CACHE) >= _RAW_PARSE_CACHE_MAX:
+                _RAW_PARSE_CACHE.clear()
+            _RAW_PARSE_CACHE[key] = raw
+
+    try:
         parsed = json.loads(raw.strip())
-
-        # Validate required fields exist and have correct types
-        _validate_llm_intent(parsed)
-
-        logger.info(f"LLM intent parsed: arc={parsed.get('arc_type')}, "
-                     f"genres={parsed.get('genre_hints', [])}, "
-                     f"artists={parsed.get('artist_seeds', [])}, "
-                     f"avoid={parsed.get('avoid_keywords', [])}")
-        return parsed
-
     except json.JSONDecodeError as e:
         logger.warning(f"LLM intent parsing returned invalid JSON: {e}")
+        _RAW_PARSE_CACHE.pop(key, None)
         return None
-    except Exception as e:
-        logger.warning(f"LLM intent parsing failed: {e}")
-        return None
+
+    # Validate/coerce types and enum membership (value-range safety net).
+    _validate_llm_intent(parsed)
+
+    logger.info(f"LLM intent parsed{' [cache]' if cached_hit else ''}: "
+                f"arc={parsed.get('arc_type')}, "
+                f"genres={parsed.get('genre_hints', [])}, "
+                f"artists={parsed.get('artist_seeds', [])}, "
+                f"avoid={parsed.get('avoid_keywords', [])}")
+    return parsed
 
 
 def _validate_llm_intent(data: dict) -> None:
@@ -1282,9 +1481,8 @@ def parse_prompt(prompt: str, target_size: int = 20) -> PlaylistIntent:
     """
     logger.info(f"Parsing prompt: {prompt[:100]}...")
 
-    # Generate embedding for the full prompt (always needed)
-    from app.embeddings.generator import generate_embedding  # lazy: sentence-transformers heavy
-    prompt_embedding = generate_embedding(prompt)
+    # Generate embedding for the full prompt (always needed). Memoized (P6).
+    prompt_embedding = list(_cached_prompt_embedding(prompt))
 
     # Try LLM-powered parsing first
     llm_data = _parse_prompt_with_llm(prompt)
@@ -1318,14 +1516,14 @@ def _build_intent_from_llm(
     base_texture = data.get("base_texture", 0.5)
 
     prompt_type = PromptType(data.get("prompt_type", "mixed"))
-    genre_hints_raw = data.get("genre_hints", [])
-    # Record primary hints (pre-expansion) for tiered genre scoring
-    genre_hints_primary = get_primary_genre_hints(genre_hints_raw)
-    # Expand with related sibling genres for better pool coverage
-    genre_hints = expand_genre_hints(genre_hints_raw) if genre_hints_raw else []
+    # Ground LLM genres against the real library vocab (P4), then expand siblings (P8).
+    genre_hints_raw, genre_hints, genre_hints_primary, genre_confidence = (
+        _ground_and_expand_genres(data.get("genre_hints", []))
+    )
     artist_seeds = data.get("artist_seeds", [])
     mood_keywords = data.get("mood_keywords", [])
     avoid_keywords = list(dict.fromkeys(data.get("avoid_keywords", []) + extract_avoid_keywords(prompt)))
+    hard_avoid_keywords = extract_hard_avoid_keywords(prompt)
     year_range = data.get("year_range", (None, None))
     target_duration = data.get("target_duration_minutes")
     impact_preference = extract_impact_preference(prompt)
@@ -1442,12 +1640,15 @@ def _build_intent_from_llm(
         base_tempo=base_tempo,
         base_texture=base_texture,
         avoid_keywords=avoid_keywords,
+        hard_avoid_keywords=hard_avoid_keywords,
         year_range=year_range,
         era_mode=era_mode,
         abstract_concepts=abstract_concepts,
         genre_mode=genre_mode,
         genre_centroids=genre_centroids,
         prefer_live=prefer_live,
+        genre_confidence=genre_confidence,
+        parse_confidence=0.7,  # LLM parse succeeded → high source trust (P7)
     )
 
     logger.info(f"LLM-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
@@ -1465,18 +1666,19 @@ def _build_intent_from_keywords(
     target_size: int,
 ) -> PlaylistIntent:
     """Build a PlaylistIntent from keyword-based parsing (original logic)."""
-    # Extract genre hints first so they can inform arc detection
-    genre_hints_raw = extract_genre_hints(prompt)
-    # Record primary hints (pre-expansion) for tiered genre scoring
-    genre_hints_primary = get_primary_genre_hints(genre_hints_raw)
-    # Expand with related sibling genres for better pool coverage
-    genre_hints = expand_genre_hints(genre_hints_raw) if genre_hints_raw else []
+    # Extract genre hints first so they can inform arc detection. Keyword hints
+    # are already taxonomy terms, so grounding is a no-op here (conf 1.0) but the
+    # shared helper keeps expansion/primary logic in one place (P4/P8).
+    genre_hints_raw, genre_hints, genre_hints_primary, genre_confidence = (
+        _ground_and_expand_genres(extract_genre_hints(prompt))
+    )
 
     # Extract remaining components
     arc_type, arc_confidence = detect_arc_type(prompt, genre_hints=genre_hints)
     mood_keywords = extract_mood_keywords(prompt)
     artist_seeds = extract_artist_seeds(prompt)
     avoid_keywords = extract_avoid_keywords(prompt)
+    hard_avoid_keywords = extract_hard_avoid_keywords(prompt)
     year_range = extract_year_range(prompt)
     abstract_concepts = extract_abstract_concepts(prompt)
     impact_preference = extract_impact_preference(prompt)
@@ -1569,12 +1771,15 @@ def _build_intent_from_keywords(
         base_tempo=base_dims["tempo"],
         base_texture=base_dims["texture"],
         avoid_keywords=avoid_keywords,
+        hard_avoid_keywords=hard_avoid_keywords,
         year_range=year_range,
         era_mode=era_mode,
         abstract_concepts=abstract_concepts,
         genre_mode=genre_mode,
         genre_centroids=genre_centroids,
         prefer_live=prefer_live,
+        genre_confidence=genre_confidence,
+        parse_confidence=0.45,  # keyword fallback → lower source trust (P7)
     )
 
     logger.info(f"Keyword-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "

@@ -124,6 +124,22 @@ this single judged run and are candidates for follow-up tuning if they persist a
 by sparse library coverage (~95% metal/goth — e.g. only 11 shoegaze / 4 post-rock / ~0 jazz tracks).
 Do not chase those scores — they need more library tracks, not algorithm changes.
 
+### A/B: 2026-06-15 — PARSE_AUDIT P1–P8 (parse hardening) vs main (identical judge, --multi --max-iter 2)
+| Dimension | main | + P1–P8 | Δ |
+|-----------|------|---------|---|
+| arc | 5.8 | 6.2 | +0.4 |
+| genre | 6.6 | 6.8 | +0.2 |
+| transition | 5.0 | 5.3 | +0.3 |
+| fidelity | 5.8 | **6.8** | **+1.0** |
+| curation | 4.9 | **5.7** | **+0.8** |
+| **Overall** | **5.61** | **6.11** | **+0.50 (KEEP)** |
+
+All 8 PARSE_AUDIT proposals landed together: structured LLM output (P3), library-vocab
+grounding (P2) + embedding genre snapping (P4), reliable hard exclusions (P5), artist-seed
+blend (P1), confidence-interpolated weights (P7), unified GENRE_GRAPH sibling source (P8),
+and parse caching/determinism (P6). Every dimension improved, none regressed; the biggest
+gains (fidelity +1.0, curation +0.8) are the grounding/snapping/exclusion targets.
+
 ## Decision tree after seeing results
 
 ```
@@ -198,7 +214,11 @@ if has_genre_hints and genre_match_score <= 0.0:
 
 | File | Function | What it controls |
 |------|----------|-----------------|
-| `service/app/trajectory/candidates.py` | `get_adaptive_weights()` | Per-PromptType scoring weights (semantic, trajectory, genre, gravity, duration) |
+| `service/app/trajectory/candidates.py` | `get_adaptive_weights(intent)` | Confidence-interpolated scoring weights (blends GENRE/ARC/MIXED endpoints by `arc_confidence` + `genre_confidence`; P7) |
+| `service/app/trajectory/candidates.py` | `compute_genre_exclusion()` | Pre-score hard genre filter for strong avoids (`intent.hard_avoid_keywords`; P5) |
+| `service/app/trajectory/candidates.py` | `get_artist_seed_embedding()` | Resolves "like <artist>" → mean embedding, blended into the query (P1) |
+| `service/app/trajectory/library_vocab.py` | `build_vocabulary_prompt_block()` / `snap_genres()` | Library-vocab grounding (P2) + embedding genre snapping (P4) |
+| `service/app/genre/manifold.py` | `get_related_families()` | Single canonical sibling-genre source (GENRE_GRAPH; P8) |
 | `service/app/trajectory/candidates.py` | `compute_tourist_match_penalty()` | Genre drift penalty for zero-match tracks |
 | `service/app/trajectory/candidates.py` | `generate_position_pools()` | STRICT mode GMS filter, admissibility gate, tourist penalty application |
 | `service/app/trajectory/sequencer.py` | `SequencerConfig` | `max_artist_count` (soft, 4), `max_album_count` (soft, 2), `hard_max_artist_count`/`hard_max_album_count` (absolute, set by composer), `min_artist_distance` (4), beam width |
@@ -212,14 +232,19 @@ if has_genre_hints and genre_match_score <= 0.0:
 ## Current scoring weight state (applied changes vs original baseline)
 
 ```python
-# GENRE prompts (thrash, darkwave, black metal, post-punk, jazz, shoegaze)
-{"semantic": 0.33, "trajectory": 0.15, "genre": 0.27, "gravity": 0.15, "duration": 0.10}
-
-# ARC prompts (ambient_doom_arc with journey/rise/fall arc type)
-{"semantic": 0.15, "trajectory": 0.42, "genre": 0.18, "gravity": 0.15, "duration": 0.10}
-
-# MIXED prompts (doom_journey, industrial_ritual — genre + arc combined)
-{"semantic": 0.33, "trajectory": 0.26, "genre": 0.18, "gravity": 0.15, "duration": 0.10}
+# PARSE_AUDIT P7: weights are now CONTINUOUSLY INTERPOLATED, not a 3-way bucket.
+# get_adaptive_weights(intent) blends the three endpoint vectors below by
+# genre_strength (=genre_confidence when genre hints exist) and arc_strength
+# (=arc_confidence for a non-STEADY arc), plus a residual balanced mass that
+# shrinks as confidence rises. At full confidence it reduces to these endpoints.
+#
+# Endpoint vectors (_WEIGHTS_GENRE / _WEIGHTS_ARC / _WEIGHTS_MIXED):
+# GENRE  {"semantic": 0.29, "trajectory": 0.15, "genre": 0.23, "gravity": 0.15, "duration": 0.10, "curation": 0.08}
+# ARC    {"semantic": 0.10, "trajectory": 0.45, "genre": 0.16, "gravity": 0.15, "duration": 0.10, "curation": 0.04}
+# MIXED  {"semantic": 0.28, "trajectory": 0.26, "genre": 0.15, "gravity": 0.15, "duration": 0.10, "curation": 0.06}
+#
+# A snapped / low-confidence genre (genre_confidence < 1.0) pulls the result back
+# toward MIXED, softening the genre weight — intentional (trust uncertain parses less).
 
 # SequencerConfig defaults
 max_artist_count = 4      # soft cap per artist (relaxation may raise toward hard ceiling)

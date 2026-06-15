@@ -234,6 +234,23 @@ GENRE_GRAPH: dict[str, dict[str, float]] = {
         "ambient": 0.40,
         "progressive rock": 0.35,
     },
+    # --- Supplementary families merged from the former intent._RELATED_FAMILIES
+    # (PARSE_AUDIT P8 — GENRE_GRAPH is now the single sibling source of truth,
+    # read by both expand_genre_hints() and the sequencer via
+    # get_related_families()).
+    "glam metal": {
+        "aor": 0.55,
+        "heavy metal": 0.35,
+    },
+    "aor": {
+        "glam metal": 0.55,
+        "heavy metal": 0.25,
+    },
+    "hardcore": {
+        "punk": 0.70,
+        "metalcore": 0.35,
+        "grindcore": 0.25,
+    },
 }
 
 
@@ -266,6 +283,25 @@ def get_adjacent_genres(genre: str, radius: int = 1) -> dict[str, float]:
         visited = {g: w for g, w in visited.items() if g not in _BROAD_GENRES}
 
     return visited
+
+
+def get_related_families(family: str, min_weight: float = 0.30, max_n: int = 6) -> list[str]:
+    """Direct sibling families for a genre, derived from GENRE_GRAPH.
+
+    Single source of truth (PARSE_AUDIT P8) replacing the former hand-kept
+    ``intent._RELATED_FAMILIES`` list and the sequencer's copy of it. Returns up
+    to ``max_n`` immediate neighbours with edge weight >= ``min_weight``,
+    excluding broad umbrella genres, highest weight first.
+    """
+    fam = _ALIAS_TO_FAMILY.get(family.lower(), family.lower())
+    neighbors = GENRE_GRAPH.get(fam, {})
+    ranked = sorted(
+        ((g, w) for g, w in neighbors.items()
+         if w >= min_weight and g not in _BROAD_GENRES),
+        key=lambda kv: kv[1],
+        reverse=True,
+    )
+    return [g for g, _ in ranked[:max_n]]
 
 
 # ---------------------------------------------------------------------------

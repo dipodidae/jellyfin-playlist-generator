@@ -89,10 +89,11 @@ playlist-generator/
 │   │   │   ├── routes.py    # Legacy API (DuckDB)
 │   │   │   └── schemas.py   # Pydantic models
 │   │   ├── trajectory/
-│   │   │   ├── intent.py    # Prompt parsing, 5D waypoints, dimension weights, era mode
+│   │   │   ├── intent.py    # Prompt parsing (structured LLM output + grounding/snapping/cache), 5D waypoints, dimension weights, era mode
+│   │   │   ├── library_vocab.py # Library vocabulary grounding (P2) + embedding genre snapping (P4)
 │   │   │   ├── curves.py    # Spline interpolation, trajectory curves (v4, 5D with era)
 │   │   │   ├── gravity.py   # Dual-anchor gravity wells (v4)
-│   │   │   ├── candidates.py # Position-based candidate pools, curation scoring (v4)
+│   │   │   ├── candidates.py # Position-based candidate pools, curation scoring, confidence-driven weights, artist-seed blend, genre exclusion (v4)
 │   │   │   ├── sequencer.py # Beam search with constraints, era coherence (v4)
 │   │   │   ├── composer_v4.py # Main v4 orchestration
 │   │   │   ├── composer.py  # Legacy composition (v3)
@@ -211,23 +212,35 @@ The v4 system uses a sophisticated multi-stage pipeline:
 - **arc**: Follows the arc shape through time
 
 ### V4 Scoring Components (Normalized 0-1)
-Weights are adaptive per `PromptType` (see `candidates.py → get_adaptive_weights()`):
+Weights are **confidence-interpolated** (PARSE_AUDIT P7), not a hard 3-way
+bucket. `candidates.py → get_adaptive_weights(intent)` blends three canonical
+endpoint vectors (GENRE / ARC / MIXED) by `genre_strength` (= `genre_confidence`
+when genre hints exist) and `arc_strength` (= `arc_confidence` for a non-STEADY
+arc), with a residual "balanced" mass that shrinks as confidence rises. At full
+confidence it reduces to the endpoint vectors below (preserving the historical
+baseline); a low-confidence (snapped) genre or a barely-detected arc gets
+proportionally softer weighting.
 ```python
 # Candidate total_score (used in beam search)
 total_score = (
-    semantic_score   * w_semantic   +  # GENRE=0.29 / ARC=0.10 / MIXED=0.28
-    trajectory_score * w_trajectory +  # GENRE=0.15 / ARC=0.45 / MIXED=0.26
-    genre_match_score * w_genre    +   # GENRE=0.23 / ARC=0.16 / MIXED=0.15
-    curation_score   * w_curation  +   # GENRE=0.08 / ARC=0.04 / MIXED=0.06 (+ impact_pref boost)
+    semantic_score   * w_semantic   +  # endpoints: GENRE=0.29 / ARC=0.10 / MIXED=0.28
+    trajectory_score * w_trajectory +  # endpoints: GENRE=0.15 / ARC=0.45 / MIXED=0.26
+    genre_match_score * w_genre    +   # endpoints: GENRE=0.23 / ARC=0.16 / MIXED=0.15
+    curation_score   * w_curation  +   # endpoints: GENRE=0.08 / ARC=0.04 / MIXED=0.06 (+ impact_pref boost)
     year_score                     +   # soft bonus/penalty for year-range match (verified > file)
     - gravity_penalty * w_gravity  +   # all types: 0.15
     - duration_penalty * w_duration    # all types: 0.10
     - tourist_match_penalty            # 0.50 when genre hint present + zero genre match
-    - negative_constraint_penalty      # avoid_keywords violations (checks genres + album genres)
+    - negative_constraint_penalty      # soft avoid_keywords violations (checks genres + album genres)
     - usage_penalty                    # time-decayed track reuse penalty
     - studio_penalty * _w_studio       # _w_studio=0.08; penalizes (1-studio_score) by default,
                                        # or studio_score when prefer_live (inverted for live/acoustic prompts)
 )
+# Strong avoids ("no X"/"without X"/"avoid X", PlaylistIntent.hard_avoid_keywords)
+# are additionally applied as a PRE-SCORE hard genre filter (compute_genre_exclusion,
+# P5) with a pool-floor guard: a track whose genre/family matches the avoid is
+# removed outright, unless that would leave < target_size candidates (then the
+# graded penalty above still applies). Soft "not too X" never hard-filters.
 
 # trajectory_score also includes a valence term when DimensionWeights.valence > 0
 # (opt-in: parse_valence_target raises it to ~0.25 when mood words are detected in the prompt)
@@ -273,7 +286,10 @@ album component is dormant until the `album_tags` backfill runs.
 - **Beam search**: Path optimization with lookahead
 - **Auto bridges**: Tracks connecting distant clusters
 - **Playlist memory**: Time-decayed track usage penalty
-- **Adaptive weights**: Per-`PromptType` scoring weights (GENRE / ARC / MIXED)
+- **Adaptive weights**: Confidence-interpolated scoring weights (PARSE_AUDIT P7) — blends GENRE / ARC / MIXED endpoint vectors by parse confidence (`arc_confidence`, `genre_confidence`) instead of a hard `PromptType` bucket
+- **Grounded structured parse**: The LLM intent parser uses OpenAI **Structured Outputs** (`json_schema`, strict) seeded for determinism, with the **real library vocabulary** (top genres + Last.fm tags) injected into the system prompt (P2). Out-of-vocab genres are **snapped** to the nearest known term by embedding similarity (`library_vocab.snap_genres`, P4); the parse is **cached** on the normalized prompt (P6). Falls back to keyword parsing if the LLM is unavailable.
+- **Artist seeds**: "like <artist>" references are resolved to the artist's mean track embedding and blended into the query embedding (`get_artist_seed_embedding`, `settings.artist_seed_weight`, P1); absent artists are ignored gracefully
+- **Single sibling-genre graph**: `manifold.GENRE_GRAPH` is the one source of truth for related genres (PARSE_AUDIT P8); `expand_genre_hints` and the sequencer both read it via `get_related_families()` (the former `intent._RELATED_FAMILIES` is removed)
 - **Genre-aware admissibility**: The candidate gate (`is_admissible()` in `admission.py`) admits a track when it clears the semantic floor **OR** is a strong primary-genre match (`genre_match_score ≥ 0.50`). This lets the genre/tag secondary pools (which carry a low baseline `semantic_score`) actually contribute, widening artist diversity on genre and sparse-genre prompts.
 - **Artist + album caps**: `max_artist_count=4` and `max_album_count=2` per playlist, plus **absolute** `hard_max_artist_count`/`hard_max_album_count` ceilings derived from playlist size (artist ≈ 25%, album ≈ 15%, set by the composer) that the relaxation ladder can **never** exceed. The fallback ladder no longer relaxes the artist cap to unbounded (`999`); when diversity is exhausted the playlist returns short rather than dumping one artist/album.
 - **Near-duplicate dedup**: Candidate pool is collapsed by `(normalize_artist, normalize_title)` (`textnorm.py`), so re-imports and `(live)`/`(demo)`/`(remix)`/`(... session)`/`(single version)` variants count as one song. The tie-breaking order is: (1) highest `studio_score` (studio cut preferred), or lowest when `prefer_live` is active; (2) highest `total_score`. A signature backstop in the beam search (`BeamPath.signatures`) guards against any that slip through.
@@ -302,8 +318,18 @@ M3U_OUTPUT_DIR=/home/tom/projects/playlist-generator/playlists
 LASTFM_API_KEY=your-api-key
 LASTFM_API_SECRET=your-api-secret
 
-# OpenAI (for title generation)
+# OpenAI (for structured intent parsing + title generation)
 OPENAI_API_KEY=your-api-key
+OPENAI_INTENT_MODEL=gpt-4o-mini       # model for structured intent parsing (default)
+
+# Parse hardening (PARSE_AUDIT P2/P4/P6) — config defaults read from env at boot (NOT in the
+# settings registry / not DB-overlaid). All default-on; restart to change.
+INTENT_GROUNDING_ENABLED=true         # inject library vocab into the parse prompt (P2)
+GENRE_SNAPPING_ENABLED=true           # snap out-of-vocab genres to nearest known term (P4)
+GENRE_SNAP_MIN_SIMILARITY=0.55        # below this cosine, drop the hint instead of snapping
+INTENT_PARSE_CACHE_ENABLED=true       # cache LLM parse keyed on normalized prompt (P6)
+INTENT_PARSE_SEED=7                   # OpenAI seed for reproducible parses (P6)
+ARTIST_SEED_WEIGHT=0.35               # how hard "like <artist>" pulls the query embedding (P1)
 
 # Discogs (for original release date resolution)
 DISCOGS_TOKEN=your-discogs-personal-access-token

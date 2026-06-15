@@ -46,6 +46,16 @@ class Settings(BaseSettings):
 
     # OpenAI (for LLM intent parsing and title generation)
     openai_api_key: str = ""
+    openai_intent_model: str = "gpt-4o-mini"  # model for structured intent parsing
+
+    # Parse hardening (PARSE_AUDIT P2/P4/P6). All default-on; flip off to
+    # restore the legacy prompt-and-pray behaviour without a redeploy.
+    intent_grounding_enabled: bool = True     # inject library vocab into the parse prompt (P2)
+    genre_snapping_enabled: bool = True       # snap out-of-vocab genres to nearest known term (P4)
+    genre_snap_min_similarity: float = 0.55   # below this cosine, drop the hint instead of snapping
+    intent_parse_cache_enabled: bool = True   # cache LLM parse keyed on normalized prompt (P6)
+    intent_parse_seed: int = 7                # OpenAI seed for reproducible parses (P6)
+    artist_seed_weight: float = 0.35          # how hard artist_seeds pull the query embedding (P1)
 
     # MusicBrainz
     musicbrainz_app_name: str = "playlist-generator"

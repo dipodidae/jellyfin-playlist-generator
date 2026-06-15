@@ -21,7 +21,7 @@ from app.database_pg import get_connection
 from app.trajectory.candidates import CandidateTrack
 from app.trajectory.gravity import compute_bridge_bonus
 from app.trajectory.harmony import harmonic_compat, parse_key
-from app.trajectory.intent import _ALIAS_TO_FAMILY, _RELATED_FAMILIES
+from app.trajectory.intent import _ALIAS_TO_FAMILY
 from app.trajectory.textnorm import normalize_artist as _norm_artist_impl
 from app.trajectory.textnorm import normalize_title
 
@@ -325,14 +325,14 @@ def score_transition(
                 # Same genre family (e.g. doom metal → heavy metal)
                 genre_score = 0.60
             else:
-                # Check related families (e.g. doom metal → black metal)
+                # Check related families (e.g. doom metal → black metal).
+                # Sibling graph is the single canonical source (PARSE_AUDIT P8).
+                from app.genre.manifold import get_related_families
                 related = False
                 for pf in prev_families:
-                    for cf in curr_families:
-                        if cf in _RELATED_FAMILIES.get(pf, []):
-                            related = True
-                            break
-                    if related:
+                    rel = set(get_related_families(pf))
+                    if rel & curr_families:
+                        related = True
                         break
                 if related:
                     genre_score = 0.45

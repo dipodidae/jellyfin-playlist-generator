@@ -36,7 +36,8 @@ This is a playlist generator that creates intelligent playlists from a Jellyfin 
 - `service/app/settings_registry.py` - Declarative registry of all DB-backed settings (pure, no I/O)
 - `service/app/settings_store.py` - DB load/reload/save/seed; overlays values onto the `settings` singleton
 - `service/app/ingestion/discogs_oauth.py` - Discogs PLAINTEXT OAuth 1.0a header builder + token exchange
-- `service/app/trajectory/intent.py` - Prompt parsing, PromptType, GenreMode, 5D waypoints, era mode
+- `service/app/trajectory/intent.py` - Prompt parsing, PromptType, GenreMode, 5D waypoints, era mode. LLM parse uses OpenAI Structured Outputs (json_schema, strict, seeded), grounds genres in the library vocab + snaps unknowns via embeddings, and caches on the normalized prompt. `expand_genre_hints` reads the single canonical `GENRE_GRAPH`; `hard_avoid_keywords` drives the genre pre-filter
+- `service/app/trajectory/library_vocab.py` - Library vocabulary grounding (P2: real genres/tags injected into the parse prompt) + embedding genre snapping (P4); process-cached, `reset_cache()` to refresh
 - `service/app/trajectory/composer_v4.py` - v4 playlist composition
 - `service/app/trajectory/candidates.py` - Candidate pools, curation scoring, adaptive weights
 - `service/app/trajectory/sequencer.py` - Beam search, acoustic continuity, era coherence

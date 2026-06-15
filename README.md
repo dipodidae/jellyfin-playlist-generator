@@ -358,6 +358,13 @@ The only settings that remain strictly env-driven are `DATABASE_URL` (needed bef
 | `LASTFM_API_KEY` | Seed → DB | Last.fm API key for tag enrichment |
 | `LASTFM_API_SECRET` | Seed → DB | Last.fm API secret |
 | `OPENAI_API_KEY` | Seed → DB | GPT-4o-mini for prompt parsing, titles, and track explanations |
+| `OPENAI_INTENT_MODEL` | Env (boot) | Model for structured intent parsing (default `gpt-4o-mini`) |
+| `INTENT_GROUNDING_ENABLED` | Env (boot) | Inject the real library vocabulary into the parse prompt (default `true`) |
+| `GENRE_SNAPPING_ENABLED` | Env (boot) | Snap out-of-vocab genres to the nearest known term via embeddings (default `true`) |
+| `GENRE_SNAP_MIN_SIMILARITY` | Env (boot) | Min cosine to snap a genre; below this it's dropped (default `0.55`) |
+| `INTENT_PARSE_CACHE_ENABLED` | Env (boot) | Cache the LLM parse on the normalized prompt (default `true`) |
+| `INTENT_PARSE_SEED` | Env (boot) | OpenAI seed for reproducible parses (default `7`) |
+| `ARTIST_SEED_WEIGHT` | Env (boot) | How hard "like &lt;artist&gt;" pulls the query embedding (default `0.35`) |
 | `DISCOGS_TOKEN` | Seed → DB | Discogs personal access token for release date resolution |
 | `MUSICBRAINZ_CONTACT` | Seed → DB | Contact email required by MusicBrainz API ToS |
 
