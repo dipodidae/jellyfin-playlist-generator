@@ -147,6 +147,10 @@ class PlaylistIntent:
     mood_keywords: list[str] = field(default_factory=list)
     genre_hints: list[str] = field(default_factory=list)
     genre_hints_primary: set[str] = field(default_factory=set)  # pre-expansion hints (lowercased)
+    # Post-snap, pre-expansion, pre-family hints — the exact niche terms the user
+    # asked for (e.g. ["bestial black metal", "war metal"]). Drives niche genre
+    # discrimination + broad-parent demotion in scoring (P-NICHE).
+    genre_hints_raw: list[str] = field(default_factory=list)
     artist_seeds: list[str] = field(default_factory=list)
 
     # Trajectory (4D curve)
@@ -178,6 +182,11 @@ class PlaylistIntent:
     # Genre Manifold System
     genre_mode: GenreMode = GenreMode.BALANCED
     genre_centroids: dict[str, list[float]] = field(default_factory=dict)
+
+    # Focused intent: the prompt is fundamentally "give me genre/artist X" with no
+    # genuine arc request. When True, scoring flattens the trajectory weight so an
+    # incidental "build to a climax" phrase can't hijack the ranking (P-FOCUS).
+    focused: bool = False
 
     # Parse-confidence signals (PARSE_AUDIT P4/P7). genre_confidence is the mean
     # grounding/snap confidence of the primary genre hints (1.0 = all known);
@@ -590,6 +599,35 @@ def _ground_and_expand_genres(
     primary = get_primary_genre_hints(cleaned)
     expanded = expand_genre_hints(cleaned)
     return cleaned, expanded, primary, confidence
+
+
+_FOCUS_SIGNALS = (
+    "exclusively", "only", "nothing but", "pure", "strictly", "just ",
+    "all ", "100%", "no arc", "no journey",
+)
+
+
+def detect_focused(
+    prompt: str,
+    genre_hints: list[str],
+    artist_seeds: list[str],
+    genre_mode: GenreMode,
+) -> bool:
+    """True when the prompt is a focused 'give me X' request, not an arc request.
+
+    Focused requires an explicit exclusivity signal: STRICT genre mode, or an
+    exclusivity word ("exclusively"/"only"/"pure"/...). Crucially it does NOT
+    fire on mere artist mentions — prompts like "Think Joy Division, flowing into
+    Bauhaus, closing with desolate goth" name reference artists yet genuinely want
+    an arc. Those still benefit from seed_affinity (which never touches the arc
+    weight); only the trajectory FLATTENING is gated here (P-FOCUS), and even then
+    it is scaled down by arc strength in get_adaptive_weights so a real arc
+    request keeps its shape.
+    """
+    if genre_mode == GenreMode.STRICT and genre_hints:
+        return True
+    p = prompt.lower()
+    return bool(genre_hints or artist_seeds) and any(sig in p for sig in _FOCUS_SIGNALS)
 
 
 def detect_arc_type(
@@ -1122,13 +1160,23 @@ If no arc intent, use 0.3.
   - 0.6-0.8: dense, layered, atmospheric
   - 0.9-1.0: wall of sound, maximalist
 
-- "genre_hints": Array of strings. The specific genres/subgenres the user named \
-or clearly implied. List ONLY the primary genre(s) the prompt is actually about — \
-do NOT pad the list with sibling/related genres, the engine expands to related \
-styles itself. If a "Library vocabulary" section is provided below, choose terms \
-ONLY from it (case-insensitive); pick the closest available term when the user's \
-wording differs, and omit a genre rather than invent a label that is not in the \
-list. Can be empty for non-genre prompts. \
+- "genre_hints": Array of strings. The specific genres/subgenres/microgenres the \
+user named or clearly implied. List ONLY the primary genre(s) the prompt is \
+actually about — do NOT pad the list with sibling/related genres, the engine \
+expands to related styles itself. \
+CRITICAL for niche/archivist prompts: preserve the user's PRECISE microgenre term \
+(e.g. "war metal", "bestial black metal", "raw black metal", "dungeon synth", \
+"death industrial", "funeral doom", "minimal synth", "blackened death metal") — \
+do NOT substitute the broad parent family for it. If the user clearly means a \
+niche, emitting the broad family ("black metal" instead of "war metal") is WRONG: \
+it makes every track in the family match equally and destroys the niche. Only emit \
+the broad family when the user genuinely wants the whole family. \
+If a "Library vocabulary" section is provided below, choose terms ONLY from it \
+(case-insensitive) — it lists this library's REAL genres AND Last.fm tags, so the \
+right niche term (including tag-only microgenres) is usually present; pick the \
+closest available term when the user's wording differs (e.g. "bestial war metal" → \
+"war metal"), and omit a label rather than invent one absent from the list. \
+Can be empty for non-genre prompts. \
 Do NOT include broad umbrella genres like "rock", "pop", "metal", "electronic" \
 unless the user specifically asks for that broad category — prefer the specific \
 subgenre (e.g. "thrash metal", not "metal"; "melodic rock", not "rock").
@@ -1193,7 +1241,7 @@ not temporal trajectories — keep era at 0.0 for those.
 
 # Bump when _LLM_INTENT_SCHEMA or the system prompt changes — invalidates the
 # normalized-prompt parse cache (P6) so stale shapes are never served.
-_INTENT_SCHEMA_VERSION = 2
+_INTENT_SCHEMA_VERSION = 3
 
 # Strict JSON Schema for OpenAI Structured Outputs (PARSE_AUDIT P3). Every field
 # is required; optionals use a null union. This replaces the old json_object
@@ -1631,6 +1679,7 @@ def _build_intent_from_llm(
         mood_keywords=mood_keywords,
         genre_hints=genre_hints,
         genre_hints_primary=genre_hints_primary,
+        genre_hints_raw=genre_hints_raw,
         artist_seeds=artist_seeds,
         trajectory_curve=trajectory_curve,
         waypoints=waypoints,
@@ -1649,6 +1698,7 @@ def _build_intent_from_llm(
         prefer_live=prefer_live,
         genre_confidence=genre_confidence,
         parse_confidence=0.7,  # LLM parse succeeded → high source trust (P7)
+        focused=detect_focused(prompt, genre_hints, artist_seeds, genre_mode),
     )
 
     logger.info(f"LLM-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "
@@ -1762,6 +1812,7 @@ def _build_intent_from_keywords(
         mood_keywords=mood_keywords,
         genre_hints=genre_hints,
         genre_hints_primary=genre_hints_primary,
+        genre_hints_raw=genre_hints_raw,
         artist_seeds=artist_seeds,
         trajectory_curve=trajectory_curve,
         waypoints=waypoints,
@@ -1780,6 +1831,7 @@ def _build_intent_from_keywords(
         prefer_live=prefer_live,
         genre_confidence=genre_confidence,
         parse_confidence=0.45,  # keyword fallback → lower source trust (P7)
+        focused=detect_focused(prompt, genre_hints, artist_seeds, genre_mode),
     )
 
     logger.info(f"Keyword-parsed intent: arc={arc_type} (conf={arc_confidence:.2f}), "

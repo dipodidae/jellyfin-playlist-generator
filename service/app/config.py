@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     intent_parse_cache_enabled: bool = True   # cache LLM parse keyed on normalized prompt (P6)
     intent_parse_seed: int = 7                # OpenAI seed for reproducible parses (P6)
     artist_seed_weight: float = 0.35          # how hard artist_seeds pull the query embedding (P1)
+    seed_affinity_weight: float = 0.30        # +weight on seed_affinity_score: named bands + Last.fm-tag neighbors (P-SEED)
 
     # MusicBrainz
     musicbrainz_app_name: str = "playlist-generator"

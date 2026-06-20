@@ -226,6 +226,7 @@ total_score = (
     semantic_score   * w_semantic   +  # endpoints: GENRE=0.29 / ARC=0.10 / MIXED=0.28
     trajectory_score * w_trajectory +  # endpoints: GENRE=0.15 / ARC=0.45 / MIXED=0.26
     genre_match_score * w_genre    +   # endpoints: GENRE=0.23 / ARC=0.16 / MIXED=0.15
+    seed_affinity_score * w_seed   +   # w_seed=settings.seed_affinity_weight (0.30) when artist_seeds resolve, else 0 (P-SEED)
     curation_score   * w_curation  +   # endpoints: GENRE=0.08 / ARC=0.04 / MIXED=0.06 (+ impact_pref boost)
     year_score                     +   # soft bonus/penalty for year-range match (verified > file)
     - gravity_penalty * w_gravity  +   # all types: 0.15
@@ -274,7 +275,11 @@ extension_score = (
 
 **Genre signals (P3):** `compute_genre_match_score` unions per-track `genres`
 with album-level genres from `album_tags` (all sources) before
-Jaccard scoring (`_w_genre=0.20`). The Genre Manifold ensemble
+Jaccard scoring (`_w_genre=0.20`). For **niche prompts** (P-NICHE) it switches to
+a tag-aware regime that also reads the artist's Last.fm tags (`_attach_artist_tags`)
+and scores the precise microgenre (war metal, bestial black metal, dungeon synth…)
+at full weight while demoting a bare broad-parent match ("black metal") to 0.2 —
+see `derive_niche_hints()`. The Genre Manifold ensemble
 (`genre/manifold.py:_ensemble`) is kNN 0.30 / Last.fm artist tags 0.25 / direct
 track genres 0.25 / **album_tags genres 0.10** / audio heuristics 0.10. The
 album component is dormant until the `album_tags` backfill runs.
@@ -289,6 +294,9 @@ album component is dormant until the `album_tags` backfill runs.
 - **Adaptive weights**: Confidence-interpolated scoring weights (PARSE_AUDIT P7) — blends GENRE / ARC / MIXED endpoint vectors by parse confidence (`arc_confidence`, `genre_confidence`) instead of a hard `PromptType` bucket
 - **Grounded structured parse**: The LLM intent parser uses OpenAI **Structured Outputs** (`json_schema`, strict) seeded for determinism, with the **real library vocabulary** (top genres + Last.fm tags) injected into the system prompt (P2). Out-of-vocab genres are **snapped** to the nearest known term by embedding similarity (`library_vocab.snap_genres`, P4); the parse is **cached** on the normalized prompt (P6). Falls back to keyword parsing if the LLM is unavailable.
 - **Artist seeds**: "like <artist>" references are resolved to the artist's mean track embedding and blended into the query embedding (`get_artist_seed_embedding`, `settings.artist_seed_weight`, P1); absent artists are ignored gracefully
+- **Strong artist seeds + tag expansion (P-SEED)**: When named artists resolve (EXACT name match only — so "Revenge" never pulls the jazz "Bushman's Revenge" or post-punk "She Wants Revenge"), `expand_artist_seeds()` force-adds their own tracks plus tracks by artists sharing their *specific* Last.fm tags (war metal, bestial black metal — never the broad "black metal") to the pool, and `compute_seed_affinity_score` lifts them in `total_score` (1.0 named / 0.6 tag-neighbor, `settings.seed_affinity_weight=0.30`). This is what makes "give me these bands and their kin" actually return those bands.
+- **Focused mode (P-FOCUS)**: `intent.focused` (set by `detect_focused`) fires on explicit exclusivity (STRICT mode or "exclusively/only/pure/…") — NOT on mere artist mentions, so "Think Joy Division, flowing into Bauhaus…" keeps its arc. When focused, `get_adaptive_weights` moves trajectory mass into semantic+genre, scaled by `(1 - arc_strength)` so a genuine arc request is preserved. Stops an incidental "build to a climax" phrase hijacking a "war metal exclusively" prompt.
+- **Niche genre discrimination (P-NICHE)**: `derive_niche_hints` engages a tag-aware genre regime when a requested subgenre has a broad parent to demote ("raw black metal" → demote "black metal") or names a term that lives only in the library's Last.fm tags ("war metal", "dungeon synth"). Designed for niche-archivist libraries where coarse file genres ("Black Metal") can't separate microgenres. Family-level prompts ("thrash metal", "darkwave") keep the probabilistic baseline. The negative-constraint penalty also reads Last.fm tags so "no melodic / no atmospheric black metal" can bite.
 - **Single sibling-genre graph**: `manifold.GENRE_GRAPH` is the one source of truth for related genres (PARSE_AUDIT P8); `expand_genre_hints` and the sequencer both read it via `get_related_families()` (the former `intent._RELATED_FAMILIES` is removed)
 - **Genre-aware admissibility**: The candidate gate (`is_admissible()` in `admission.py`) admits a track when it clears the semantic floor **OR** is a strong primary-genre match (`genre_match_score ≥ 0.50`). This lets the genre/tag secondary pools (which carry a low baseline `semantic_score`) actually contribute, widening artist diversity on genre and sparse-genre prompts.
 - **Artist + album caps**: `max_artist_count=4` and `max_album_count=2` per playlist, plus **absolute** `hard_max_artist_count`/`hard_max_album_count` ceilings derived from playlist size (artist ≈ 25%, album ≈ 15%, set by the composer) that the relaxation ladder can **never** exceed. The fallback ladder no longer relaxes the artist cap to unbounded (`999`); when diversity is exhausted the playlist returns short rather than dumping one artist/album.

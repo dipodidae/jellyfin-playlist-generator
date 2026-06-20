@@ -84,6 +84,7 @@ class CandidateTrack:
     # Genre tags (for genre continuity and Jaccard scoring)
     genres: list = field(default_factory=list)  # list[str]
     album_genres: list = field(default_factory=list)  # list[str] — unified album_tags (P3/C2)
+    artist_tags: dict = field(default_factory=dict)  # {lastfm_tag(lower): weight 0-100} — niche discrimination (P-NICHE)
 
     # Genre Manifold System: probabilistic genre identity vector
     genre_probs: dict = field(default_factory=dict)  # {genre_family: probability}
@@ -115,6 +116,7 @@ class CandidateTrack:
     duration_penalty: float = 0.0
     year_score: float = 0.0       # soft year-range bonus/penalty
     genre_match_score: float = 0.0  # Jaccard(intent.genre_hints, track.genres)
+    seed_affinity_score: float = 0.0  # named-artist seed / shared-tag affinity (P-SEED)
     usage_penalty: float = 0.0     # time-decayed track usage penalty
     impact_score: float = 0.0
     admissibility_score: float = 0.0
@@ -134,6 +136,7 @@ class CandidateTrack:
     _w_impact: float = 0.0
     _w_curation: float = 0.0
     _w_studio: float = 0.08
+    _w_seed: float = 0.0  # weight on seed_affinity_score (0 unless artist seeds present)
 
     # Studio penalty computed in generate_position_pools once intent is known.
     # prefer_live=False  → penalize (1.0 - studio_score) * _w_studio
@@ -156,6 +159,7 @@ class CandidateTrack:
             self.semantic_score * self._w_semantic +
             self.trajectory_score * self._w_trajectory +
             self.genre_match_score * self._w_genre +
+            self.seed_affinity_score * self._w_seed +
             self.curation_score * self._w_curation +
             self.year_score -
             self.gravity_penalty * self._w_gravity -
@@ -171,11 +175,48 @@ class CandidateTrack:
         return np.array([self.energy, self.tempo, self.darkness, self.texture])
 
 
+def derive_niche_hints(genre_hints_raw: list[str]) -> tuple[set[str], set[str]]:
+    """Derive (niche_hints, demote_families) from the user's raw genre terms (P-NICHE).
+
+    Returns empty sets when the prompt is NOT niche — i.e. it engages only when a
+    requested subgenre has a broad parent to demote ("raw black metal" → demote
+    "black metal") OR names a term outside the built-in taxonomy that lives in the
+    library's Last.fm tags ("war metal", "dungeon synth"). Family-level requests
+    ("thrash metal", "darkwave") return ([], []) so the baseline is preserved.
+    """
+    raw = {h.lower().strip() for h in (genre_hints_raw or []) if h and h.strip()}
+    niche = {h for h in raw if h not in _BROAD_GENRES}
+    demote: set[str] = set()
+    for h in niche:
+        fam = _ALIAS_TO_FAMILY.get(h)
+        if fam and fam != h and fam not in niche:
+            demote.add(fam)
+    active = bool(demote) or any(h not in _ALIAS_TO_FAMILY for h in niche)
+    return (niche, demote) if active else (set(), set())
+
+
 def compute_genre_match_score(
     track: CandidateTrack,
     hint_set: set[str],
     primary_hint_set: set[str],
+    niche_hints: frozenset[str] | set[str] = frozenset(),
+    demote_families: frozenset[str] | set[str] = frozenset(),
+    tag_min_weight: float = 30.0,
 ) -> float:
+    """Genre affinity of a track to the prompt's genre intent.
+
+    Two regimes:
+
+    * **Niche** (``niche_hints`` non-empty) — the user asked for a specific
+      subgenre (war metal, bestial black metal, dungeon synth, …). A track scores
+      ~1.0 only when it genuinely carries that niche in its file genres, album
+      tags, OR Last.fm artist tags; a track that merely shares the broad parent
+      family ("black metal") gets a weak 0.2 so the genre column doesn't pin every
+      family member at 1.0 (the original RC1). This is what makes niche prompts
+      discriminate across an archivist library (P-NICHE).
+    * **Broad/family** (default) — the original tiered Jaccard, unchanged, so
+      family-level prompts ("thrash metal", "darkwave") keep their baseline.
+    """
     if not hint_set:
         return 0.0
 
@@ -194,6 +235,29 @@ def compute_genre_match_score(
                 for token in ag_lower.split():
                     if len(token) >= 3:
                         album_set_raw.add(token)
+
+    # --- Niche regime: precise subgenre, tag-aware ---
+    if niche_hints:
+        artist_tag_set = {
+            t for t, w in (track.artist_tags or {}).items() if w >= tag_min_weight
+        }
+        # An exact niche match in file/album genres is authoritative; a strong
+        # Last.fm artist tag is near-authoritative (scaled by tag weight).
+        genre_match = (genre_set_raw | album_set_raw) & niche_hints
+        if genre_match:
+            return 1.0
+        tag_match = artist_tag_set & niche_hints
+        if tag_match:
+            w = max(track.artist_tags.get(t, 0.0) for t in tag_match)
+            return min(1.0, 0.6 + 0.4 * (w / 100.0))
+        # No niche evidence — give only weak credit if the broad parent (or any
+        # expanded hint) is present, so semantic/seed signal can still decide.
+        fams = set(genre_set_raw | album_set_raw)
+        for g in list(fams):
+            fam = _ALIAS_TO_FAMILY.get(g)
+            if fam:
+                fams.add(fam)
+        return 0.2 if fams & (set(demote_families) | hint_set) else 0.0
 
     combined_raw = genre_set_raw | album_set_raw
     if not combined_raw:
@@ -235,6 +299,10 @@ def compute_negative_constraint_penalty(
     haystack_parts = [track.title or "", track.artist_name or "", track.album_name or ""]
     haystack_parts.extend(track.genres or [])
     haystack_parts.extend(track.album_genres or [])
+    # Last.fm artist tags carry the fine-grained descriptors ("melodic black metal",
+    # "atmospheric black metal", "symphonic") that file genres lack, so avoids like
+    # "no melodic / no atmospheric black metal" can actually bite on niche prompts.
+    haystack_parts.extend(track.artist_tags.keys() if track.artist_tags else [])
     haystack = " ".join(haystack_parts).lower()
     haystack_tokens = {token for token in re.findall(r"[a-z0-9]+", haystack) if len(token) >= 2}
 
@@ -303,6 +371,133 @@ def get_artist_seed_embedding(artist_names: list[str]) -> list[float] | None:
     if norm == 0:
         return None
     return (mean / norm).tolist()
+
+
+# Last.fm / genre tags too broad to discriminate a subgenre. Tag expansion must
+# NOT fan out on these alone — every black-metal artist carries "black metal",
+# so expanding on it would re-introduce the exact dilution we are fixing.
+_BROAD_EXPANSION_TAGS: set[str] = {
+    "black metal", "death metal", "metal", "heavy metal", "thrash metal",
+    "doom metal", "power metal", "rock", "hard rock", "classic rock",
+    "punk", "hardcore", "hardcore punk", "metalcore", "electronic", "pop",
+    "alternative", "indie", "experimental", "instrumental",
+}
+
+
+@dataclass(frozen=True)
+class SeedExpansion:
+    """Resolved artist seeds + the specific tags / neighbor artists they imply."""
+    seed_artist_ids: frozenset[str]
+    specific_tags: frozenset[str]          # discriminating Last.fm tags of the seeds
+    neighbor_artist_ids: frozenset[str]    # other artists sharing those tags
+
+
+def resolve_seed_artist_ids(artist_names: list[str]) -> list[str]:
+    """Resolve artist names to ids by EXACT (case-insensitive) match only.
+
+    Exact-only is deliberate: names like "Revenge" also match jazz "Bushman's
+    Revenge" and post-punk "She Wants Revenge", so a fuzzy match would poison a
+    war-metal seed with unrelated homonyms.
+    """
+    names = [n.lower().strip() for n in artist_names if n and n.strip()]
+    if not names:
+        return []
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id::text FROM artists WHERE LOWER(name) = ANY(%s)",
+                    (names,),
+                )
+                return [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        logger.warning(f"Seed artist resolution failed: {e}")
+        return []
+
+
+def expand_artist_seeds(artist_names: list[str], neighbor_limit: int = 400) -> SeedExpansion:
+    """Build a SeedExpansion from the named artists (PARSE_AUDIT P-SEED).
+
+    1. Resolve the seeds to ids (exact match).
+    2. Collect their *specific* Last.fm tags (weight >= 40, excluding broad
+       umbrella tags) — these define the niche the user actually named.
+    3. Find other artists carrying >=1 of those specific tags (weight >= 40):
+       these are the true stylistic neighbors (e.g. other war-metal bands), not
+       the whole "black metal" universe.
+    """
+    seed_ids = resolve_seed_artist_ids(artist_names)
+    if not seed_ids:
+        return SeedExpansion(frozenset(), frozenset(), frozenset())
+
+    specific_tags: set[str] = set()
+    neighbor_ids: set[str] = set()
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT LOWER(lt.name)
+                    FROM artist_lastfm_tags alt
+                    JOIN lastfm_tags lt ON lt.id = alt.tag_id
+                    WHERE alt.artist_id = ANY(%s) AND alt.weight >= 40
+                    """,
+                    (seed_ids,),
+                )
+                specific_tags = {
+                    row[0] for row in cur.fetchall()
+                    if row[0] and row[0] not in _BROAD_EXPANSION_TAGS
+                }
+
+                if specific_tags:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT alt.artist_id::text
+                        FROM artist_lastfm_tags alt
+                        JOIN lastfm_tags lt ON lt.id = alt.tag_id
+                        WHERE LOWER(lt.name) = ANY(%s) AND alt.weight >= 40
+                        LIMIT %s
+                        """,
+                        (list(specific_tags), neighbor_limit),
+                    )
+                    neighbor_ids = {row[0] for row in cur.fetchall()}
+    except Exception as e:
+        logger.warning(f"Artist-seed tag expansion failed: {e}")
+
+    # Seeds are always their own neighbors.
+    neighbor_ids |= set(seed_ids)
+    logger.info(
+        f"Seed expansion: {len(seed_ids)} seeds → {len(specific_tags)} specific tags "
+        f"→ {len(neighbor_ids)} neighbor artists; tags={sorted(specific_tags)[:12]}"
+    )
+    return SeedExpansion(
+        frozenset(seed_ids), frozenset(specific_tags), frozenset(neighbor_ids)
+    )
+
+
+def compute_seed_affinity_score(track: "CandidateTrack", expansion: SeedExpansion) -> float:
+    """Affinity of a track to the named-artist seeds (PARSE_AUDIT P-SEED).
+
+    1.0  — track is BY a named seed artist (the user literally asked for it)
+    0.6  — track is by a neighbor artist sharing the seeds' specific tags
+    +    — small bonus if the track itself carries a seed-specific tag/genre
+    0.0  — unrelated
+    """
+    if not expansion.seed_artist_ids and not expansion.neighbor_artist_ids:
+        return 0.0
+    aid = track.artist_id
+    base = 0.0
+    if aid and aid in expansion.seed_artist_ids:
+        base = 1.0
+    elif aid and aid in expansion.neighbor_artist_ids:
+        base = 0.6
+
+    # Tag/genre corroboration: track's own tags carry a seed-specific term.
+    if expansion.specific_tags:
+        track_tags = {g.lower() for g in (track.genres or [])}
+        track_tags |= {g.lower() for g in (track.album_genres or [])}
+        if track_tags & expansion.specific_tags:
+            base = min(1.0, base + 0.2) if base else 0.4
+    return base
 
 
 def compute_genre_exclusion(track: "CandidateTrack", hard_avoids: list[str]) -> bool:
@@ -996,6 +1191,46 @@ def score_duration_compatibility(
         return 0.3 * (ratio - 1.5) / (max_ratio - 1.5)
 
 
+def _attach_artist_tags(candidates: list[CandidateTrack], min_weight: int = 30) -> None:
+    """Batch-load each candidate's primary-artist Last.fm tags in-place (P-NICHE).
+
+    The discriminating signal for a niche (war metal, bestial black metal, dungeon
+    synth, death industrial, …) frequently lives ONLY in Last.fm artist tags, not
+    in the coarse file/Jellyfin genre. One query keyed by artist_id hydrates them
+    so the genre scorer can match a niche the file genres can't express. Tracks
+    whose artist has no tags stay at {} (no effect).
+    """
+    artist_ids = {c.artist_id for c in candidates if c.artist_id}
+    if not artist_ids:
+        return
+    tags_by_artist: dict[str, dict[str, float]] = {}
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT alt.artist_id::text, LOWER(lt.name), alt.weight
+                    FROM artist_lastfm_tags alt
+                    JOIN lastfm_tags lt ON lt.id = alt.tag_id
+                    WHERE alt.artist_id = ANY(%s::uuid[]) AND alt.weight >= %s
+                    """,
+                    (list(artist_ids), min_weight),
+                )
+                for aid, name, weight in cur.fetchall():
+                    if not name:
+                        continue
+                    tags_by_artist.setdefault(aid, {})[name] = max(
+                        tags_by_artist.get(aid, {}).get(name, 0.0), float(weight or 0)
+                    )
+    except Exception as e:  # pragma: no cover - tag tables may be absent
+        logger.warning(f"Artist-tag attach failed: {e}")
+        return
+
+    for i, c in enumerate(candidates):
+        if c.artist_id and c.artist_id in tags_by_artist:
+            candidates[i] = replace(c, artist_tags=tags_by_artist[c.artist_id])
+
+
 def _normalize_album_legitimacy(candidates: list[CandidateTrack]) -> None:
     """Percentile-normalize raw MA ratings across the candidate pool in-place.
 
@@ -1072,6 +1307,17 @@ def get_adaptive_weights(intent: "PlaylistIntent") -> dict[str, float]:
             + _WEIGHTS_ARC[k] * arc_strength
             + _WEIGHTS_MIXED[k] * mixed_mass
         ) / denom
+
+    # Focused intent ("war metal exclusively"): an incidental arc phrase must not
+    # decide the ranking. Move trajectory mass into the signals that express the
+    # niche — semantic + genre (P-FOCUS). Scaled by (1 - arc_strength) so a prompt
+    # that genuinely requests an arc keeps its shape; only a no-/weak-arc focused
+    # prompt flattens fully.
+    if getattr(intent, "focused", False):
+        freed = out["trajectory"] * 0.6 * (1.0 - arc_strength)
+        out["trajectory"] -= freed
+        out["genre"] += freed * 0.55
+        out["semantic"] += freed * 0.45
     return out
 
 
@@ -1174,6 +1420,7 @@ def generate_position_pools(
 
     # Blend in referenced artists ("like <artist>") so the seed actually anchors
     # retrieval (PARSE_AUDIT P1). Absent artists are ignored gracefully.
+    seed_expansion = SeedExpansion(frozenset(), frozenset(), frozenset())
     if intent.artist_seeds:
         seed_emb = get_artist_seed_embedding(intent.artist_seeds)
         if seed_emb is not None:
@@ -1185,6 +1432,10 @@ def generate_position_pools(
             logger.info(f"Artist-seed blend (w={w}): seeds={intent.artist_seeds}")
         else:
             logger.info(f"Artist seeds not found in library, ignored: {intent.artist_seeds}")
+        # Strong seeds: resolve named artists + their specific-tag neighbors so
+        # the user's exemplar bands (and true stylistic peers) actually appear,
+        # rather than only nudging the query embedding (PARSE_AUDIT P-SEED).
+        seed_expansion = expand_artist_seeds(intent.artist_seeds)
 
     if intent.arc_type == ArcType.STEADY:
         semantic_candidates = semantic_search(
@@ -1327,6 +1578,34 @@ def generate_position_pools(
         except Exception as e:
             logger.warning(f"Year+genre pool query failed: {e}")
 
+    # --- 4b. Seed-artist + tag-neighbor pool (P-SEED) ---
+    # Pull in the named artists' own tracks plus tracks by artists sharing their
+    # specific Last.fm tags. These are the strongest expression of user intent,
+    # so they must be IN the pool (they then earn seed_affinity_score below).
+    if seed_expansion.neighbor_artist_ids:
+        try:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT ta.track_id::text
+                        FROM track_artists ta
+                        WHERE ta.artist_id = ANY(%s)
+                        LIMIT %s
+                        """,
+                        (list(seed_expansion.neighbor_artist_ids), genre_pool_limit),
+                    )
+                    seed_ids = [row[0] for row in cur.fetchall() if row[0] not in pool_map]
+            if seed_ids:
+                seed_tracks = _fetch_candidates_by_ids(seed_ids)
+                for t in seed_tracks:
+                    # Baseline retrieval score so they survive the admissibility
+                    # gate; their real lift comes from seed_affinity_score.
+                    pool_map[t.id] = replace(t, semantic_score=max(t.semantic_score, 0.30))
+                logger.info(f"Seed/neighbor pool added {len(seed_tracks)} candidates")
+        except Exception as e:
+            logger.warning(f"Seed/neighbor pool query failed: {e}")
+
     global_candidates = list(pool_map.values())
 
     if not global_candidates:
@@ -1342,6 +1621,9 @@ def generate_position_pools(
 
     # Percentile-normalize album legitimacy scores across the pool
     _normalize_album_legitimacy(global_candidates)
+
+    # Hydrate Last.fm artist tags so niche genre prompts can discriminate (P-NICHE)
+    _attach_artist_tags(global_candidates)
 
     logger.info(f"Total global candidate pool: {len(global_candidates)} tracks")
 
@@ -1363,6 +1645,17 @@ def generate_position_pools(
 
     # Primary hints: what the user/LLM explicitly requested (pre-expansion)
     primary_hint_set = intent.genre_hints_primary if intent.genre_hints_primary else hint_set.copy()
+
+    # Niche genre intent (P-NICHE): the exact subgenre terms the user asked for,
+    # and the broad parent families to demote when a child was requested. The
+    # niche regime engages only when there is a parent to suppress (e.g. "raw
+    # black metal" → demote "black metal") OR a term that lives outside the
+    # built-in taxonomy (e.g. "war metal", "dungeon synth" — discriminated via
+    # Last.fm tags). Family-level prompts ("thrash metal", "darkwave") do NOT
+    # engage it, preserving the historical baseline.
+    niche_hints, demote_families = derive_niche_hints(intent.genre_hints_raw)
+    if niche_hints:
+        logger.info(f"Niche genre regime: niche={sorted(niche_hints)}, demote={sorted(demote_families)}")
 
     # Precompute year midpoint for soft year scoring
     year_midpoint: float | None = None
@@ -1389,6 +1682,11 @@ def generate_position_pools(
         except Exception:
             pass
 
+    # Seed affinity weight: only active when seeds resolved to real artists. A
+    # large +term so the user's named bands and true tag-neighbors decisively
+    # outrank arc-fitting tourists (P-SEED).
+    w_seed = getattr(settings, "seed_affinity_weight", 0.30) if seed_expansion.neighbor_artist_ids else 0.0
+
     staged_candidates: list[CandidateTrack] = []
     for track in global_candidates:
         year_score = 0.0
@@ -1401,8 +1699,14 @@ def generate_position_pools(
             else:
                 year_score = max(-0.12, 0.08 - distance * 0.01)
 
-        # Use probabilistic genre score when manifold data available; Jaccard fallback
-        if track.genre_probs and hint_set:
+        # Niche prompts use the tag-aware, broad-demoting scorer (P-NICHE). Other
+        # prompts keep the probabilistic manifold score when available, else the
+        # original Jaccard — unchanged baseline.
+        if niche_hints:
+            genre_match = compute_genre_match_score(
+                track, hint_set, primary_hint_set, niche_hints, demote_families,
+            )
+        elif track.genre_probs and hint_set:
             try:
                 from app.genre.manifold import compute_genre_probability_score
                 genre_match = compute_genre_probability_score(
@@ -1433,10 +1737,13 @@ def generate_position_pools(
             # Default: penalize non-studio-ness (live, demo, remix, etc.)
             studio_pen = (1.0 - track.studio_score) * _w_studio
 
+        seed_affinity = compute_seed_affinity_score(track, seed_expansion)
+
         staged_track = replace(
             track,
             year_score=year_score,
             genre_match_score=genre_match,
+            seed_affinity_score=seed_affinity,
             negative_constraint_penalty=negative_penalty,
             tourist_match_penalty=tourist_penalty,
             usage_penalty=usage_penalty,
@@ -1447,6 +1754,7 @@ def generate_position_pools(
             _w_duration=w_duration,
             _w_curation=w_curation,
             _w_studio=_w_studio,
+            _w_seed=w_seed,
             _studio_penalty=studio_pen,
         )
         staged_track = replace(
