@@ -75,9 +75,26 @@ def compose_snapshot(prompt: str, soft_cap: int | None = None) -> PlaylistResult
     primary = get_primary_genre_hints(intent.genre_hints)
     hard_avoids = intent.hard_avoid_keywords
 
+    # Year range is a HARD cut. semantic_search applies it in SQL, but the
+    # keyword-supplement path (_fetch_candidates_by_ids) does not — so enforce it
+    # here over the merged pool. Mirrors the arc engine's SQL semantics, where a
+    # NULL/unknown year fails the bound and is excluded for an explicit era.
+    yr0, yr1 = intent.year_range
+    has_year_filter = yr0 is not None or yr1 is not None
+
+    def _year_ok(t: CandidateTrack) -> bool:
+        if not has_year_filter:
+            return True
+        ey = t.effective_year
+        if ey is None:
+            return False
+        return (yr0 is None or ey >= yr0) and (yr1 is None or ey <= yr1)
+
     survivors: list[CandidateTrack] = []
     for t in pool:
         if hard_avoids and compute_genre_exclusion(t, hard_avoids):
+            continue
+        if not _year_ok(t):
             continue
         t.genre_match_score = compute_genre_match_score(
             t, hint_set, primary, niche_hints, demote_families,

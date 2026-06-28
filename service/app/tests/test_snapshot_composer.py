@@ -77,3 +77,33 @@ def test_compose_snapshot_strict_floor_drops_offniche(monkeypatch):
     result = comp.compose_snapshot("evil 80s thrash", soft_cap=120)
     assert {t.id for t in result.tracks} == {"1"}
     assert result.metrics["qualifying_tracks"] == 1
+
+
+def test_compose_snapshot_year_range_is_a_hard_cut(monkeypatch):
+    # in-range 1985, out-of-range 2023, and unknown-year (None) — only 1985 kept.
+    in80s = _mk("1", "a", "x", gm=0.9, dark=0.8, banger=0.9, leg=0.8)
+    in80s.year = 1985
+    modern = _mk("2", "b", "y", gm=0.9, dark=0.8, banger=0.9, leg=0.8)
+    modern.year = 2023
+    unknown = _mk("3", "c", "z", gm=0.9, dark=0.8, banger=0.9, leg=0.8)
+    unknown.year = None
+    unknown.original_year = None
+
+    intent = PlaylistIntent(raw_prompt="evil 80s thrash", prompt_embedding=[0.0] * 8)
+    intent.genre_hints = ["thrash metal"]
+    intent.base_darkness = 0.8
+    intent.year_range = (1980, 1989)
+
+    monkeypatch.setattr(comp, "parse_prompt", lambda *a, **k: intent)
+    # search returns ALL three (simulating the keyword path that skipped the SQL year filter)
+    monkeypatch.setattr(comp, "semantic_search", lambda *a, **k: [in80s, modern, unknown])
+    monkeypatch.setattr(comp, "keyword_search", lambda *a, **k: [])
+    monkeypatch.setattr(comp, "_attach_artist_tags", lambda c: None)
+    monkeypatch.setattr(comp, "_normalize_album_legitimacy", lambda c: None)
+    monkeypatch.setattr(comp, "compute_genre_match_score", lambda t, *a, **k: 0.9)
+    monkeypatch.setattr(comp, "compute_genre_exclusion", lambda t, h: False)
+    monkeypatch.setattr(comp, "log_generation", lambda **k: None)
+    monkeypatch.setattr(comp, "update_track_usage", lambda ids: None)
+
+    result = comp.compose_snapshot("evil 80s thrash", soft_cap=120)
+    assert {t.id for t in result.tracks} == {"1"}
