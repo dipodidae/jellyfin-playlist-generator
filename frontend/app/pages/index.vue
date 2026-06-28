@@ -134,10 +134,12 @@ async function handleJellyfinExport() {
       v-if="(!libraryStats.stats.value || libraryStats.hasLibraryData.value) && !playlist.isGenerating.value && !playlist.result.value"
       :model-value="playlist.prompt.value"
       :playlist-size="playlist.playlistSize.value"
+      :mode="playlist.mode.value"
       :can-generate="playlist.canGenerate.value"
       :has-library-data="libraryStats.hasLibraryData.value"
       @update:model-value="playlist.prompt.value = $event"
       @update:playlist-size="playlist.playlistSize.value = $event"
+      @update:mode="playlist.mode.value = $event"
       @submit="playlist.generatePlaylist()"
     />
 

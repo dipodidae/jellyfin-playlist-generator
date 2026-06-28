@@ -13,9 +13,12 @@ interface EnhanceResult {
 
 type EnhanceMode = 'light' | 'balanced' | 'aggressive'
 
+type PlaylistMode = 'arc' | 'snapshot'
+
 const props = defineProps<{
   modelValue: string
   playlistSize: number
+  mode: PlaylistMode
   hasLibraryData: boolean
   canGenerate: boolean
 }>()
@@ -23,8 +26,16 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   'update:playlistSize': [value: number]
+  'update:mode': [value: PlaylistMode]
   submit: [payload: { prompt: string, size: number }]
 }>()
+
+// Snapshot is a chonky archival cross-section, so allow a bigger soft cap.
+const sizeBounds = computed(() =>
+  props.mode === 'snapshot'
+    ? { min: 40, max: 200, step: 10, label: 'Soft cap' }
+    : { min: 10, max: 100, step: 5, label: 'Playlist size' },
+)
 
 const enhanceMode = ref<EnhanceMode>('balanced')
 const isEnhancing = ref(false)
@@ -81,6 +92,38 @@ const diffCategoryLabels: Record<keyof EnhanceDiff, { label: string, color: stri
 <template>
   <div class="space-y-5">
     <PlaylistPromptGuide />
+
+    <!-- Mode: Arc (trajectory) vs Snapshot (archival cross-section) -->
+    <div class="space-y-1.5">
+      <UButtonGroup size="sm" class="w-full">
+        <UButton
+          class="flex-1 justify-center"
+          :variant="mode === 'arc' ? 'solid' : 'soft'"
+          :color="mode === 'arc' ? 'primary' : 'neutral'"
+          icon="i-lucide-trending-up"
+          @click="emit('update:mode', 'arc')"
+        >
+          Arc
+        </UButton>
+        <UButton
+          class="flex-1 justify-center"
+          :variant="mode === 'snapshot' ? 'solid' : 'soft'"
+          :color="mode === 'snapshot' ? 'primary' : 'neutral'"
+          icon="i-lucide-shuffle"
+          @click="emit('update:mode', 'snapshot')"
+        >
+          Snapshot
+        </UButton>
+      </UButtonGroup>
+      <p class="text-xs text-(--ui-text-muted) leading-relaxed">
+        <template v-if="mode === 'snapshot'">
+          Archival cross-section: bangers + deep cuts across every artist you own in this niche, shuffled. No arc.
+        </template>
+        <template v-else>
+          Trajectory: tracks sequenced along an energy/mood arc that builds and resolves.
+        </template>
+      </p>
+    </div>
 
     <!-- Hero prompt input -->
     <div class="relative">
@@ -201,13 +244,13 @@ const diffCategoryLabels: Record<keyof EnhanceDiff, { label: string, color: stri
     <!-- Playlist size row -->
     <div class="flex items-center gap-4">
       <span class="text-sm text-(--ui-text-muted) whitespace-nowrap shrink-0">
-        Playlist size
+        {{ sizeBounds.label }}
       </span>
       <USlider
         :model-value="playlistSize"
-        :min="10"
-        :max="100"
-        :step="5"
+        :min="sizeBounds.min"
+        :max="sizeBounds.max"
+        :step="sizeBounds.step"
         color="primary"
         class="flex-1"
         @update:model-value="emit('update:playlistSize', $event)"

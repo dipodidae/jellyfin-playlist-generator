@@ -1,5 +1,9 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { GeneratedPlaylist, ProgressEvent } from '~/types/playlist'
+
+export type PlaylistMode = 'arc' | 'snapshot'
+const SNAPSHOT_SIZE = 120
+const ARC_SIZE = 30
 
 const STEPS = [
   'Parsing prompt...',
@@ -29,8 +33,14 @@ function defaultProgressSteps() {
 
 export function usePlaylistGeneration() {
   const prompt = ref('')
-  const playlistSize = ref(30)
+  const playlistSize = ref(ARC_SIZE)
+  const mode = ref<PlaylistMode>('arc')
   const isGenerating = ref(false)
+
+  // Snapshot mode is chonky by default; arc keeps the smaller targeted size.
+  watch(mode, (m) => {
+    playlistSize.value = m === 'snapshot' ? SNAPSHOT_SIZE : ARC_SIZE
+  })
   const progress = ref(0)
   const progressMessage = ref('')
   const progressSteps = ref(defaultProgressSteps())
@@ -78,7 +88,7 @@ export function usePlaylistGeneration() {
       const response = await fetch('/api/generate-playlist/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.value, size: playlistSize.value }),
+        body: JSON.stringify({ prompt: prompt.value, size: playlistSize.value, mode: mode.value }),
       })
 
       if (!response.ok) {
@@ -142,6 +152,7 @@ export function usePlaylistGeneration() {
   return {
     prompt,
     playlistSize,
+    mode,
     isGenerating,
     progress,
     progressMessage,
