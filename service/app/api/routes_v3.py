@@ -33,6 +33,7 @@ from app.export.m3u import (
     export_tracks_to_file, export_playlist_to_file, generate_m3u, get_track_files
 )
 from app.trajectory.composer_v4 import compose_playlist_v4, compose_playlist_v4_streaming
+from app.snapshot.composer import compose_snapshot
 from app.trajectory.title_generator import generate_playlist_title
 from app.trajectory.prompt_enhancer import enhance_prompt
 from app.observability import log_generation, update_track_usage, check_cold_start
@@ -108,6 +109,7 @@ class GeneratePlaylistRequest(BaseModel):
     prompt: str
     size: int = 25
     save: bool = True
+    mode: str = "arc"  # "arc" (trajectory) | "snapshot" (breadth cross-section)
 
 
 class PlaylistResponse(BaseModel):
@@ -1873,9 +1875,14 @@ async def enhance_prompt_endpoint(request: EnhancePromptRequest):
 async def generate_playlist(request: GeneratePlaylistRequest):
     """Generate a playlist from a prompt (non-streaming, v4 composer)."""
     try:
-        result = await asyncio.to_thread(
-            compose_playlist_v4, request.prompt, request.size
-        )
+        if request.mode == "snapshot":
+            result = await asyncio.to_thread(
+                compose_snapshot, request.prompt, request.size
+            )
+        else:
+            result = await asyncio.to_thread(
+                compose_playlist_v4, request.prompt, request.size
+            )
 
         if not result.tracks:
             raise HTTPException(status_code=404, detail="No matching tracks found")
@@ -1940,11 +1947,19 @@ async def generate_playlist_stream(request: GeneratePlaylistRequest):
 
         def run_composer():
             try:
-                result_holder["result"] = compose_playlist_v4_streaming(
-                    prompt=request.prompt,
-                    target_size=request.size,
-                    progress_callback=progress_callback,
-                )
+                if request.mode == "snapshot":
+                    # Snapshot has no streaming variant; emit a single progress
+                    # tick, then run the composer to completion.
+                    progress_callback(1, 1, "Assembling snapshot...")
+                    result_holder["result"] = compose_snapshot(
+                        request.prompt, request.size
+                    )
+                else:
+                    result_holder["result"] = compose_playlist_v4_streaming(
+                        prompt=request.prompt,
+                        target_size=request.size,
+                        progress_callback=progress_callback,
+                    )
             except Exception as exc:
                 result_holder["error"] = str(exc)
             finally:
