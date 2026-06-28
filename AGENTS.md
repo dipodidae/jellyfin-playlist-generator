@@ -169,7 +169,7 @@ playlist-generator/
 | `/sync/full-pipeline` | POST | Incremental scan + all enrichment (SSE) (`?force_prune`) |
 | `/path-mappings` | GET/POST | Manage path mappings |
 | `/path-mappings/{name}` | DELETE | Delete path mapping |
-| `/generate-playlist` | POST | Generate playlist |
+| `/generate-playlist` | POST | Generate playlist (`mode`: `"arc"` default \| `"snapshot"`) |
 | `/playlists` | GET | List generated playlists |
 | `/playlists/{id}` | GET | Get playlist details |
 | `/export/m3u` | POST | Export tracks to M3U content |
@@ -183,6 +183,24 @@ playlist-generator/
 | `/settings/discogs/oauth/start` | POST | Begin Discogs 3-legged OAuth; returns `{authorize_url}` |
 | `/settings/discogs/oauth/callback` | GET | Complete Discogs OAuth, store permanent access token, redirect to `/settings` |
 | `/jellyfin/fix-release-dates` | POST | Push resolved original release dates onto matching Jellyfin albums; sets PremiereDate + ProductionYear and locks those fields (SSE progress) |
+
+## Snapshot Mode
+
+`/generate-playlist` accepts `mode: "arc" | "snapshot"` (default `"arc"`). Snapshot
+mode (`app/snapshot/composer.py`) serves a different intent than the trajectory
+engine: an **archival cross-section** of a niche descriptor ("evil 80s thrash") —
+a representation snapshot, not a journey. It optimizes **breadth across artists**,
+not progression. Pipeline: parse intent (genre/era/mood only; arc ignored) → one
+flat candidate pool (`semantic_search` + `keyword_search`, uniformly enriched) →
+niche-aware relevance gate with a **strict floor** (off-niche tracks dropped, never
+padded) → bucket by artist, pick **2–4 per artist** (the banger + best deep cuts,
+with a per-album cap) → **soft cap** (~120, strongest artists first) →
+**constraint shuffle** (no two same-artist tracks adjacent). The trajectory
+engine — position pools, beam search, 6D curve — is **not invoked**; snapshot is a
+parallel path that reuses only intent parsing and the flat candidate-scoring
+helpers. Curation signal `C = banger_score*0.65 + album_legitimacy_score*0.35`;
+snapshot deliberately wants both bangers and deep cuts, so it applies no single
+`impact_preference` lean. Tunables: `snapshot_*` in `config.py`.
 
 ## V4 Trajectory Engine
 

@@ -303,8 +303,8 @@ Each enrichment type has a fire-and-forget endpoint and an SSE streaming variant
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/generate-playlist` | Generate playlist (returns result) |
-| POST | `/generate-playlist/stream` | Generate with SSE progress (8 stages) |
+| POST | `/generate-playlist` | Generate playlist (`mode`: `"arc"` default \| `"snapshot"` archival cross-section) |
+| POST | `/generate-playlist/stream` | Generate with SSE progress (8 stages; snapshot emits one tick) |
 | GET | `/playlists` | List saved playlists |
 | GET | `/playlists/{id}` | Get playlist with full track details |
 
