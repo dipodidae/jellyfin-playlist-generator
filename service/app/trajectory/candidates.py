@@ -116,6 +116,7 @@ class CandidateTrack:
     duration_penalty: float = 0.0
     year_score: float = 0.0       # soft year-range bonus/penalty
     genre_match_score: float = 0.0  # Jaccard(intent.genre_hints, track.genres)
+    snapshot_score: float = 0.0   # snapshot mode: 0.5*relevance + 0.5*curation
     seed_affinity_score: float = 0.0  # named-artist seed / shared-tag affinity (P-SEED)
     usage_penalty: float = 0.0     # time-decayed track usage penalty
     impact_score: float = 0.0

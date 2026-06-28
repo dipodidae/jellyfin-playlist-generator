@@ -83,6 +83,16 @@ class Settings(BaseSettings):
     jellyfin_path_prefix: str = ""  # Path prefix inside Jellyfin container (e.g. /data/movies)
     local_path_prefix: str = ""     # Corresponding local path prefix (e.g. /mnt/drive-next)
 
+    # --- Snapshot mode (archival breadth-across-artists cross-section) ---
+    snapshot_soft_cap: int = 120            # target chonky size; thinner niche → fewer
+    snapshot_relevance_floor: float = 0.35  # strict floor: drop tracks below this niche fit
+    snapshot_min_per_artist: int = 2        # minimum picks per qualifying artist
+    snapshot_max_per_artist: int = 4        # maximum picks per qualifying artist
+    snapshot_album_cap: int = 2             # max tracks from one album within an artist
+    snapshot_banger_percentile: float = 0.6  # top frac of an artist's popularity = "banger"
+    snapshot_mood_weight: float = 0.3       # weight of mood(darkness) proximity in relevance
+    snapshot_pool_limit: int = 1500         # candidate pool size before selection
+
     # Legacy (deprecated, kept for migration)
     database_path: str = ""  # Old DuckDB path
 
