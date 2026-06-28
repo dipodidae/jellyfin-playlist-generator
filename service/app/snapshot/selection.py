@@ -108,3 +108,65 @@ def select_artist_tracks(
         _try_add(t)
 
     return picked[:max_n]
+
+
+def apply_soft_cap(
+    by_artist: dict[str, list[CandidateTrack]],
+    cap: int,
+) -> list[CandidateTrack]:
+    """Flatten per-artist picks to <= cap, strongest artists first.
+
+    Artists are ranked by their best track's snapshot_score; we take whole
+    artist blocks until the cap, allowing a partial final artist. Returns all
+    picks when the total is under the cap (the list IS the snapshot).
+    """
+    ranked_artists = sorted(
+        by_artist.items(),
+        key=lambda kv: max((t.snapshot_score for t in kv[1]), default=0.0),
+        reverse=True,
+    )
+    out: list[CandidateTrack] = []
+    for _artist, picks in ranked_artists:
+        if len(out) >= cap:
+            break
+        ordered = sorted(picks, key=lambda t: t.snapshot_score, reverse=True)
+        for t in ordered:
+            if len(out) >= cap:
+                break
+            out.append(t)
+    return out
+
+
+def shuffle_no_adjacent_artist(
+    tracks: list[CandidateTrack],
+    seed: int,
+) -> list[CandidateTrack]:
+    """Random order with no two same-artist tracks adjacent (seeded/deterministic).
+
+    Greedy: repeatedly place the most-remaining artist that isn't the previous
+    artist. This always succeeds when no artist holds a strict majority; snapshot
+    selections (<= max_per_artist per artist over many artists) satisfy that.
+    """
+    import random
+
+    rng = random.Random(seed)
+    buckets: dict[str | None, list[CandidateTrack]] = {}
+    for t in tracks:
+        buckets.setdefault(t.artist_id, []).append(t)
+    for b in buckets.values():
+        rng.shuffle(b)
+
+    out: list[CandidateTrack] = []
+    prev_artist: object = object()  # sentinel != any artist_id
+    while any(buckets.values()):
+        # candidate artists with tracks left, excluding the previous one
+        avail = [a for a, b in buckets.items() if b and a != prev_artist]
+        if not avail:
+            # only the previous artist remains — unavoidable; place it
+            avail = [a for a, b in buckets.items() if b]
+        # pick the artist with the most remaining (ties broken randomly)
+        rng.shuffle(avail)
+        artist = max(avail, key=lambda a: len(buckets[a]))
+        out.append(buckets[artist].pop())
+        prev_artist = artist
+    return out
