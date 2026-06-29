@@ -36,6 +36,12 @@ def test_classic_bonus_clamped_0_1():
     assert classic_bonus(2030, 1970, 2025) == 0.0   # future → clamps to 0
 
 
+def test_classic_bonus_implausible_year_is_neutral_not_max():
+    # garbage data (e.g. year=1 from bad metadata) must NOT win the classic bonus
+    assert classic_bonus(1, 1970, 2025) == 0.5
+    assert classic_bonus(1800, 1970, 2025) == 0.5
+
+
 # --- studio always wins ------------------------------------------------------
 
 def test_studio_beats_live_all_else_equal():

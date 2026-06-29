@@ -24,13 +24,20 @@ def relevance(track: CandidateTrack, base_darkness: float, mood_weight: float) -
     return (1.0 - mw) * gm + mw * (gm * mood_prox)
 
 
-def classic_bonus(year: int | None, anchor_year: int, ref_year: int) -> float:
+def classic_bonus(
+    year: int | None,
+    anchor_year: int,
+    ref_year: int,
+    min_plausible_year: int = 1900,
+) -> float:
     """Slight bias toward OG/classic releases: older effective_year → higher [0,1].
 
-    Linear from `ref_year` (→0) back to `anchor_year` (→1), clamped. Unknown year
-    is neutral (0.5) so missing-date tracks are neither rewarded nor punished.
+    Linear from `ref_year` (→0) back to `anchor_year` (→1), clamped. Unknown OR
+    implausible years (e.g. a `year=1` from bad metadata, below
+    `min_plausible_year`) are neutral (0.5) — they must NOT be rewarded as
+    ultra-classic, nor punished as brand-new.
     """
-    if year is None:
+    if year is None or year < min_plausible_year:
         return 0.5
     if ref_year <= anchor_year:
         return 0.5
