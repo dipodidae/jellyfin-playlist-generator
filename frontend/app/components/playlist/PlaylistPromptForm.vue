@@ -19,6 +19,7 @@ const props = defineProps<{
   modelValue: string
   playlistSize: number
   mode: PlaylistMode
+  strictNiche: boolean
   hasLibraryData: boolean
   canGenerate: boolean
 }>()
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
   'update:playlistSize': [value: number]
   'update:mode': [value: PlaylistMode]
+  'update:strictNiche': [value: boolean]
   submit: [payload: { prompt: string, size: number }]
 }>()
 
@@ -117,12 +119,24 @@ const diffCategoryLabels: Record<keyof EnhanceDiff, { label: string, color: stri
       </UButtonGroup>
       <p class="text-xs text-(--ui-text-muted) leading-relaxed">
         <template v-if="mode === 'snapshot'">
-          Archival cross-section: bangers + deep cuts across every artist you own in this niche, shuffled. No arc.
+          Archival cross-section: bangers + deep cuts across every artist you own in this niche, shuffled. Studio classics favored. No arc.
         </template>
         <template v-else>
           Trajectory: tracks sequenced along an energy/mood arc that builds and resolves.
         </template>
       </p>
+
+      <!-- Purist (strict niche) — snapshot only -->
+      <div v-if="mode === 'snapshot'" class="flex items-center gap-2 pt-0.5">
+        <USwitch
+          :model-value="strictNiche"
+          size="sm"
+          @update:model-value="emit('update:strictNiche', $event)"
+        />
+        <span class="text-xs text-(--ui-text-muted)">
+          <span class="font-medium text-white">Purist</span> — only tracks literally tagged with the genre (no adjacent styles)
+        </span>
+      </div>
     </div>
 
     <!-- Hero prompt input -->

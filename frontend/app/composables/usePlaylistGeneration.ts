@@ -35,6 +35,7 @@ export function usePlaylistGeneration() {
   const prompt = ref('')
   const playlistSize = ref(ARC_SIZE)
   const mode = ref<PlaylistMode>('arc')
+  const strictNiche = ref(false)
   const isGenerating = ref(false)
 
   // Snapshot mode is chonky by default; arc keeps the smaller targeted size.
@@ -88,7 +89,12 @@ export function usePlaylistGeneration() {
       const response = await fetch('/api/generate-playlist/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.value, size: playlistSize.value, mode: mode.value }),
+        body: JSON.stringify({
+          prompt: prompt.value,
+          size: playlistSize.value,
+          mode: mode.value,
+          strict_niche: mode.value === 'snapshot' ? strictNiche.value : false,
+        }),
       })
 
       if (!response.ok) {
@@ -153,6 +159,7 @@ export function usePlaylistGeneration() {
     prompt,
     playlistSize,
     mode,
+    strictNiche,
     isGenerating,
     progress,
     progressMessage,

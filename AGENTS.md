@@ -169,7 +169,7 @@ playlist-generator/
 | `/sync/full-pipeline` | POST | Incremental scan + all enrichment (SSE) (`?force_prune`) |
 | `/path-mappings` | GET/POST | Manage path mappings |
 | `/path-mappings/{name}` | DELETE | Delete path mapping |
-| `/generate-playlist` | POST | Generate playlist (`mode`: `"arc"` default \| `"snapshot"`) |
+| `/generate-playlist` | POST | Generate playlist (`mode`: `"arc"` default \| `"snapshot"`; `strict_niche` bool for snapshot purist) |
 | `/playlists` | GET | List generated playlists |
 | `/playlists/{id}` | GET | Get playlist details |
 | `/export/m3u` | POST | Export tracks to M3U content |
@@ -198,9 +198,22 @@ with a per-album cap) → **soft cap** (~120, strongest artists first) →
 **constraint shuffle** (no two same-artist tracks adjacent). The trajectory
 engine — position pools, beam search, 6D curve — is **not invoked**; snapshot is a
 parallel path that reuses only intent parsing and the flat candidate-scoring
-helpers. Curation signal `C = banger_score*0.65 + album_legitimacy_score*0.35`;
-snapshot deliberately wants both bangers and deep cuts, so it applies no single
-`impact_preference` lean. Tunables: `snapshot_*` in `config.py`.
+helpers.
+
+**Quality blend** (snapshot-only, `compute_snapshot_scores`):
+`score = (w_rel*relevance + w_leg*MA_legitimacy + w_ban*banger + w_classic*classic) * studio_factor`
+(default weights 0.30/0.30/0.25/0.15). **Studio always wins** — live/demo/remix get a
+steep multiplicative demotion (`snapshot_nonstudio_factor`=0.25; lifted when the prompt
+prefers live). **High Metal-Archives rating wins** via the heavy legitimacy weight.
+**Classics > contemporary** — a slight `classic` bonus decaying with `effective_year`
+recency (so reissues count as their OG era; Iron Maiden '82 beats '21). The relevance
+floor still gates niche fit; snapshot wants both bangers and deep cuts (no single
+`impact_preference` lean).
+
+**Purist toggle** (`strict_niche` request param, default false): drop any track that
+does not literally carry the precise requested tag (file genres / album tags / Last.fm
+artist tags), matched against the **pre-expansion** term (`genre_hints_raw`) so the
+auto-expanded family doesn't admit adjacent styles. Tunables: `snapshot_*` in `config.py`.
 
 ## V4 Trajectory Engine
 

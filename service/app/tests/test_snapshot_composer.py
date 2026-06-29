@@ -79,6 +79,39 @@ def test_compose_snapshot_strict_floor_drops_offniche(monkeypatch):
     assert result.metrics["qualifying_tracks"] == 1
 
 
+def test_compose_snapshot_strict_niche_requires_the_tag(monkeypatch):
+    # Both score identically on genre_match, but only one actually carries the tag.
+    tagged = _mk("1", "a", "x", gm=0.9, dark=0.8, banger=0.9, leg=0.8)
+    tagged.genres = ["speed metal"]
+    untagged = _mk("2", "b", "y", gm=0.9, dark=0.8, banger=0.9, leg=0.8)
+    untagged.genres = ["heavy metal"]      # broad family only, no speed-metal tag
+    untagged.album_genres = []
+    untagged.artist_tags = {}
+
+    intent = PlaylistIntent(raw_prompt="speed metal", prompt_embedding=[0.0] * 8)
+    intent.genre_hints = ["speed metal", "heavy metal"]   # expanded
+    intent.genre_hints_raw = ["speed metal"]              # precise term
+    intent.base_darkness = 0.6
+
+    monkeypatch.setattr(comp, "parse_prompt", lambda *a, **k: intent)
+    monkeypatch.setattr(comp, "semantic_search", lambda *a, **k: [tagged, untagged])
+    monkeypatch.setattr(comp, "keyword_search", lambda *a, **k: [])
+    monkeypatch.setattr(comp, "_attach_artist_tags", lambda c: None)
+    monkeypatch.setattr(comp, "_normalize_album_legitimacy", lambda c: None)
+    monkeypatch.setattr(comp, "compute_genre_match_score", lambda t, *a, **k: 0.9)
+    monkeypatch.setattr(comp, "compute_genre_exclusion", lambda t, h: False)
+    monkeypatch.setattr(comp, "log_generation", lambda **k: None)
+    monkeypatch.setattr(comp, "update_track_usage", lambda ids: None)
+
+    # Without strict: both survive. With strict: only the tagged one.
+    loose = comp.compose_snapshot("speed metal", soft_cap=120, strict_niche=False)
+    assert {t.id for t in loose.tracks} == {"1", "2"}
+
+    strict = comp.compose_snapshot("speed metal", soft_cap=120, strict_niche=True)
+    assert {t.id for t in strict.tracks} == {"1"}
+    assert strict.metrics["strict_niche"] is True
+
+
 def test_compose_snapshot_year_range_is_a_hard_cut(monkeypatch):
     # in-range 1985, out-of-range 2023, and unknown-year (None) — only 1985 kept.
     in80s = _mk("1", "a", "x", gm=0.9, dark=0.8, banger=0.9, leg=0.8)

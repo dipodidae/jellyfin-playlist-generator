@@ -24,23 +24,82 @@ def relevance(track: CandidateTrack, base_darkness: float, mood_weight: float) -
     return (1.0 - mw) * gm + mw * (gm * mood_prox)
 
 
+def classic_bonus(year: int | None, anchor_year: int, ref_year: int) -> float:
+    """Slight bias toward OG/classic releases: older effective_year → higher [0,1].
+
+    Linear from `ref_year` (→0) back to `anchor_year` (→1), clamped. Unknown year
+    is neutral (0.5) so missing-date tracks are neither rewarded nor punished.
+    """
+    if year is None:
+        return 0.5
+    if ref_year <= anchor_year:
+        return 0.5
+    return max(0.0, min(1.0, (ref_year - year) / (ref_year - anchor_year)))
+
+
+def carries_target_genre(track: CandidateTrack, terms: set[str]) -> bool:
+    """True if the track carries any precise target term in its file genres,
+    album tags, or Last.fm artist tags (substring-tolerant, case-insensitive).
+
+    This is the purist/strict gate: a track that merely shares the broad family
+    (via genre expansion) but lacks the actual tag does NOT qualify.
+    """
+    if not terms:
+        return True
+    tags: list[str] = []
+    tags.extend(g.lower() for g in (track.genres or []))
+    tags.extend(g.lower() for g in (track.album_genres or []))
+    tags.extend(k.lower() for k in (track.artist_tags or {}))
+    for term in terms:
+        for tag in tags:
+            if term == tag or term in tag or tag in term:
+                return True
+    return False
+
+
 def compute_snapshot_scores(
     tracks: list[CandidateTrack],
     base_darkness: float,
     mood_weight: float,
     floor: float,
+    *,
+    w_relevance: float = 0.30,
+    w_legitimacy: float = 0.30,
+    w_banger: float = 0.25,
+    w_classic: float = 0.15,
+    nonstudio_factor: float = 0.25,
+    prefer_live: bool = False,
+    classic_anchor_year: int = 1970,
+    classic_ref_year: int = 2025,
 ) -> list[CandidateTrack]:
-    """Set .snapshot_score = 0.5*relevance + 0.5*curation; drop below floor.
+    """Set .snapshot_score from a weighted quality blend; drop below floor.
 
-    The floor is applied to RELEVANCE (niche fit), not the blended score, so a
-    high-curation track that is off-niche is still excluded (strict floor).
+    score = (w_relevance*relevance + w_legitimacy*MA_legitimacy + w_banger*banger
+             + w_classic*classic) * studio_factor
+
+    - The floor is applied to RELEVANCE (niche fit), not the blended score, so a
+      high-quality track that is off-niche is still excluded (strict floor).
+    - Studio ALWAYS wins: live/demo/remix get a steep multiplicative demotion
+      (`nonstudio_factor`), so they only surface when no studio version competes.
+      Lifted when the prompt explicitly prefers live recordings.
     """
     kept: list[CandidateTrack] = []
     for t in tracks:
         r = relevance(t, base_darkness, mood_weight)
         if r < floor:
             continue
-        t.snapshot_score = 0.5 * r + 0.5 * max(0.0, min(1.0, t.curation_score))
+        legit = max(0.0, min(1.0, t.album_legitimacy_score))
+        banger = max(0.0, min(1.0, t.banger_score))
+        classic = classic_bonus(t.effective_year, classic_anchor_year, classic_ref_year)
+        base = (
+            w_relevance * r
+            + w_legitimacy * legit
+            + w_banger * banger
+            + w_classic * classic
+        )
+        is_studio = t.version_type == "studio"
+        studio_factor = 1.0 if (prefer_live or is_studio) else nonstudio_factor
+        t.snapshot_score = base * studio_factor
         kept.append(t)
     return kept
 

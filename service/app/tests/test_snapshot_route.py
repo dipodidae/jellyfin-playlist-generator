@@ -20,8 +20,9 @@ def _patch_composers(monkeypatch, called):
         called["v4"] = True
         return _fake_result("arc")
 
-    def fake_snapshot(prompt, soft_cap=None):
+    def fake_snapshot(prompt, soft_cap=None, strict_niche=False):
         called["snap"] = True
+        called["strict"] = strict_niche
         return _fake_result("snapshot")
 
     monkeypatch.setattr(r, "compose_playlist_v4", fake_v4)

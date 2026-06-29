@@ -110,6 +110,7 @@ class GeneratePlaylistRequest(BaseModel):
     size: int = 25
     save: bool = True
     mode: str = "arc"  # "arc" (trajectory) | "snapshot" (breadth cross-section)
+    strict_niche: bool = False  # snapshot "purist": require the literal genre tag
 
 
 class PlaylistResponse(BaseModel):
@@ -1877,7 +1878,7 @@ async def generate_playlist(request: GeneratePlaylistRequest):
     try:
         if request.mode == "snapshot":
             result = await asyncio.to_thread(
-                compose_snapshot, request.prompt, request.size
+                compose_snapshot, request.prompt, request.size, request.strict_niche
             )
         else:
             result = await asyncio.to_thread(
@@ -1952,7 +1953,7 @@ async def generate_playlist_stream(request: GeneratePlaylistRequest):
                     # tick, then run the composer to completion.
                     progress_callback(1, 1, "Assembling snapshot...")
                     result_holder["result"] = compose_snapshot(
-                        request.prompt, request.size
+                        request.prompt, request.size, request.strict_niche
                     )
                 else:
                     result_holder["result"] = compose_playlist_v4_streaming(

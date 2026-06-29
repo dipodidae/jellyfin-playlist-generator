@@ -14,6 +14,7 @@ from app.config import settings
 from app.observability import log_generation, update_track_usage
 from app.snapshot.selection import (
     apply_soft_cap,
+    carries_target_genre,
     compute_snapshot_scores,
     select_artist_tracks,
     shuffle_no_adjacent_artist,
@@ -50,8 +51,18 @@ def _gather_pool(intent, limit: int) -> list[CandidateTrack]:
     return list(pool.values())
 
 
-def compose_snapshot(prompt: str, soft_cap: int | None = None) -> PlaylistResult:
-    """Compose an archival snapshot playlist (breadth across artists)."""
+def compose_snapshot(
+    prompt: str,
+    soft_cap: int | None = None,
+    strict_niche: bool = False,
+) -> PlaylistResult:
+    """Compose an archival snapshot playlist (breadth across artists).
+
+    strict_niche ("purist") drops any track that does not literally carry the
+    precise requested tag (file genres / album tags / Last.fm artist tags),
+    matched against the pre-expansion term so the auto-expanded family doesn't
+    sneak in adjacent styles.
+    """
     start = time.time()
     cap = max(20, soft_cap or settings.snapshot_soft_cap)
 
@@ -90,11 +101,16 @@ def compose_snapshot(prompt: str, soft_cap: int | None = None) -> PlaylistResult
             return False
         return (yr0 is None or ey >= yr0) and (yr1 is None or ey <= yr1)
 
+    # Purist gate: require the literal precise tag (pre-expansion term).
+    strict_terms = {t.lower() for t in (intent.genre_hints_raw or intent.genre_hints)}
+
     survivors: list[CandidateTrack] = []
     for t in pool:
         if hard_avoids and compute_genre_exclusion(t, hard_avoids):
             continue
         if not _year_ok(t):
+            continue
+        if strict_niche and not carries_target_genre(t, strict_terms):
             continue
         t.genre_match_score = compute_genre_match_score(
             t, hint_set, primary, niche_hints, demote_families,
@@ -106,6 +122,14 @@ def compose_snapshot(prompt: str, soft_cap: int | None = None) -> PlaylistResult
         base_darkness=intent.base_darkness,
         mood_weight=settings.snapshot_mood_weight,
         floor=settings.snapshot_relevance_floor,
+        w_relevance=settings.snapshot_w_relevance,
+        w_legitimacy=settings.snapshot_w_legitimacy,
+        w_banger=settings.snapshot_w_banger,
+        w_classic=settings.snapshot_w_classic,
+        nonstudio_factor=settings.snapshot_nonstudio_factor,
+        prefer_live=intent.prefer_live,
+        classic_anchor_year=settings.snapshot_classic_anchor_year,
+        classic_ref_year=settings.snapshot_classic_ref_year,
     )
 
     # Bucket by artist; pick banger + deep cuts per artist; drop artists whose
@@ -135,12 +159,15 @@ def compose_snapshot(prompt: str, soft_cap: int | None = None) -> PlaylistResult
     ordered = shuffle_no_adjacent_artist(capped, seed=seed)
 
     banger_count = sum(1 for t in ordered if t.banger_score >= 0.5)
+    studio_count = sum(1 for t in ordered if t.version_type == "studio")
     metrics = {
         "mode": "snapshot",
         "qualifying_tracks": len(qualifying),
         "distinct_artists": len({t.artist_id for t in ordered}),
         "banger_count": banger_count,
         "deep_cut_count": len(ordered) - banger_count,
+        "studio_count": studio_count,
+        "strict_niche": strict_niche,
         "soft_cap": cap,
         "niche_floor": settings.snapshot_relevance_floor,
         "pool_size": len(pool),

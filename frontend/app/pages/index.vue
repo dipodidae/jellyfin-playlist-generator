@@ -135,11 +135,13 @@ async function handleJellyfinExport() {
       :model-value="playlist.prompt.value"
       :playlist-size="playlist.playlistSize.value"
       :mode="playlist.mode.value"
+      :strict-niche="playlist.strictNiche.value"
       :can-generate="playlist.canGenerate.value"
       :has-library-data="libraryStats.hasLibraryData.value"
       @update:model-value="playlist.prompt.value = $event"
       @update:playlist-size="playlist.playlistSize.value = $event"
       @update:mode="playlist.mode.value = $event"
+      @update:strict-niche="playlist.strictNiche.value = $event"
       @submit="playlist.generatePlaylist()"
     />
 

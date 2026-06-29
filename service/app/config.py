@@ -92,6 +92,15 @@ class Settings(BaseSettings):
     snapshot_banger_percentile: float = 0.6  # top frac of an artist's popularity = "banger"
     snapshot_mood_weight: float = 0.3       # weight of mood(darkness) proximity in relevance
     snapshot_pool_limit: int = 1500         # candidate pool size before selection
+    # Snapshot quality blend: score = (w_rel*relevance + w_leg*MA_legitimacy
+    # + w_ban*banger + w_classic*classic) * studio_factor. Weights sum to ~1.0.
+    snapshot_w_relevance: float = 0.30      # niche fit
+    snapshot_w_legitimacy: float = 0.30     # Metal-Archives album rating (percentile) — wins
+    snapshot_w_banger: float = 0.25         # Last.fm banger signal
+    snapshot_w_classic: float = 0.15        # slight bias toward OG/classic releases
+    snapshot_nonstudio_factor: float = 0.25  # multiplier for live/demo/remix (studio always wins)
+    snapshot_classic_anchor_year: int = 1970  # oldness scale anchor (oldest → bonus 1.0)
+    snapshot_classic_ref_year: int = 2025   # oldness scale reference ("now")
 
     # Legacy (deprecated, kept for migration)
     database_path: str = ""  # Old DuckDB path
