@@ -44,3 +44,4 @@ htmlcov/
 
 # Eval loop output
 eval_runs/
+eval_out/
