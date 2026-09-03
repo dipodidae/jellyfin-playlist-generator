@@ -461,7 +461,7 @@ def init_database() -> None:
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS mb_lookup_cache (
-                    entity_type  VARCHAR(10) NOT NULL,
+                    entity_type  VARCHAR(32) NOT NULL,
                     local_id     UUID NOT NULL,
                     mbid         VARCHAR(36),
                     match_score  FLOAT,
