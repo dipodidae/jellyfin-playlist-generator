@@ -103,8 +103,8 @@ services:
       - M3U_OUTPUT_DIR=${M3U_OUTPUT_DIR:-/playlists}
       - SCAN_THREADS=${SCAN_THREADS:-8}
       - EMBEDDING_MODEL_VERSION=1
-      - AUTH_USER=${AUTH_USER:-admin}
-      - AUTH_PASS=${AUTH_PASS:-admin}
+      # No AUTH_USER/AUTH_PASS: this container has no auth of its own. Put it
+      # behind a reverse proxy that authenticates.
     volumes:
       - ${MUSIC_PATH:-./music}:/music:ro
       - ${PLAYLIST_PATH:-./playlists}:/playlists

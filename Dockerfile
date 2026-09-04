@@ -16,11 +16,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install tini, nginx, and apache2-utils (for htpasswd)
+# Install tini and nginx. apache2-utils is deliberately absent: it was here
+# only for `htpasswd`, and the basic auth it fed is gone.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     nginx \
-    apache2-utils \
     curl \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*

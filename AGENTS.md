@@ -491,11 +491,28 @@ All services auto-start on boot:
 - Backend: `systemctl --user enable playlist-generator-backend` + `loginctl enable-linger tom`
 - Frontend: PM2 startup script (`pm2 startup` + `pm2 save`)
 
-### Frontend Auth
+### Authentication — there is none, deliberately
 
-Uses `nuxt-auth-utils` with session-based auth:
-- `NUXT_AUTH_USERNAME` / `NUXT_AUTH_PASSWORD` - login credentials
-- `NUXT_SESSION_PASSWORD` - must be 32+ characters for session encryption
+This app has **no login of its own**, and gained none by accident either.
+
+Two things were removed on 2026-09-04:
+
+- **`nuxt-auth-utils`**, which was listed as a Nuxt module and documented via
+  `NUXT_AUTH_USERNAME` / `NUXT_AUTH_PASSWORD` / `NUXT_SESSION_PASSWORD`, but had
+  **no login page, no route middleware and no call sites** anywhere in
+  `frontend/`. The production image serves `nuxt generate` output as static
+  files behind nginx, so there was no Nitro server for a session to live in.
+- **nginx `auth_basic`** in `nginx/app.conf`, fed an htpasswd by
+  `docker-entrypoint.sh` from `AUTH_USER` / `AUTH_PASS` — with an `else` branch
+  that wrote **admin/admin** whenever either was unset.
+
+Authentication belongs to the reverse proxy in front of this container. Note
+that putting `auth_basic` back would not add a layer on top of a proxy's forward
+auth, it would **replace** it: `ngx_http_auth_basic_module` runs ahead of
+`ngx_http_auth_request_module` in nginx's access phase, so basic auth's `401` is
+what the proxy's `error_page 401` converts — the auth subrequest is never made
+and a client holding a valid proxy session is redirected to the login page
+forever. Measured 2026-09-04.
 
 ### Critical: Nuxt UI v4 + Tailwind CSS v4
 

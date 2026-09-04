@@ -1,14 +1,10 @@
 #!/bin/bash
 set -e
 
-# Generate htpasswd from environment variables
-if [ -n "$AUTH_USER" ] && [ -n "$AUTH_PASS" ]; then
-    htpasswd -cb /etc/nginx/.htpasswd "$AUTH_USER" "$AUTH_PASS"
-    echo "Created htpasswd for user: $AUTH_USER"
-else
-    echo "WARNING: AUTH_USER or AUTH_PASS not set, creating default credentials"
-    htpasswd -cb /etc/nginx/.htpasswd admin admin
-fi
+# No htpasswd generation. The nginx basic auth this used to feed is gone (see
+# nginx/app.conf); authentication belongs to the reverse proxy in front of this
+# container. The `else` branch here used to write admin/admin whenever AUTH_USER
+# or AUTH_PASS was unset, which is a default credential nobody asked for.
 
 # Start uvicorn in background
 echo "Starting uvicorn..."

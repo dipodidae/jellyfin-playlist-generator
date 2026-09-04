@@ -344,14 +344,11 @@ Each enrichment type has a fire-and-forget endpoint and an SSE streaming variant
 
 Most settings are managed in-app at the `/settings` page. The `app_settings` Postgres table is the **source of truth** for all app-level configuration (API keys, enrichment toggles, Jellyfin connection, library paths, clustering parameters). On first boot the app seeds the table from the matching env vars listed below — after that, changes made in the UI take effect immediately without a restart.
 
-The only settings that remain strictly env-driven are `DATABASE_URL` (needed before the DB is accessible) and the frontend auth variables (`NUXT_AUTH_*`, `NUXT_SESSION_PASSWORD`).
+The only setting that remains strictly env-driven is `DATABASE_URL` (needed before the DB is accessible). There are no auth variables: this app has no login of its own — see **Authentication** below.
 
 | Variable | Scope | Description |
 |----------|-------|-------------|
 | `DATABASE_URL` | **Env-only** | PostgreSQL connection string with pgvector |
-| `NUXT_AUTH_USERNAME` | **Env-only** | Frontend login username |
-| `NUXT_AUTH_PASSWORD` | **Env-only** | Frontend login password |
-| `NUXT_SESSION_PASSWORD` | **Env-only** | Session encryption key (32+ chars) |
 | `MUSIC_DIRECTORIES` | Seed → DB | Comma-separated paths to music libraries |
 | `SCAN_THREADS` | Seed → DB | Parallel scan threads (default: 8) |
 | `M3U_OUTPUT_DIR` | Seed → DB | Directory for exported M3U files |

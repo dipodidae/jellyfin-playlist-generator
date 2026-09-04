@@ -2,7 +2,6 @@ export default defineNuxtConfig({
   modules: [
     '@nuxt/ui',
     '@nuxt/eslint',
-    'nuxt-auth-utils',
   ],
 
   components: [
