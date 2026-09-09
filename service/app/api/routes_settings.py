@@ -109,7 +109,7 @@ async def test_credentials(group: str):
                     return {"ok": False, "message": "Jellyfin URL/key not set"}
                 r = await client.get(
                     f"{settings.jellyfin_url.rstrip('/')}/System/Info",
-                    headers={"X-Emby-Token": settings.jellyfin_api_key},
+                    headers={"Authorization": f'MediaBrowser Token="{settings.jellyfin_api_key}"'},
                 )
                 return {"ok": r.status_code == 200, "message": f"HTTP {r.status_code}"}
     except Exception as e:  # noqa: BLE001 — test endpoint never throws

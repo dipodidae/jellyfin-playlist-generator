@@ -238,7 +238,7 @@ def nfo_is_current(existing_xml: str, year: int) -> bool:
 
 
 def _headers() -> dict:
-    return {"X-Emby-Token": settings.jellyfin_api_key}
+    return {"Authorization": f'MediaBrowser Token="{settings.jellyfin_api_key}"'}
 
 
 def _load_albums() -> list[dict]:

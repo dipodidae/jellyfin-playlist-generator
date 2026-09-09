@@ -18,7 +18,7 @@ def _is_configured() -> bool:
 
 def _headers() -> dict[str, str]:
     return {
-        "X-Emby-Token": settings.jellyfin_api_key,
+        "Authorization": f'MediaBrowser Token="{settings.jellyfin_api_key}"',
     }
 
 

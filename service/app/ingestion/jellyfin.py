@@ -73,7 +73,7 @@ async def sync_jellyfin_library(
         raise ValueError("Jellyfin URL and API key must be configured")
     
     headers = {
-        "X-Emby-Token": settings.jellyfin_api_key,
+        "Authorization": f'MediaBrowser Token="{settings.jellyfin_api_key}"',
     }
     
     # Get last sync time for incremental sync
@@ -317,7 +317,7 @@ async def create_jellyfin_playlist(name: str, track_ids: list[str]) -> str | Non
         return None
     
     headers = {
-        "X-Emby-Token": settings.jellyfin_api_key,
+        "Authorization": f'MediaBrowser Token="{settings.jellyfin_api_key}"',
         "Content-Type": "application/json",
     }
     
