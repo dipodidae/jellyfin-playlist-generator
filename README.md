@@ -317,6 +317,8 @@ Each enrichment type has a fire-and-forget endpoint and an SSE streaming variant
 | GET | `/export/m3u/download/{id}` | Download playlist as M3U file |
 | GET | `/jellyfin/status` | Check Jellyfin connection |
 | POST | `/export/jellyfin` | Push playlist to Jellyfin |
+| GET | `/navidrome/status` | Check Navidrome connection |
+| POST | `/export/navidrome` | Push playlist to Navidrome (Subsonic), prompt saved as the playlist comment |
 | POST | `/jellyfin/fix-release-dates` | Push resolved original release dates onto matching Jellyfin albums; locks PremiereDate + ProductionYear so Jellyfin won't revert them (SSE progress) |
 
 ### Other

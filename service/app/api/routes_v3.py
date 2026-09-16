@@ -41,6 +41,7 @@ from app.clustering.scenes import generate_clusters
 from app.audio.analyzer import analyze_library
 from app.transitions import record_skip
 from app.export.jellyfin import test_connection as jellyfin_test_connection, export_to_jellyfin
+from app.export.navidrome import test_connection as navidrome_test_connection, export_to_navidrome
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -98,6 +99,19 @@ class ExportRequest(BaseModel):
 class JellyfinExportRequest(BaseModel):
     track_ids: list[str]
     playlist_name: str
+
+
+class NavidromeExportRequest(BaseModel):
+    track_ids: list[str]
+    playlist_name: str
+    # Carried into the playlist's comment -- the field Jellyfin has no
+    # equivalent for, and the only place a generated playlist's provenance can
+    # live alongside the playlist itself.
+    prompt: str | None = None
+    public: bool = False
+    # A re-push replaces the same-named playlist instead of stacking a second
+    # copy beside it -- the duplicate-playlist mess Jellyfin's copy already has.
+    replace_existing: bool = True
 
 
 class EnhancePromptRequest(BaseModel):
@@ -2225,6 +2239,34 @@ async def export_jellyfin(request: JellyfinExportRequest):
         raise
     except Exception as e:
         logger.error(f"Jellyfin export error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/navidrome/status")
+async def navidrome_status():
+    """Check whether Navidrome is configured and the credentials are valid."""
+    result = await navidrome_test_connection()
+    return result
+
+
+@router.post("/export/navidrome")
+async def export_navidrome(request: NavidromeExportRequest):
+    """Push a playlist to Navidrome, with its prompt as the playlist comment."""
+    try:
+        result = await export_to_navidrome(
+            track_ids=request.track_ids,
+            playlist_name=request.playlist_name,
+            prompt=request.prompt,
+            public=request.public,
+            replace_existing=request.replace_existing,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Export failed"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Navidrome export error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

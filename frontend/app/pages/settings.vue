@@ -15,6 +15,7 @@ const testResults = reactive<Record<string, string>>({})
 const GROUPS: { key: SettingField['group'], label: string, icon: string, advanced?: boolean }[] = [
   { key: 'credentials', label: 'Credentials', icon: 'i-lucide-key-round' },
   { key: 'jellyfin', label: 'Jellyfin', icon: 'i-lucide-tv-2' },
+  { key: 'navidrome', label: 'Navidrome', icon: 'i-lucide-list-music' },
   { key: 'library', label: 'Library', icon: 'i-lucide-library' },
   { key: 'advanced', label: 'Advanced', icon: 'i-lucide-sliders-horizontal', advanced: true },
 ]
@@ -233,6 +234,17 @@ onMounted(async () => {
             class="text-xs"
             :class="testResults['jellyfin'].startsWith('✓') ? 'text-acid-400' : 'text-red-400'"
           >{{ testResults['jellyfin'] }}</span>
+        </div>
+        <!-- Per-group action bar: Navidrome -->
+        <div v-if="g.key === 'navidrome'" class="mt-2 flex flex-wrap items-center gap-2 border-t border-(--ui-border) pt-4">
+          <UButton size="xs" variant="soft" icon="i-lucide-activity" @click="onTest('navidrome')">
+            Test Navidrome
+          </UButton>
+          <span
+            v-if="testResults['navidrome']"
+            class="text-xs"
+            :class="testResults['navidrome'].startsWith('✓') ? 'text-acid-400' : 'text-red-400'"
+          >{{ testResults['navidrome'] }}</span>
         </div>
       </SectionCard>
     </div>

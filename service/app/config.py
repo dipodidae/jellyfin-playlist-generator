@@ -83,6 +83,18 @@ class Settings(BaseSettings):
     jellyfin_path_prefix: str = ""  # Path prefix inside Jellyfin container (e.g. /data/movies)
     local_path_prefix: str = ""     # Corresponding local path prefix (e.g. /mnt/drive-next)
 
+    # Navidrome integration (Subsonic). Separate from Jellyfin on purpose: this
+    # is what Symfonium and the other Subsonic clients actually speak, and a
+    # Navidrome playlist carries a comment and a public flag that Jellyfin has
+    # no equivalent for.
+    #
+    # The playlist is owned by whichever account navidrome_user names, so point
+    # it at the account you browse Navidrome with. Auth is the Subsonic salted
+    # token, never the legacy plaintext `p=` parameter.
+    navidrome_url: str = ""          # e.g. http://navidrome:4533
+    navidrome_user: str = ""
+    navidrome_password: str = ""
+
     # --- Snapshot mode (archival breadth-across-artists cross-section) ---
     snapshot_soft_cap: int = 120            # target chonky size; thinner niche → fewer
     snapshot_relevance_floor: float = 0.35  # strict floor: drop tracks below this niche fit

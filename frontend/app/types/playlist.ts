@@ -66,3 +66,24 @@ export interface JellyfinExportResult {
   total_count: number
   unmatched_tracks: Array<{ title: string, artist_name: string }>
 }
+
+export interface NavidromeStatus {
+  available: boolean
+  configured: boolean
+  server_name: string | null
+  version: string | null
+  error: string | null
+}
+
+export interface NavidromeExportResult {
+  success: boolean
+  error: string | null
+  navidrome_playlist_id: string | null
+  navidrome_url: string | null
+  /** The description Navidrome shows under the playlist name. Jellyfin has no such field. */
+  comment: string | null
+  public: boolean
+  matched_count: number
+  total_count: number
+  unmatched_tracks: Array<{ title: string, artist_name: string }>
+}

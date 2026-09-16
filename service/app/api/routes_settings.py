@@ -112,6 +112,18 @@ async def test_credentials(group: str):
                     headers={"Authorization": f'MediaBrowser Token="{settings.jellyfin_api_key}"'},
                 )
                 return {"ok": r.status_code == 200, "message": f"HTTP {r.status_code}"}
+            if group == "navidrome":
+                # Deliberately NOT an HTTP-status check like the others: Subsonic
+                # reports auth failure INSIDE a 200, so `r.status_code == 200`
+                # would go green for a wrong password. test_connection() unwraps
+                # the subsonic-response and only calls it ok when it says ok.
+                from app.export.navidrome import test_connection as navidrome_test
+                result = await navidrome_test()
+                if not result["configured"]:
+                    return {"ok": False, "message": "Navidrome URL/user/password not set"}
+                if not result["available"]:
+                    return {"ok": False, "message": result["error"] or "unreachable"}
+                return {"ok": True, "message": f"{result['server_name']} {result['version']}"}
     except Exception as e:  # noqa: BLE001 — test endpoint never throws
         return {"ok": False, "message": str(e)}
     return {"ok": False, "message": f"Unknown group: {group}"}

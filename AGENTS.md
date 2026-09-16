@@ -179,10 +179,12 @@ playlist-generator/
 | `/db/init` | POST | Initialize database schema |
 | `/settings` | GET | Return registry + current values (secrets masked) |
 | `/settings` | PUT | Update changed settings (masked/blank secrets ignored) |
-| `/settings/test/{group}` | POST | Credential reachability check — `group` ∈ `lastfm`, `openai`, `discogs`, `jellyfin`; returns `{ok, message}` |
+| `/settings/test/{group}` | POST | Credential reachability check — `group` ∈ `lastfm`, `openai`, `discogs`, `jellyfin`, `navidrome`; returns `{ok, message}` |
 | `/settings/discogs/oauth/start` | POST | Begin Discogs 3-legged OAuth; returns `{authorize_url}` |
 | `/settings/discogs/oauth/callback` | GET | Complete Discogs OAuth, store permanent access token, redirect to `/settings` |
 | `/jellyfin/fix-release-dates` | POST | Push resolved original release dates onto matching Jellyfin albums; sets PremiereDate + ProductionYear and locks those fields (SSE progress) |
+| `/navidrome/status` | GET | Whether Navidrome is configured and the credentials are valid. Unwraps the `subsonic-response`: Subsonic reports auth failure inside a 200, so an HTTP-status check goes green for a wrong password |
+| `/export/navidrome` | POST | Push a playlist to Navidrome over Subsonic. Resolves via `search3` scored on title/artist/duration — never on the Subsonic `path`, which is synthesised from tags and does not match the filesystem. Sets the prompt as the playlist **comment** (Jellyfin has no such field) and replaces a same-named playlist instead of stacking a duplicate. Never touches Navidrome's scanner |
 
 ## Snapshot Mode
 
@@ -376,7 +378,7 @@ DISCOGS_TOKEN=your-discogs-personal-access-token
 
 ### DB-backed settings (seed-only env vars)
 
-`DATABASE_URL` and `AUTH_*` credentials are the only purely env-driven settings. Every other app-level key listed above (`LASTFM_API_KEY`, `OPENAI_API_KEY`, `DISCOGS_TOKEN`, `MUSICBRAINZ_CONTACT`, `JELLYFIN_*`, scan/cluster params, etc.) is now stored in the `app_settings` Postgres table and managed in-app at `/settings`.
+`DATABASE_URL` and `AUTH_*` credentials are the only purely env-driven settings. Every other app-level key listed above (`LASTFM_API_KEY`, `OPENAI_API_KEY`, `DISCOGS_TOKEN`, `MUSICBRAINZ_CONTACT`, `JELLYFIN_*`, `NAVIDROME_*`, scan/cluster params, etc.) is now stored in the `app_settings` Postgres table and managed in-app at `/settings`.
 
 On **first boot** the app seeds `app_settings` with any matching env var that is not already in the table (idempotent — it never overwrites an existing row). After that the DB is the source of truth; editing `.env` for these keys has no effect on a running instance. Use the `/settings` page to update them live.
 

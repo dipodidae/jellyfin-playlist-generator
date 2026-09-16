@@ -6,11 +6,14 @@ const props = defineProps<{
   hasLibraryData: boolean
   jellyfinAvailable: boolean
   isJellyfinExporting: boolean
+  navidromeAvailable: boolean
+  isNavidromeExporting: boolean
 }>()
 
 const emit = defineEmits<{
   export: []
   jellyfin: []
+  navidrome: []
   reset: []
   'update:title': [value: string]
   'remove-track': [trackId: string]
@@ -107,6 +110,18 @@ function onKeydown(e: KeyboardEvent) {
             @click="emit('jellyfin')"
           >
             Push to Jellyfin
+          </UButton>
+          <UButton
+            v-if="navidromeAvailable"
+            variant="soft"
+            color="secondary"
+            icon="i-lucide-list-music"
+            :loading="isNavidromeExporting"
+            :disabled="!hasLibraryData || isNavidromeExporting"
+            title="Create it in Navidrome, with the prompt as its comment — reachable from Symfonium and any Subsonic client"
+            @click="emit('navidrome')"
+          >
+            Push to Navidrome
           </UButton>
           <UButton
             variant="soft"

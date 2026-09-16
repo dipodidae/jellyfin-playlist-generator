@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # type ∈ {"str", "secret", "bool", "int", "float", "csv"}
-# group ∈ {"credentials", "enrichment", "jellyfin", "library", "advanced"}
+# group ∈ {"credentials", "enrichment", "jellyfin", "navidrome", "library", "advanced"}
 
 
 @dataclass(frozen=True)
@@ -43,6 +43,21 @@ REGISTRY: list[SettingDef] = [
     SettingDef("jellyfin_user_id", "str", "jellyfin", "Jellyfin user ID"),
     SettingDef("jellyfin_path_prefix", "str", "jellyfin", "Jellyfin path prefix"),
     SettingDef("local_path_prefix", "str", "jellyfin", "Local path prefix"),
+    # navidrome -- Subsonic, which is what Symfonium and friends actually speak
+    SettingDef(
+        "navidrome_url", "str", "navidrome", "Navidrome URL",
+        description="In-network, e.g. http://navidrome:4533. Never the public "
+                    "hostname: Subsonic auth rides in the query string.",
+    ),
+    SettingDef(
+        "navidrome_user", "str", "navidrome", "Navidrome username",
+        description="The pushed playlist is OWNED by this account, so use the "
+                    "one you browse Navidrome with or it lands out of sight.",
+    ),
+    SettingDef(
+        "navidrome_password", "secret", "navidrome", "Navidrome password", secret=True,
+        description="Sent as a salted MD5 token, never as plaintext.",
+    ),
     # library
     SettingDef("music_directories", "csv", "library", "Music directories (comma-separated)"),
     SettingDef("scan_threads", "int", "library", "Scan threads"),

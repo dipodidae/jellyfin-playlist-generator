@@ -8,6 +8,7 @@ const playlist = usePlaylistGeneration()
 const mappings = usePathMappings()
 const exporter = usePlaylistExport()
 const jellyfin = useJellyfinExport()
+const navidrome = useNavidromeExport()
 
 onMounted(async () => {
   await Promise.all([
@@ -16,6 +17,7 @@ onMounted(async () => {
     sync.fetchHistory(),
     mappings.fetchPathMappings(),
     jellyfin.checkAvailability(),
+    navidrome.checkAvailability(),
   ])
 })
 
@@ -69,6 +71,38 @@ async function handleJellyfinExport() {
     toast.add({
       title: 'Jellyfin export failed',
       description: jellyfin.exportError.value || 'Unknown error',
+      color: 'error',
+    })
+  }
+}
+
+async function handleNavidromeExport() {
+  if (!playlist.result.value) return
+
+  const result = await navidrome.exportToNavidrome(playlist.result.value)
+
+  if (result?.success) {
+    // Report what Navidrome STORED, read back from it, rather than what we sent.
+    const parts = [`${result.stored_song_count} tracks in Navidrome.`]
+    if (result.matched_count < result.total_count)
+      parts.push(`${result.total_count - result.matched_count} could not be matched: ${result.unmatched_tracks.map(t => t.title).join(', ')}.`)
+    if (result.replaced_count > 0)
+      parts.push(`Replaced ${result.replaced_count} earlier copy of the same name.`)
+    if (result.comment)
+      parts.push('The prompt is saved as the playlist comment.')
+
+    toast.add({
+      // A stored-count mismatch or a lost comment comes back in `error` even on
+      // success — surfaced as a warning rather than silently called a win.
+      title: result.error ? 'Pushed to Navidrome, with a caveat' : 'Playlist pushed to Navidrome',
+      description: result.error ? `${result.error}. ${parts.join(' ')}` : parts.join(' '),
+      color: result.error ? 'warning' : 'success',
+    })
+  }
+  else {
+    toast.add({
+      title: 'Navidrome export failed',
+      description: navidrome.exportError.value || 'Unknown error',
       color: 'error',
     })
   }
@@ -167,8 +201,11 @@ async function handleJellyfinExport() {
       :has-library-data="libraryStats.hasLibraryData.value"
       :jellyfin-available="jellyfin.jellyfinAvailable.value"
       :is-jellyfin-exporting="jellyfin.isExporting.value"
+      :navidrome-available="navidrome.navidromeAvailable.value"
+      :is-navidrome-exporting="navidrome.isExporting.value"
       @export="showExportModal = true"
       @jellyfin="handleJellyfinExport"
+      @navidrome="handleNavidromeExport"
       @reset="playlist.reset()"
       @update:title="(title: string) => { if (playlist.result.value) playlist.result.value.title = title }"
       @remove-track="(trackId: string) => { if (playlist.result.value) playlist.result.value.tracks = playlist.result.value.tracks.filter(t => t.id !== trackId) }"
