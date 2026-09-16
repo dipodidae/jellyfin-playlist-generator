@@ -210,3 +210,15 @@ def test_every_audio_extension_is_lowercase_and_dotted():
     for ext in AUDIO_EXTENSIONS:
         assert ext.startswith("."), ext
         assert ext == ext.lower(), ext
+
+
+def test_reconcile_reports_enrichment_attempt_reaping():
+    """enrichment_attempts is polymorphic, so it cannot cascade -- the
+    reconciler must reap it explicitly or removed media leaves rows forever."""
+    import inspect
+
+    from app.ingestion import scanner
+
+    src = inspect.getsource(scanner.reconcile_orphans)
+    assert "DELETE FROM enrichment_attempts" in src
+    assert "enrichment_attempts_removed" in src

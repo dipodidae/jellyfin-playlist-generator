@@ -88,6 +88,7 @@ def reconcile_orphans(cur, files_found: int, force_prune: bool = False) -> dict:
         "tracks_removed": 0,
         "albums_removed": 0,
         "artists_removed": 0,
+        "enrichment_attempts_removed": 0,
         "prune_skipped": False,
         "prune_skipped_reason": None,
     }
@@ -132,6 +133,22 @@ def reconcile_orphans(cur, files_found: int, force_prune: bool = False) -> dict:
         "AND NOT EXISTS (SELECT 1 FROM album_artists aa WHERE aa.artist_id = ar.id)"
     )
     result["artists_removed"] = cur.rowcount
+
+    # enrichment_attempts (migration 019) is polymorphic -- entity_id is an
+    # album_id or a track_id depending on scope -- so it cannot carry a foreign
+    # key and does not cascade like every other track/album child table does.
+    # Reap it here instead, or removed media leaves rows behind forever, which
+    # is the exact staleness this reconciler exists to prevent.
+    cur.execute(
+        """
+        DELETE FROM enrichment_attempts ea
+        WHERE (ea.scope IN ('lastfm_album_tags', 'release_dates')
+               AND NOT EXISTS (SELECT 1 FROM albums al WHERE al.id = ea.entity_id))
+           OR (ea.scope = 'lastfm_track'
+               AND NOT EXISTS (SELECT 1 FROM tracks t WHERE t.id = ea.entity_id))
+        """
+    )
+    result["enrichment_attempts_removed"] = cur.rowcount
 
     logger.info(
         "Orphan prune: removed %d tracks, %d albums, %d artists",
