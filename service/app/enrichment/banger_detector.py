@@ -13,6 +13,7 @@ is the DB orchestration (query + persist to track_banger_flags). No external API
 calls. See docs/superpowers/specs/2026-06-11-banger-factor-v2-design.md.
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -120,6 +121,11 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
 
     global_max_log_listeners = max(all_listeners) if all_listeners else 1.0
 
+    # Loop-invariant, hoisted 2026-09-16. It used to be recomputed INSIDE the
+    # per-track loop below -- a full pass over `tracks` for every small-catalog
+    # track, i.e. O(n^2) over 147k rows.
+    max_log_playcount = max((td["log_playcount"] for td in tracks), default=0.0)
+
     # Replay signal: library-wide distribution of log1p(playcount/listeners),
     # used to percentile-normalize each track's repeat-play ratio.
     replay_log_sorted = sorted(
@@ -168,15 +174,19 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
         else:
             # Small catalog — use global playcount as rough proxy
             if global_max_log_listeners > 0:
-                within_artist_score = t["log_playcount"] / max(1.0, max(
-                    td["log_playcount"] for td in tracks
-                ))
+                within_artist_score = t["log_playcount"] / max(1.0, max_log_playcount)
 
         # Signal 2: global listener percentile
         if global_max_log_listeners > 0 and t["log_listeners"] > 0:
-            # Percentile-style: what fraction of library this track exceeds
-            below_count = sum(1 for ll in all_listeners if ll <= t["log_listeners"])
-            global_listener_score = below_count / max(1, n_listeners)
+            # Percentile-style: what fraction of library this track exceeds.
+            # percentile_of is bisect_right/len over the already-sorted
+            # all_listeners, which is arithmetically identical to the
+            # hand-rolled `sum(1 for ll in all_listeners if ll <= v) / n` this
+            # replaced on 2026-09-16 -- but O(log n) rather than O(n) per
+            # track. That linear scan ran once per track over a ~140k-element
+            # list (~2e10 comparisons) and was why this stage took over half an
+            # hour at 100% CPU; the replay branch below already used the helper.
+            global_listener_score = percentile_of(t["log_listeners"], all_listeners)
             has_global_signal = t["log_listeners"] >= global_p80_threshold
             sources.append({
                 "type": "lastfm_global_listeners",
@@ -290,7 +300,11 @@ async def compute_banger_flags(
     if progress_callback:
         progress_callback(0, 1, "Computing banger scores from Last.fm data...")
 
-    results = _compute_banger_scores()
+    # Both halves are synchronous and CPU/DB bound over the whole library.
+    # Inline they block the event loop -- and therefore /health -- for the
+    # entire run, which is what produced `unhealthy streak=23` at CPU=101%
+    # and kept this stage off cron.
+    results = await asyncio.to_thread(_compute_banger_scores)
 
     if not results:
         if progress_callback:
@@ -311,7 +325,7 @@ async def compute_banger_flags(
     if progress_callback:
         progress_callback(0, total_scored, f"Saving {total_scored} banger flags...")
 
-    saved = _save_banger_flags(results, force=force)
+    saved = await asyncio.to_thread(_save_banger_flags, results, force)
 
     # Log distribution summary
     high_conf = sum(1 for r in results if r["confidence"] >= 0.75)

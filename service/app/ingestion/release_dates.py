@@ -23,7 +23,7 @@ from typing import Any
 import httpx
 
 from app.config import settings
-from app.database_pg import get_connection
+from app.database_pg import get_connection, record_enrichment_attempts
 from app.ingestion.album_tags import save_album_tags
 from app.ingestion.musicbrainz import (
     extract_release_date_from_mb,
@@ -393,6 +393,12 @@ async def resolve_release_dates(
                     ORDER BY a.name, al.title
                 """
             else:
+                # Least-recently-attempted first. Ordering by (artist, title)
+                # over a "no release date yet" set wedges on the first
+                # max_albums unresolvable albums: nothing is written, the set
+                # is unchanged, and the next run re-selects them. Measured
+                # 2026-09-16: 6 processed, 6 skipped, 0 resolved, hourly,
+                # indefinitely. See migration 019.
                 query = """
                     SELECT al.id, al.title, al.year, a.name as artist_name,
                            al.musicbrainz_id
@@ -400,8 +406,10 @@ async def resolve_release_dates(
                     JOIN album_artists aa ON al.id = aa.album_id
                     JOIN artists a ON aa.artist_id = a.id
                     LEFT JOIN album_release_dates ard ON al.id = ard.album_id
+                    LEFT JOIN enrichment_attempts ea
+                           ON ea.scope = 'release_dates' AND ea.entity_id = al.id
                     WHERE ard.album_id IS NULL
-                    ORDER BY a.name, al.title
+                    ORDER BY ea.attempted_at ASC NULLS FIRST, a.name, al.title
                 """
             if max_albums:
                 query += f" LIMIT {max_albums}"
@@ -429,8 +437,12 @@ async def resolve_release_dates(
     else:
         logger.info("Discogs API disabled (no Discogs credentials configured)")
 
+    attempted: list[str] = []
+    found: set[str] = set()
+
     try:
         for i, (album_id, title, year, artist_name, mbid) in enumerate(albums):
+            attempted.append(str(album_id))
             try:
                 result = await resolve_album_release_date(
                     album_id=str(album_id),
@@ -442,6 +454,7 @@ async def resolve_release_dates(
                 )
 
                 if result:
+                    found.add(str(album_id))
                     stats["albums_resolved"] += 1
                     if result.get("confidence", 0) >= 0.8:
                         stats["high_confidence"] += 1
@@ -473,6 +486,11 @@ async def resolve_release_dates(
     finally:
         if discogs_client:
             await discogs_client.aclose()
+        # Stamp every album we looked at, resolved or not, so the sweep moves.
+        if attempted:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    record_enrichment_attempts(cur, "release_dates", attempted, found)
 
     if progress_callback:
         progress_callback(

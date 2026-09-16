@@ -5,10 +5,54 @@ from typing import Any
 import pylast
 
 from app.config import settings
-from app.database_pg import get_connection
+from app.database_pg import get_connection, record_enrichment_attempts
 from app.ingestion.album_tags import save_album_tags
 
 logger = logging.getLogger(__name__)
+
+
+# Last.fm matches artist/album/track names as literal strings. This library is
+# tagged MusicBrainz/Picard-style, which uses typographic punctuation -- U+2019
+# for apostrophes, U+2026 for ellipses, U+2010/2013/2014 for hyphens and
+# dashes. Last.fm's own catalogue uses the ASCII forms, so an exact lookup on
+# the tagged name returns nothing at all.
+#
+# Measured 2026-09-16, five for five:
+#   "Script for a Jester’s Tear"            -> 0 tags
+#   "Script for a Jester's Tear"            -> 10 tags
+#   "The Four Instructive Tales …of Deco.." -> 0 tags
+#   "The Four Instructive Tales ...of Deco.." -> 10 tags
+#   "a‐ha"                                  -> 0 tags
+#   "a-ha"                                   ->  9 tags
+#
+# So every lookup retries once with the punctuation folded to ASCII. The fold
+# is punctuation-only on purpose: letters keep their diacritics, because
+# Last.fm does hold "Motörhead" and "Sigur Rós" under their real names and
+# stripping those would break lookups that currently work.
+_PUNCTUATION_FOLD = str.maketrans({
+    "‘": "'", "’": "'", "‚": "'", "‛": "'", "ʼ": "'", "´": "'",
+    "“": '"', "”": '"', "„": '"', "‟": '"',
+    "‐": "-", "‑": "-", "‒": "-", "–": "-", "—": "-", "―": "-",
+    "⁄": "/", "∕": "/",
+    " ": " ", " ": " ", " ": " ", " ": " ", " ": " ",
+    "​": "", "‌": "", "‍": "", "﻿": "",
+    "…": "...",
+})
+
+
+def fold_punctuation(value: str) -> str:
+    """Fold typographic punctuation to ASCII. Letters are left untouched."""
+    return (value or "").translate(_PUNCTUATION_FOLD)
+
+
+def _folded_variant(*names: str) -> tuple[str, ...] | None:
+    """Return the ASCII-folded names, or None when folding changes nothing.
+
+    None means "do not retry" -- there is no point spending a second Last.fm
+    call on an identical query.
+    """
+    folded = tuple(fold_punctuation(n) for n in names)
+    return folded if folded != tuple(names) else None
 
 
 def get_lastfm_network() -> pylast.LastFMNetwork:
@@ -21,8 +65,10 @@ def get_lastfm_network() -> pylast.LastFMNetwork:
     )
 
 
-async def fetch_artist_tags(network: pylast.LastFMNetwork, artist_name: str) -> list[dict[str, Any]]:
-    """Fetch top tags for an artist from Last.fm."""
+async def _fetch_artist_tags_once(
+    network: pylast.LastFMNetwork, artist_name: str
+) -> list[dict[str, Any]]:
+    """One artist.getTopTags call, exactly as named."""
     try:
         artist = network.get_artist(artist_name)
         top_tags = await asyncio.to_thread(artist.get_top_tags, limit=10)
@@ -38,10 +84,10 @@ async def fetch_artist_tags(network: pylast.LastFMNetwork, artist_name: str) -> 
         return []
 
 
-async def fetch_album_tags(
+async def _fetch_album_tags_once(
     network: pylast.LastFMNetwork, artist_name: str, album_title: str
 ) -> list[dict[str, Any]]:
-    """Fetch top tags for an album from Last.fm (album.getTopTags)."""
+    """One album.getTopTags call, exactly as named."""
     try:
         album = network.get_album(artist_name, album_title)
         top_tags = await asyncio.to_thread(album.get_top_tags, limit=10)
@@ -57,10 +103,10 @@ async def fetch_album_tags(
         return []
 
 
-async def fetch_track_tags(
+async def _fetch_track_tags_once(
     network: pylast.LastFMNetwork, artist_name: str, track_title: str
 ) -> list[dict[str, Any]]:
-    """Fetch top tags for a track from Last.fm."""
+    """One track.getTopTags call, exactly as named."""
     try:
         track = network.get_track(artist_name, track_title)
         top_tags = await asyncio.to_thread(track.get_top_tags, limit=10)
@@ -76,10 +122,10 @@ async def fetch_track_tags(
         return []
 
 
-async def fetch_similar_artists(
+async def _fetch_similar_artists_once(
     network: pylast.LastFMNetwork, artist_name: str
 ) -> list[dict[str, Any]]:
-    """Fetch similar artists from Last.fm."""
+    """One artist.getSimilar call, exactly as named."""
     try:
         artist = network.get_artist(artist_name)
         similar = await asyncio.to_thread(artist.get_similar, limit=20)
@@ -98,10 +144,10 @@ async def fetch_similar_artists(
         return []
 
 
-async def fetch_track_stats(
+async def _fetch_track_stats_once(
     network: pylast.LastFMNetwork, artist_name: str, track_title: str
 ) -> dict[str, int] | None:
-    """Fetch playcount and listener count for a track."""
+    """One getPlaycount + getListenerCount pair, exactly as named."""
     try:
         track = network.get_track(artist_name, track_title)
         playcount = await asyncio.to_thread(track.get_playcount)
@@ -110,6 +156,81 @@ async def fetch_track_stats(
     except Exception as e:
         logger.debug(f"Error fetching stats for {artist_name} - {track_title}: {e}")
         return None
+
+
+# --- public fetchers: exact name first, ASCII-folded name as a fallback ------
+#
+# Each retries once and only when folding actually changes the string, so the
+# extra Last.fm call is spent only on names that could not have matched.
+
+
+async def fetch_artist_tags(
+    network: pylast.LastFMNetwork, artist_name: str
+) -> list[dict[str, Any]]:
+    """Fetch top tags for an artist from Last.fm."""
+    tags = await _fetch_artist_tags_once(network, artist_name)
+    if tags:
+        return tags
+    folded = _folded_variant(artist_name)
+    if folded is None:
+        return tags
+    logger.debug("Retrying artist tags with folded name: %r", folded[0])
+    return await _fetch_artist_tags_once(network, *folded)
+
+
+async def fetch_album_tags(
+    network: pylast.LastFMNetwork, artist_name: str, album_title: str
+) -> list[dict[str, Any]]:
+    """Fetch top tags for an album from Last.fm (album.getTopTags)."""
+    tags = await _fetch_album_tags_once(network, artist_name, album_title)
+    if tags:
+        return tags
+    folded = _folded_variant(artist_name, album_title)
+    if folded is None:
+        return tags
+    logger.debug("Retrying album tags with folded name: %r - %r", *folded)
+    return await _fetch_album_tags_once(network, *folded)
+
+
+async def fetch_track_tags(
+    network: pylast.LastFMNetwork, artist_name: str, track_title: str
+) -> list[dict[str, Any]]:
+    """Fetch top tags for a track from Last.fm."""
+    tags = await _fetch_track_tags_once(network, artist_name, track_title)
+    if tags:
+        return tags
+    folded = _folded_variant(artist_name, track_title)
+    if folded is None:
+        return tags
+    return await _fetch_track_tags_once(network, *folded)
+
+
+async def fetch_similar_artists(
+    network: pylast.LastFMNetwork, artist_name: str
+) -> list[dict[str, Any]]:
+    """Fetch similar artists from Last.fm."""
+    similar = await _fetch_similar_artists_once(network, artist_name)
+    if similar:
+        return similar
+    folded = _folded_variant(artist_name)
+    if folded is None:
+        return similar
+    return await _fetch_similar_artists_once(network, *folded)
+
+
+async def fetch_track_stats(
+    network: pylast.LastFMNetwork, artist_name: str, track_title: str
+) -> dict[str, int] | None:
+    """Fetch playcount and listener count for a track."""
+    stats = await _fetch_track_stats_once(network, artist_name, track_title)
+    # A found-but-unplayed track legitimately reports zeroes; only a miss
+    # (None) is worth a second call.
+    if stats is not None:
+        return stats
+    folded = _folded_variant(artist_name, track_title)
+    if folded is None:
+        return stats
+    return await _fetch_track_stats_once(network, *folded)
 
 
 def upsert_lastfm_tag(cur, tag_name: str) -> int:
@@ -291,6 +412,20 @@ async def enrich_tracks_from_lastfm(
     """Fetch tags for tracks from Last.fm. Prioritizes tracks without tags."""
     network = get_lastfm_network()
 
+    # Two fixes over the pre-2026-09-16 `ORDER BY RANDOM()` on the same WHERE.
+    #
+    # 1. The candidate pool was effectively the whole library. Last.fm holds
+    #    track-level tags for almost nothing here -- 582 of 162,705 tracks,
+    #    0.36% -- so `tlt.track_id IS NULL` is true for essentially every row
+    #    and the `OR` swallowed the selective half. Picking 300 at random from
+    #    153,060 when only 6,634 actually lacked STATS meant ~96% of every
+    #    batch was re-fetching data already held: measured ~13 newly covered
+    #    tracks per 300-call run.
+    # 2. Random order cannot guarantee coverage. Ordering by attempt age does:
+    #    every track is tried once before any is tried twice.
+    #
+    # Missing stats sorts first because that is the half with a ~98% hit rate;
+    # the tag half is still swept, just behind it.
     query = """
         SELECT t.id, t.title, a.name as artist_name
         FROM tracks t
@@ -298,8 +433,12 @@ async def enrich_tracks_from_lastfm(
         LEFT JOIN artists a ON ta.artist_id = a.id
         LEFT JOIN track_lastfm_tags tlt ON t.id = tlt.track_id
         LEFT JOIN lastfm_stats ls ON t.id = ls.track_id
+        LEFT JOIN enrichment_attempts ea
+               ON ea.scope = 'lastfm_track' AND ea.entity_id = t.id
         WHERE tlt.track_id IS NULL OR ls.track_id IS NULL
-        ORDER BY RANDOM()
+        ORDER BY (ls.track_id IS NULL) DESC,
+                 ea.attempted_at ASC NULLS FIRST,
+                 t.id
     """
     if max_tracks:
         query += f" LIMIT {max_tracks}"
@@ -313,11 +452,17 @@ async def enrich_tracks_from_lastfm(
     total = len(tracks)
     logger.info(f"Enriching {total} tracks from Last.fm")
 
+    attempted: list[str] = []
+    found: set[str] = set()
+
     for i, (track_id, title, artist_name) in enumerate(tracks):
+        attempted.append(str(track_id))
         tags = await fetch_track_tags(network, artist_name or "", title)
         track_stats_data = await fetch_track_stats(network, artist_name or "", title)
 
         tags_added, stats_added = persist_track_enrichment(str(track_id), tags, track_stats_data)
+        if tags_added or stats_added:
+            found.add(str(track_id))
         stats["tags_added"] += tags_added
         stats["stats_added"] += stats_added
         stats["tracks_processed"] += 1
@@ -329,6 +474,13 @@ async def enrich_tracks_from_lastfm(
             logger.info(f"Enriching {i + 1}/{total} tracks (saved to DB)")
 
         await asyncio.sleep(delay_between_requests)
+
+    # Stamp every track we looked at, so the sweep advances even when Last.fm
+    # has nothing for it.
+    if attempted:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                record_enrichment_attempts(cur, "lastfm_track", attempted, found)
 
     if progress_callback:
         progress_callback(total, total, f"Last.fm track enrichment complete: {total} tracks processed")
@@ -349,6 +501,13 @@ async def enrich_albums_from_lastfm_tags(
     """
     network = get_lastfm_network()
 
+    # Least-recently-attempted first, never-attempted before that. Ordering by
+    # al.id instead (as this did until 2026-09-16) wedges permanently the
+    # moment the first `max_albums` candidates are all albums Last.fm has no
+    # tags for: nothing is written, the candidate set is unchanged, and the
+    # next run re-selects the identical batch. Measured: 300 albums/hour,
+    # 0 tagged, for weeks, with 6,032 albums never attempted once. See
+    # migration 019.
     query = """
         SELECT al.id, al.title,
                (SELECT ar.name
@@ -359,13 +518,15 @@ async def enrich_albums_from_lastfm_tags(
                   WHERE tal.album_id = al.id
                   LIMIT 1) AS artist_name
         FROM albums al
+        LEFT JOIN enrichment_attempts ea
+               ON ea.scope = 'lastfm_album_tags' AND ea.entity_id = al.id
     """
     if not force:
         query += (
             " WHERE NOT EXISTS (SELECT 1 FROM album_tags at "
             "WHERE at.album_id = al.id AND at.source = 'lastfm')"
         )
-    query += " ORDER BY al.id"
+    query += " ORDER BY ea.attempted_at ASC NULLS FIRST, al.id"
     if max_albums:
         query += f" LIMIT {max_albums}"
 
@@ -378,7 +539,11 @@ async def enrich_albums_from_lastfm_tags(
     total = len(albums)
     logger.info(f"Enriching {total} albums with Last.fm tags")
 
+    attempted: list[str] = []
+    found: set[str] = set()
+
     for i, (album_id, title, artist_name) in enumerate(albums):
+        attempted.append(str(album_id))
         if artist_name and title:
             tags = await fetch_album_tags(network, artist_name, title)
             if tags:
@@ -387,12 +552,20 @@ async def enrich_albums_from_lastfm_tags(
                         added = save_album_tags(cur, str(album_id), "lastfm", tags, kind="tag")
                 stats["tags_added"] += added
                 stats["albums_tagged"] += 1
+                found.add(str(album_id))
         stats["albums_processed"] += 1
 
         if progress_callback and (i + 1) % 20 == 0:
             progress_callback(i + 1, total, f"Enriched {i + 1}/{total} albums")
 
         await asyncio.sleep(delay_between_requests)
+
+    # Stamp every album we looked at, tagged or not. Without this the next run
+    # picks the same batch again.
+    if attempted:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                record_enrichment_attempts(cur, "lastfm_album_tags", attempted, found)
 
     if progress_callback:
         progress_callback(total, total, f"Last.fm album-tag enrichment complete: {total} albums")

@@ -606,9 +606,17 @@ async def trigger_scan_stream(full: bool = False, force_prune: bool = False):
                 _set_operation_state(job_state)
                 scan_result["job"] = job_state
 
-                # Rebuild BM25 search vectors after scan (best-effort)
+                # Rebuild BM25 search vectors after scan (best-effort).
+                # Off the event loop: this is one synchronous whole-table
+                # UPDATE. Run inline it froze the progress loop below AND
+                # /health for its whole duration -- on 2026-09-16 the scan job
+                # itself finished in 4s and the stream then sat here for a
+                # further 416s, which is what made a healthy scan look like a
+                # hung stream.
+                # only_missing: an incremental scan adds a handful of tracks;
+                # rewriting all 162k rows for them is pure waste.
                 try:
-                    rebuild_search_vectors()
+                    await asyncio.to_thread(rebuild_search_vectors, None, True)
                     logger.info("Search vectors rebuilt after streaming scan")
                 except Exception as rebuild_err:
                     logger.warning(f"Search vector rebuild after streaming scan failed: {rebuild_err}")
@@ -640,11 +648,16 @@ async def trigger_scan_stream(full: bool = False, force_prune: bool = False):
             await asyncio.sleep(0.5)
 
         payload = scan_result.get("job") or _get_scan_job(job["job_id"])
+        event = _build_scan_response(payload, "stream")
+        # Terminal marker. Without it a consumer cannot tell "the scan
+        # finished" from "the stream died", and scripts/playlist_sync_stage.py
+        # -- which requires an explicit `done` for exactly that reason -- could
+        # never report success for `--stage scan`, however well the scan ran.
+        # That is why the scan was the one stage never put on cron.
+        event["done"] = True
         if scan_result["error"]:
-            event = _build_scan_response(payload, "stream")
-        else:
-            event = _build_scan_response(payload, "stream")
-        yield f"data: {json.dumps(event)}\n\n"
+            event["error"] = scan_result["error"]
+        yield f"data: {json.dumps(event, default=_json_default)}\n\n"
 
     return StreamingResponse(
         generate_events(),
@@ -733,10 +746,22 @@ def _make_enrichment_stream(label: str, coro_factory):
         queue: asyncio.Queue = asyncio.Queue()
         sentinel = object()
         result_holder: dict = {}
+        loop = asyncio.get_running_loop()
 
         def progress_callback(current: int, total: int, message: str):
+            # Callable from a worker thread as well as from the event loop:
+            # the CPU-bound stages (profiles, banger flags, clusters, genre
+            # manifold) run their bodies under asyncio.to_thread so /health
+            # keeps answering, and asyncio.Queue.put_nowait is not thread-safe.
             pct = int((current / total) * 100) if total > 0 else 0
-            queue.put_nowait({"progress": pct, "message": message, "current": current, "total": total})
+            event = {"progress": pct, "message": message, "current": current, "total": total}
+            try:
+                if asyncio.get_running_loop() is loop:
+                    queue.put_nowait(event)
+                    return
+            except RuntimeError:
+                pass  # no running loop => we are on a worker thread
+            loop.call_soon_threadsafe(queue.put_nowait, event)
 
         async def run():
             try:
@@ -875,34 +900,45 @@ async def lastfm_track_enrichment_status():
 
 
 @router.post("/enrich/embeddings")
-async def trigger_embedding_generation(background_tasks: BackgroundTasks):
+async def trigger_embedding_generation(
+    background_tasks: BackgroundTasks,
+    max_tracks: int | None = None,
+):
     """Trigger embedding generation (runs in background)."""
-    background_tasks.add_task(generate_track_embeddings)
+    background_tasks.add_task(generate_track_embeddings, max_tracks=max_tracks)
     return {"status": "started", "message": "Embedding generation started in background"}
 
 
 @router.post("/enrich/embeddings/stream")
-async def trigger_embedding_generation_stream():
-    """Trigger embedding generation with SSE progress."""
+async def trigger_embedding_generation_stream(max_tracks: int | None = None):
+    """Trigger embedding generation with SSE progress.
+
+    max_tracks bounds the batch so this can be dripped from cron the same way
+    the Last.fm stages are, instead of being a whole-library run that can only
+    be started by hand.
+    """
     return _make_enrichment_stream(
         "Embedding generation",
-        lambda cb: generate_track_embeddings(progress_callback=cb),
+        lambda cb: generate_track_embeddings(progress_callback=cb, max_tracks=max_tracks),
     )
 
 
 @router.post("/enrich/profiles")
-async def trigger_profile_generation(background_tasks: BackgroundTasks):
+async def trigger_profile_generation(
+    background_tasks: BackgroundTasks,
+    max_tracks: int | None = None,
+):
     """Trigger semantic profile generation (runs in background)."""
-    background_tasks.add_task(generate_profiles)
+    background_tasks.add_task(generate_profiles, max_tracks=max_tracks)
     return {"status": "started", "message": "Profile generation started in background"}
 
 
 @router.post("/enrich/profiles/stream")
-async def trigger_profile_generation_stream():
+async def trigger_profile_generation_stream(max_tracks: int | None = None):
     """Trigger profile generation with SSE progress."""
     return _make_enrichment_stream(
         "Profile generation",
-        lambda cb: generate_profiles(progress_callback=cb),
+        lambda cb: generate_profiles(progress_callback=cb, max_tracks=max_tracks),
     )
 
 
@@ -1035,6 +1071,40 @@ async def trigger_metal_archives_enrichment_stream(force: bool = False):
             )
 
     return _make_enrichment_stream("Metal Archives enrichment", run_async)
+
+
+@router.post("/enrich/studio-scores")
+async def trigger_studio_score_backfill(
+    background_tasks: BackgroundTasks,
+    only_missing: bool = True,
+    max_tracks: int | None = None,
+):
+    """Classify studio/live/demo/remix versions into track_studio_scores."""
+    from app.ingestion.studio_scores import backfill_studio_scores
+    background_tasks.add_task(
+        backfill_studio_scores, None, only_missing, max_tracks
+    )
+    return {"status": "started", "message": "Studio score backfill started in background"}
+
+
+@router.post("/enrich/studio-scores/stream")
+async def trigger_studio_score_backfill_stream(
+    only_missing: bool = True, max_tracks: int | None = None
+):
+    """Studio/live version classification with SSE progress.
+
+    This stage existed ONLY inside /sync/full-pipeline until 2026-09-16. When
+    that endpoint was retired in favour of the per-stage drip
+    (TRIAGE-2026-09-03) it was the one stage with no standalone endpoint, so
+    scripts/playlist_sync_stage.py could not run it and nothing did: 9,149
+    tracks had no studio score.
+    """
+    from app.ingestion.studio_scores import backfill_studio_scores
+
+    def factory(cb):
+        return asyncio.to_thread(backfill_studio_scores, cb, only_missing, max_tracks)
+
+    return _make_enrichment_stream("Studio score backfill", factory)
 
 
 @router.post("/enrich/banger-flags")
@@ -2324,10 +2394,16 @@ async def initialize_database():
 
 @router.post("/rebuild-search-vectors")
 async def trigger_rebuild_search_vectors():
-    """Rebuild BM25 search vectors for all tracks (streaming SSE progress)."""
+    """Rebuild BM25 search vectors for all tracks (streaming SSE progress).
+
+    Full rewrite of every row (~15s warm over 162,775 rows, far longer cold
+    after a bulk scan), so it runs on a worker thread. Called inline it is a
+    synchronous call that _make_enrichment_stream executes before it ever
+    awaits, blocking the event loop and /health for the whole rebuild.
+    """
     return _make_enrichment_stream(
         "Search vector rebuild",
-        lambda cb: rebuild_search_vectors(progress_callback=cb),
+        lambda cb: asyncio.to_thread(rebuild_search_vectors, cb),
     )
 
 

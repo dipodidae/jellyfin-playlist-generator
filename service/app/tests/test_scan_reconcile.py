@@ -186,3 +186,27 @@ def test_track_with_one_present_file_is_not_orphaned_rollback():
     finally:
         conn.rollback()
         pool.putconn(conn)
+
+
+# --- extension coverage -----------------------------------------------------
+
+
+def test_wma_is_scannable():
+    """110 .wma files on disk were outside AUDIO_EXTENSIONS until 2026-09-16.
+
+    They were never in files_to_scan, so they were not scanned, not counted in
+    stats["errors"] and produced no log line -- invisible in both directions.
+    mutagen reads them fine (verified on the real files before adding it).
+    """
+    from app.ingestion.scanner import AUDIO_EXTENSIONS
+
+    assert ".wma" in AUDIO_EXTENSIONS
+
+
+def test_every_audio_extension_is_lowercase_and_dotted():
+    """scan_library lowercases the suffix before the membership test."""
+    from app.ingestion.scanner import AUDIO_EXTENSIONS
+
+    for ext in AUDIO_EXTENSIONS:
+        assert ext.startswith("."), ext
+        assert ext == ext.lower(), ext

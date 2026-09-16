@@ -106,12 +106,30 @@ cd frontend && pnpm build && pm2 restart playlist-generator-frontend
 Note: Backend takes ~60 seconds to start on Pi 5 (sentence-transformers model load).
 
 ### Scheduled library sync
-`cron-sync.sh` runs the full incremental enrichment pipeline (audio included) via
-`docker exec playlist-generator curl … /sync/full-pipeline?skip_audio=false`,
-gated on a `find -newer` new-file check. Installed in the NAS crontab: `10 */6`
-(gated) and `45 3 * * 0 --catch-up` (unconditional), `flock`-guarded, logging to
-`~/nas/logs/playlist_sync.log`. It supersedes the manual `sync-new-tracks.sh`,
-which still points at the defunct native `:8000` backend.
+Driven from the **NAS repo**, not from here: `~/nas/scripts/playlist_sync_stage.py`
+runs ONE stage per invocation in a bounded batch, wrapped in `cron_job.py`, logging
+to `~/nas/logs/playlist_sync.log`. `cron-sync.sh` and `/sync/full-pipeline` are
+retired — one pass needed 3+ days and the SSE stream never survived it
+(TRIAGE-2026-09-03). `sync-new-tracks.sh` is likewise dead; it points at the
+defunct native `:8000` backend.
+
+The fleet, as of 2026-09-16 (see `~/nas/cron/crontab` for the full reasoning):
+
+| When | Job | Stages |
+|---|---|---|
+| `*/30` | `playlist-lastfm-tracks` | `lastfm-tracks --limit 300` |
+| `:12` | `playlist-album-tags` | `lastfm-album-tags --limit 300` |
+| `:22` | `playlist-derived` | `embeddings profiles --limit 4000` |
+| `:42` | `playlist-release-dates` | `release-dates --limit 300` |
+| `:52` | `playlist-scan` | `scan` |
+| `03:20` | `playlist-aggregates` | `studio-scores banger-flags clusters genre-manifold search-vectors` |
+| `04:40` | `playlist-catchup` | `lastfm-artists musicbrainz metal-archives` |
+| `05:10` | `playlist-audio` | `audio` (own lock — multi-hour) |
+
+All but `playlist-audio` share `/tmp/nas-playlist-stage.lock`, so no two overlap.
+Before 2026-09-16 only the first, second and fourth rows existed: the scan could
+not report success at all (no `done` event — gotcha 12), and the derived stages
+blocked `/health` (gotcha 13).
 
 **Scans reconcile deletions.** Every scan (`scan_library`, used by `app.cli_v3
 scan`, `/scan`, `/scan/stream`, and `/sync/full-pipeline`) hard-deletes tracks
@@ -143,7 +161,15 @@ in the scan stats (`tracks_removed`, `albums_removed`, `artists_removed`,
 
 8. **Valence, instrumentalness, and acousticness are heuristic proxies, not ground-truth.** They are computed from raw audio signal via librosa (valence = 0.5×majorness + 0.3×bpm_norm + 0.2×brightness_norm; instrumentalness ≈ 1 − vocal-band-energy fraction; acousticness ≈ weighted harmonic ratio + low-brightness + low-flatness). They correlate with the intended qualities on average but are not reliable for individual tracks. Do not treat them as authoritative mood/genre labels.
 
-9. **Adding audio metrics requires a full library re-analysis before B/C scoring is meaningful.** The `analyze_library()` function (`audio/analyzer.py`) re-analyzes any track where `valence IS NULL OR mfcc IS NULL`. On a large library (35k+ tracks) this takes several hours. Until the re-analysis is complete, valence trajectory scoring (Phase B) and the expanded acoustic continuity terms in the sequencer (Phase C) silently degrade to no-op for un-analyzed tracks — results will be correct but the new scoring only applies to the analyzed subset. Run `POST /enrich/audio` (or let `cron-sync.sh` handle it) and monitor progress before evaluating Phase B/C behavior.
+9. **Adding audio metrics requires a full library re-analysis before B/C scoring is meaningful.** The `analyze_library()` function (`audio/analyzer.py`) re-analyzes any track where `valence IS NULL OR mfcc IS NULL`. On a large library (35k+ tracks) this takes several hours. Until the re-analysis is complete, valence trajectory scoring (Phase B) and the expanded acoustic continuity terms in the sequencer (Phase C) silently degrade to no-op for un-analyzed tracks — results will be correct but the new scoring only applies to the analyzed subset. Run `POST /enrich/audio` and monitor progress before evaluating Phase B/C behavior. It is on the NAS crontab daily at 05:10 as of 2026-09-16 (`playlist-audio`, its OWN lock so a multi-hour pass cannot starve the hourly stages); before that nothing scheduled it at all and 17,959 tracks had no features. `cron-sync.sh` no longer drives it -- that whole-pipeline script was retired on 2026-09-03.
+
+10. **An enrichment sweep that selects "rows still missing X" MUST record the attempt, not just the success (migration 019, `enrichment_attempts`).** Every such pass here had the same shape: `WHERE NOT EXISTS (...) ORDER BY <stable key> LIMIT n`, writing a row only when the upstream API returned something. The moment the first `n` candidates are all ones the API has nothing for, nothing is written, the candidate set does not change, and the next run re-selects the identical batch — forever, at exit 0. Measured 2026-09-16 on `lastfm-album-tags`: 300 albums/hour, **0 tagged**, for weeks, with 6,032 of 6,332 outstanding albums never attempted even once. `release_dates` had it too (6 processed, 6 skipped, hourly). The fix is `LEFT JOIN enrichment_attempts` + `ORDER BY ea.attempted_at NULLS FIRST`, and stamping **every** id the pass looked at via `record_enrichment_attempts`. Use it for any new sweep.
+
+11. **Last.fm matches names as literal strings, and this library is tagged with typographic punctuation.** U+2019 `’`, U+2026 `…`, U+2010 `‐` are all over the tags; Last.fm's catalogue uses the ASCII forms, so an exact lookup returns *nothing* — indistinguishable from "no data". Measured five for five: `Script for a Jester’s Tear` → 0 tags, `Script for a Jester's Tear` → 10. `ingestion/lastfm.py` now retries every lookup once with `fold_punctuation()` applied, and only when folding actually changes the string. The fold is punctuation-only on purpose — letters keep their diacritics, because Last.fm *does* hold `Motörhead` and `Sigur Rós` under their real names. Effect on the stuck album-tag batch: 0 tagged → 19 of 60 tagged, 111 tags.
+
+12. **A stream that stops is not a stream that finished.** `scripts/playlist_sync_stage.py` in the NAS repo treats an SSE stage as successful only on an explicit `{"done": true}` event, because conflating the two is what let the old pipeline report progress for weeks while finishing nothing. `_make_enrichment_stream` emits it; `/scan/stream` did **not** until 2026-09-16, so `--stage scan` could never report success — a scan that added 9,079 tracks still exited 2, and that single missing key is why the library scan was the one stage never put on cron. If you add a streaming endpoint, emit `done`.
+
+13. **CPU-bound stage bodies must not run on the event loop.** The backend is a single uvicorn worker, so a synchronous stage body blocks `/health` for its whole duration — that is what produced `unhealthy streak=23` at CPU=101% and kept the derived stages off cron. `profiles`, `banger-flags` and the full `rebuild_search_vectors` now run under `asyncio.to_thread`, and `_make_enrichment_stream`'s `progress_callback` is safe to call from a worker thread (it routes through `loop.call_soon_threadsafe`). Verified 2026-09-16 draining 17,390 embeddings + 15,890 profiles: container CPU 773–1001%, `/health` 0.06–0.24s, healthy throughout.
 
 ## Testing Endpoints
 

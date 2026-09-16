@@ -22,7 +22,11 @@ from app.database_pg import get_cursor, get_connection
 
 logger = logging.getLogger(__name__)
 
-AUDIO_EXTENSIONS = {'.flac', '.mp3', '.ogg', '.m4a', '.opus', '.wav', '.aiff', '.aif'}
+# .wma added 2026-09-16: 110 files on disk were outside this set, so they were
+# never in files_to_scan at all -- not scanned, not counted in stats['errors'],
+# no log line. Verified mutagen.File(easy=True) reads them (artist/album/title/
+# duration all present) before adding it.
+AUDIO_EXTENSIONS = {'.flac', '.mp3', '.ogg', '.m4a', '.opus', '.wav', '.aiff', '.aif', '.wma'}
 IGNORE_EXTENSIONS = {'.cue', '.log', '.jpg', '.jpeg', '.png', '.txt', '.nfo', '.m3u', '.m3u8', '.pdf'}
 
 # Orphan reconciliation: a scan that would delete more than this fraction of the

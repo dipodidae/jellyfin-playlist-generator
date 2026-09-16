@@ -516,6 +516,25 @@ def init_database() -> None:
                 )
             """)
 
+            # Negative caching for enrichment sweeps (migration 019). Recording
+            # the ATTEMPT, not just the success, is what stops a
+            # "WHERE NOT EXISTS (...) ORDER BY id LIMIT n" pass re-selecting
+            # the same permanently-unresolvable head of the queue forever.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS enrichment_attempts (
+                    scope        VARCHAR(40) NOT NULL,
+                    entity_id    UUID NOT NULL,
+                    attempted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    attempts     INTEGER NOT NULL DEFAULT 1,
+                    found        BOOLEAN NOT NULL DEFAULT false,
+                    PRIMARY KEY (scope, entity_id)
+                )
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_enrichment_attempts_sweep "
+                "ON enrichment_attempts (scope, attempted_at)"
+            )
+
             logger.info("Database schema initialized")
 
 
@@ -1625,8 +1644,38 @@ def close_pool() -> None:
         _pool = None
 
 
-def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]:
-    """Rebuild the tsvector search_vector column on all tracks.
+def record_enrichment_attempts(
+    cur, scope: str, entity_ids: list[str], found_ids: set[str] | None = None
+) -> int:
+    """Stamp an attempt against each entity for this enrichment scope.
+
+    Called with EVERY id the pass looked at, not just the ones that produced
+    data -- that is the whole point. ``found_ids`` only annotates which of them
+    yielded something, for diagnostics; it does not change selection.
+    """
+    if not entity_ids:
+        return 0
+    found_ids = found_ids or set()
+    rows = [(scope, str(eid), str(eid) in found_ids) for eid in entity_ids]
+    cur.executemany(
+        """
+        INSERT INTO enrichment_attempts (scope, entity_id, attempted_at, attempts, found)
+        VALUES (%s, %s::uuid, now(), 1, %s)
+        ON CONFLICT (scope, entity_id) DO UPDATE SET
+            attempted_at = now(),
+            attempts = enrichment_attempts.attempts + 1,
+            found = enrichment_attempts.found OR EXCLUDED.found
+        """,
+        rows,
+    )
+    return len(rows)
+
+
+def rebuild_search_vectors(
+    progress_callback: callable = None,
+    only_missing: bool = False,
+) -> dict[str, int]:
+    """Rebuild the tsvector search_vector column on tracks.
 
     This enables BM25 full-text search as a retrieval channel.
     The vector is composed of:
@@ -1636,6 +1685,16 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
 
     Args:
         progress_callback: Optional (current, total, message) callback.
+        only_missing: Rewrite only rows whose search_vector IS NULL. The full
+            form rewrites every row in the table; measured 2026-09-16 at ~15s
+            warm over 162,775 rows, but after a bulk scan (cold, GIN index
+            rebuilt) it held a scan stream open for a further 416s. An
+            incremental scan typically adds a handful of tracks and should not
+            pay for a whole-table rewrite either way, so the scan path passes
+            True and new tracks become searchable immediately. The dedicated
+            `search-vectors` stage keeps the full rewrite, which is what picks
+            up vector changes caused by *enrichment* (new Last.fm tags, new
+            album_tags) rather than by new files.
 
     Returns:
         Stats dict with counts.
@@ -1656,8 +1715,11 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # 2. Count tracks
-            cur.execute("SELECT COUNT(*) FROM tracks")
+            # 2. Count tracks in scope
+            scope_sql = " WHERE t.search_vector IS NULL" if only_missing else ""
+            cur.execute(
+                "SELECT COUNT(*) FROM tracks t" + scope_sql
+            )
             total = cur.fetchone()[0]
             stats["total"] = total
 
@@ -1715,7 +1777,7 @@ def rebuild_search_vectors(progress_callback: callable = None) -> dict[str, int]
                         JOIN track_albums tal ON tal.album_id = at2.album_id
                         WHERE tal.track_id = t.id
                     ), '')), 'B')
-            """)
+            """ + scope_sql)
             stats["updated"] = cur.rowcount
 
             # 4. Create GIN index

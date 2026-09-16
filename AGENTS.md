@@ -65,7 +65,7 @@ A prompt-driven playlist generation system that creates intelligent, curated pla
 │  track_studio_scores (version_type, studio_score — mig. 014),  │
 │  track_usage, playlist_generation_log,                          │
 │  track_genre_probabilities, genre_manifold, track_banger_flags, │
-│  album_legitimacy, album_release_dates,                         │
+│  album_legitimacy, album_release_dates, enrichment_attempts (mig. 019),                         │
 │  lastfm_stats, musicbrainz_artists, musicbrainz_albums,         │
 │  album_tags, app_settings                                        │
 └─────────────────────────────────────────────────────────────────┘
@@ -153,14 +153,15 @@ playlist-generator/
 | `/stats` | GET | Library statistics |
 | `/scan/status` | GET | Check scan progress |
 | `/scan` | POST | Trigger library scan (`?full`, `?force_prune`) |
-| `/scan/stream` | POST | Scan with SSE progress (`?full`, `?force_prune`) |
+| `/scan/stream` | POST | Scan with SSE progress (`?full`, `?force_prune`). Terminal event carries `done: true` — consumers must require it (see below) |
 | `/enrich/musicbrainz` | POST | Resolve MusicBrainz IDs for artists & albums |
 | `/enrich/lastfm` | POST | Enrich artists from Last.fm |
 | `/enrich/lastfm-album-tags` | POST | Album-level Last.fm tags → `album_tags` |
 | `/enrich/metal-archives` | POST | Enrich album legitimacy from Metal Archives |
 | `/enrich/release-dates` | POST | Resolve true original release dates |
-| `/enrich/embeddings` | POST | Generate track embeddings |
-| `/enrich/profiles` | POST | Generate semantic profiles |
+| `/enrich/embeddings` | POST | Generate track embeddings (`?max_tracks` to bound the batch) |
+| `/enrich/profiles` | POST | Generate semantic profiles (`?max_tracks` to bound the batch) |
+| `/enrich/studio-scores` | POST | Classify studio/live/demo/remix → `track_studio_scores` (`?only_missing` default true, `?max_tracks`) |
 | `/enrich/clusters` | POST | Generate scene clusters |
 | `/enrich/banger-flags` | POST | Compute banger detection flags |
 | `/enrich/audio` | POST | Analyze audio features |
@@ -548,7 +549,7 @@ css: ['~/assets/css/main.css'],
 10. **Genre Manifold**: kNN voting → track_genre_probabilities + genre centroids
 11. **Search Vectors**: BM25 tsvector (title/artist/genres + Last.fm tags + album_tags genres)
 12. **Audio Analysis** (`/enrich/audio`): librosa → BPM, loudness, brightness + valence, danceability, pulse_clarity, onset_rate, instrumentalness, acousticness, MFCC timbre → track_audio_features (migration 013; re-runs for rows missing new metrics)
-13. **Studio Scores** (`ingestion/studio_scores.py backfill_studio_scores()`): title + album cues → (version_type, studio_score) → track_studio_scores (migration 014; fast — pure metadata, no I/O)
+13. **Studio Scores** (`/enrich/studio-scores`, `ingestion/studio_scores.py backfill_studio_scores()`): title + album cues → (version_type, studio_score) → track_studio_scores (migration 014; fast — pure metadata, no I/O). Defaults to `only_missing=True`; pass `only_missing=false` to re-run the whole library after `classify_version` changes
 14. **Generate (v4)**: prompt → 6D trajectory → semantic+BM25 search → curation + studio scoring → position pools → beam search → M3U export
 
 ### Quick Sync: Add & Analyze New Tracks

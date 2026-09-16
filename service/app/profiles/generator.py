@@ -1,5 +1,6 @@
 """Semantic track profile generation from genre/tag heuristics."""
 
+import asyncio
 import logging
 from typing import Any
 
@@ -879,16 +880,35 @@ async def generate_profiles(
     progress_callback: callable = None,
     batch_size: int = 500,
     force: bool = False,
+    max_tracks: int | None = None,
 ) -> dict[str, int]:
     """Generate semantic profiles for tracks that don't have them.
+
+    The body is entirely synchronous -- a tight per-track loop over one cursor
+    with no awaits -- so it runs on a worker thread. Run inline on the event
+    loop it blocks /health for its whole duration, which is what drove the
+    container to `unhealthy streak=23` and is why this stage was left off cron.
 
     Args:
         force: When True, regenerate profiles for ALL tracks, not just missing
                ones. Use this after updating keyword maps.
+        max_tracks: Cap the batch, so a cron run finishes in bounded time.
 
     Returns:
         Stats dict with counts
     """
+    return await asyncio.to_thread(
+        _generate_profiles_sync, progress_callback, batch_size, force, max_tracks
+    )
+
+
+def _generate_profiles_sync(
+    progress_callback: callable = None,
+    batch_size: int = 500,
+    force: bool = False,
+    max_tracks: int | None = None,
+) -> dict[str, int]:
+    """Synchronous body of :func:`generate_profiles`. Runs off the event loop."""
     stats = {
         "processed": 0,
         "created": 0,
@@ -899,14 +919,15 @@ async def generate_profiles(
     with get_connection() as conn:
         with conn.cursor() as cur:
             # Get tracks to process
+            limit_sql = f" LIMIT {int(max_tracks)}" if max_tracks else ""
             if force:
-                cur.execute("SELECT t.id FROM tracks t")
+                cur.execute("SELECT t.id FROM tracks t" + limit_sql)
             else:
                 cur.execute("""
                     SELECT t.id FROM tracks t
                     LEFT JOIN track_profiles tp ON t.id = tp.track_id
                     WHERE tp.track_id IS NULL
-                """)
+                """ + limit_sql)
             track_ids = [row[0] for row in cur.fetchall()]
 
             if not track_ids:
