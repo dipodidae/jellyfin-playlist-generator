@@ -771,19 +771,35 @@ async def run(
     current_prompt = prompt
 
     async with httpx.AsyncClient() as client:
-        # Quick health check
-        try:
-            health = await client.get(
-                f"{backend_url}/health",
-                timeout=httpx.Timeout(5.0),
-            )
-            if health.status_code != 200:
-                log.error("Backend health check failed: HTTP %s", health.status_code)
-                return 1, []
-            log.info("Backend is healthy")
-        except httpx.ConnectError:
-            log.error("Cannot reach backend at %s — is it running?", backend_url)
+        # Health check, retried. A single slow probe used to abort the whole
+        # batch: the timeout was a hard 5s and only ConnectError was caught, so
+        # an httpx.ReadTimeout propagated and killed a ten-minute --multi run
+        # outright (observed 2026-09-17). The backend is a single uvicorn
+        # worker that legitimately has busy moments, and the documented
+        # procedure was always "wait and retry once" -- this implements it.
+        healthy = False
+        for attempt in range(1, 4):
+            try:
+                health = await client.get(
+                    f"{backend_url}/health",
+                    timeout=httpx.Timeout(20.0),
+                )
+                if health.status_code == 200:
+                    healthy = True
+                    break
+                log.warning(
+                    "Backend health check attempt %d: HTTP %s", attempt, health.status_code
+                )
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                log.warning(
+                    "Backend health check attempt %d failed (%s)", attempt, type(exc).__name__
+                )
+            if attempt < 3:
+                await asyncio.sleep(20)
+        if not healthy:
+            log.error("Cannot reach backend at %s after 3 attempts — is it running?", backend_url)
             return 1, []
+        log.info("Backend is healthy")
 
         for iteration in range(1, max_iter + 1):
             log.info("━" * 50)

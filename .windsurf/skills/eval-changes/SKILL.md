@@ -156,6 +156,59 @@ Overall Δ ≥ +0.3 vs previous run?
           ALL prompts dropped → Revert last diff entirely.
 ```
 
+### Fresh `main` baseline: 2026-09-17 (--multi --max-iter 2)
+
+| Prompt | 2026-09-17 | vs table baseline | vs best achieved |
+|--------|-----------|-------------------|------------------|
+| ambient_doom_arc | 6.80 | +2.30 | −0.15 |
+| thrash_energy | 6.80 | +1.25 | −0.50 |
+| darkwave_steady | 7.25 | +1.45 | **+0.95 (new best)** |
+| doom_journey | 5.50 | 0.00 | −0.80 |
+| black_metal_raw | 7.30 | 0.00 | 0.00 |
+| industrial_ritual | 7.95 | +1.65 | **+0.85 (new best)** |
+| post_punk_goth | 7.25 | +1.45 | **+1.45 (new best)** |
+| jazz_nocturnal | 4.80 | +0.30 | 0.00 (library-capped) |
+| shoegaze_dreampop | 6.80 | +2.45 | **+0.50 (new best)** |
+| **Overall** | **6.72** | **+1.31** | **+0.73** |
+
+Measured the morning after the pipeline repairs of 2026-09-16/17, which gave 17,820 tracks
+their first embeddings and profiles, backfilled 9,242 studio scores, added album tags for
+~1,700 more albums and rebuilt the search vectors. **This is a coverage effect, not an
+algorithm change** — no scoring code differed from the previous baseline. It is the number
+to A/B against from now on; the older absolutes above are stale (judge drift).
+
+### A/B: 2026-09-17 — banger dark-genre tag fallback (identical judge, 1 baseline vs 2 post runs)
+
+`is_dark_genre()` drops valence from the sonic score for metal/doom/industrial/darkwave/
+goth/noise. It read `track_lastfm_tags` only — which Last.fm populates for 582 of 162,947
+tracks here (0.36%) — so in a library that is overwhelmingly metal the correction fired for
+**180 of 149,766 scored tracks (0.12%)**. Falling back to the primary artist's tags (the same
+fallback `rebuild_search_vectors` already applies, for the same stated reason) takes it to
+**60.62%**, verified directly in `track_banger_flags.sources`.
+
+| Prompt | base | post 1 | post 2 | post mean | Δ |
+|--------|------|--------|--------|-----------|---|
+| ambient_doom_arc | 6.80 | 6.80 | 6.80 | 6.80 | 0.00 |
+| thrash_energy | 6.80 | 5.50 | 6.50 | 6.00 | −0.80 |
+| darkwave_steady | 7.25 | 7.30 | 7.10 | 7.20 | −0.05 |
+| doom_journey | 5.50 | 5.80 | 5.50 | 5.65 | +0.15 |
+| black_metal_raw | 7.30 | 8.10 | 7.30 | 7.70 | +0.40 |
+| industrial_ritual | 7.95 | 7.10 | 7.10 | 7.10 | −0.85 |
+| post_punk_goth | 7.25 | 6.95 | 6.10 | 6.53 | −0.72 |
+| jazz_nocturnal | 4.80 | 5.80 | 5.80 | 5.80 | +1.00 |
+| shoegaze_dreampop | 6.80 | 6.80 | 6.30 | 6.55 | −0.25 |
+| **Overall** | **6.72** | **6.68** | **6.50** | **6.59** | **−0.13** |
+
+**KEPT, and the eval did not demonstrate a benefit — say so rather than dressing it up.**
+Δ −0.13 is inside the ±0.2 noise band, zero prompts dropped more than 1.0 on the mean, so it
+is *not* a regression by the rule above. It is kept on correctness grounds, not on score:
+0.12% was never a decision anybody made, so there is no safe status quo to preserve — the
+alternative is leaving a designed, weighted correction inert. An effect this small sits below
+the resolution of this judge; resolving it would need several more paired runs, not one.
+
+Note also that valence is a heuristic librosa proxy (playlist-generator CLAUDE.md gotcha 8),
+which is an independent argument for dropping it on dark genres rather than trusting it.
+
 ## Diagnosis → fix mapping
 
 When `diagnosis.json` flags these issues, apply these targeted changes:

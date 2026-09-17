@@ -171,6 +171,20 @@ in the scan stats (`tracks_removed`, `albums_removed`, `artists_removed`,
 
 13. **CPU-bound stage bodies must not run on the event loop.** The backend is a single uvicorn worker, so a synchronous stage body blocks `/health` for its whole duration — that is what produced `unhealthy streak=23` at CPU=101% and kept the derived stages off cron. `profiles`, `banger-flags` and the full `rebuild_search_vectors` now run under `asyncio.to_thread`, and `_make_enrichment_stream`'s `progress_callback` is safe to call from a worker thread (it routes through `loop.call_soon_threadsafe`). Verified 2026-09-16 draining 17,390 embeddings + 15,890 profiles: container CPU 773–1001%, `/health` 0.06–0.24s, healthy throughout.
 
+14. **Track-level Last.fm tags are effectively empty here, and anything that reads them needs the artist fallback.** Last.fm holds track tags for 582 of 162,947 tracks (0.36%) in this library — it has them for maybe 60% of *famous* tracks and almost nothing else, and this library is overwhelmingly obscure metal. `rebuild_search_vectors` already falls back to `artist_lastfm_tags` with a comment saying so; `banger_detector` did not, so `is_dark_genre()` — the correction that drops the (heuristic, gotcha 8) valence term for metal/doom/industrial/darkwave/goth/noise — fired for **180 of 149,766 scored tracks, 0.12%**. With the fallback it is 60.62%. Artist tags cover 3,469 of 3,549 artists, so the fallback is nearly total. Candidate scoring (`trajectory/candidates.py`) already reads artist tags, album tags and `track_genres` rather than track tags, so it was never affected. The A/B for this change is in `.windsurf/skills/eval-changes/SKILL.md`; it measured **within noise**, and is kept on correctness grounds.
+
+15. **Cluster lookups are batched; do not reintroduce a per-track one.** `get_track_cluster()` was removed on 2026-09-17. It opened a pooled connection and ran a query *per track*, and the composer called it for every candidate in every position pool — thousands of round-trips per generated playlist, immediately below a comment on the next loop boasting "batch query — no N+1". Use `get_artist_clusters_bulk(artist_ids)`, which returns `{artist_id: (cluster_id, weight)}` in one query keyed on the distinct artist set.
+
+16. **`eval_loop.py` runs from the `pg-test` image, not a local venv.** Its shebang points at a `service/.venv` that does not exist on this host. Run it against production like this (production publishes no host port, so it goes through the container's own nginx):
+    ```bash
+    docker run --rm --network nas-network \
+      -e OPENAI_API_KEY="$OPENAI_API_KEY" -e BACKEND_URL=http://playlist-generator/api \
+      -v "$PWD:/work" -w /work pg-test:latest python eval_loop.py --multi --max-iter 2
+    ```
+    A `--multi --max-iter 2` batch takes ~10 minutes, not the ~25 the skill claims. Pass
+    `DATABASE_URL` the same way when running the test suite, or every DB-backed test silently
+    **skips** (235 pass with it, 226 pass + 9 skip without — the skips look like a clean run).
+
 ## Testing Endpoints
 
 ```bash

@@ -364,14 +364,20 @@ async def enrich_artists_from_lastfm(
 
     with get_connection() as conn:
         with conn.cursor() as cur:
+            # Biggest catalogues first, then least-recently-attempted. The
+            # attempt term is what stops the permanent misses monopolising the
+            # head of an unbounded nightly sweep: measured 2026-09-17, 80
+            # artists lacked tags and only 10 of them gained any, so 70 were
+            # re-fetched every night for nothing. See migration 019.
             cur.execute("""
                 SELECT a.id, a.name
                 FROM artists a
                 LEFT JOIN artist_lastfm_tags alt ON a.id = alt.artist_id
+                LEFT JOIN enrichment_attempts ea
+                       ON ea.scope = 'lastfm_artist' AND ea.entity_id = a.id
                 WHERE alt.artist_id IS NULL
-                ORDER BY (
-                    SELECT COUNT(*) FROM track_artists ta WHERE ta.artist_id = a.id
-                ) DESC
+                ORDER BY ea.attempted_at ASC NULLS FIRST,
+                         (SELECT COUNT(*) FROM track_artists ta WHERE ta.artist_id = a.id) DESC
             """)
             artists = cur.fetchall()
 
@@ -379,11 +385,17 @@ async def enrich_artists_from_lastfm(
     total = len(artists)
     logger.info(f"Enriching {total} artists from Last.fm")
 
+    attempted: list[str] = []
+    found: set[str] = set()
+
     for i, (artist_id, artist_name) in enumerate(artists):
+        attempted.append(str(artist_id))
         tags = await fetch_artist_tags(network, artist_name)
         similar = await fetch_similar_artists(network, artist_name)
 
         tags_added, similarities_added = persist_artist_enrichment(str(artist_id), tags, similar)
+        if tags_added or similarities_added:
+            found.add(str(artist_id))
         stats["tags_added"] += tags_added
         stats["similarities_added"] += similarities_added
         stats["artists_processed"] += 1
@@ -396,6 +408,13 @@ async def enrich_artists_from_lastfm(
             logger.info(f"Enriched {i + 1}/{total} artists (saved to DB)")
 
         await asyncio.sleep(delay_between_requests)
+
+    # Stamp every artist we looked at, so the sweep advances even when Last.fm
+    # has nothing for them.
+    if attempted:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                record_enrichment_attempts(cur, "lastfm_artist", attempted, found)
 
     if progress_callback:
         progress_callback(total, total, f"Last.fm enrichment complete: {total} artists processed")

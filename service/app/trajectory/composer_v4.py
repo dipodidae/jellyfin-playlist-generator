@@ -28,7 +28,7 @@ from app.trajectory.sequencer import (
     sequence_playlist,
     compute_playlist_metrics,
 )
-from app.clustering.scenes import get_cluster_centroids, get_track_cluster
+from app.clustering.scenes import get_artist_clusters_bulk, get_cluster_centroids
 from app.observability import (
     log_generation,
     update_track_usage,
@@ -93,10 +93,16 @@ def compose_playlist_v4(
     # 5. Enrich candidates with cluster info
     cluster_centroids, cluster_ids = get_cluster_centroids()
 
+    # ONE query for every candidate's cluster, not one per track. Artists
+    # repeat heavily across position pools, so this is keyed on the distinct
+    # artist set.
+    cluster_by_artist = get_artist_clusters_bulk(
+        [t.artist_id for pool in position_pools for t in pool if t.artist_id]
+    )
     for pool in position_pools:
         for track in pool:
             if track.artist_id:
-                cluster_id, weight = get_track_cluster(track.id, track.artist_id)
+                cluster_id, weight = cluster_by_artist.get(str(track.artist_id), (None, 0.0))
                 track.cluster_id = cluster_id
                 track.cluster_weight = weight
 
@@ -224,10 +230,16 @@ def compose_playlist_v4_streaming(
     report(4, 8, "Loading cluster data...")
     cluster_centroids, cluster_ids = get_cluster_centroids()
 
+    # ONE query for every candidate's cluster, not one per track. Artists
+    # repeat heavily across position pools, so this is keyed on the distinct
+    # artist set.
+    cluster_by_artist = get_artist_clusters_bulk(
+        [t.artist_id for pool in position_pools for t in pool if t.artist_id]
+    )
     for pool in position_pools:
         for track in pool:
             if track.artist_id:
-                cluster_id, weight = get_track_cluster(track.id, track.artist_id)
+                cluster_id, weight = cluster_by_artist.get(str(track.artist_id), (None, 0.0))
                 track.cluster_id = cluster_id
                 track.cluster_weight = weight
 

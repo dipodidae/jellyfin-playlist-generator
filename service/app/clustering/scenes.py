@@ -17,7 +17,7 @@ V5 pipeline — HDBSCAN + UMAP with tag-enriched embeddings:
 Public interface unchanged from v4:
 - generate_clusters() → stats dict
 - get_cluster_centroids() → (centroids, cluster_ids)
-- get_track_cluster() → (cluster_id, weight)
+- get_artist_clusters_bulk() → {artist_id: (cluster_id, weight)}
 """
 
 import logging
@@ -698,8 +698,24 @@ def save_clusters(
 
             # Bulk insert clusters
             from psycopg2.extras import execute_values
+            # size = actual membership after small-artist assignment and soft
+            # multi-cluster weighting, NOT the pre-assignment HDBSCAN core
+            # size. The core size under-reports badly -- measured 2026-09-17,
+            # scene_1 declared 16 against 1,644 real memberships -- and the
+            # observability endpoint both displays it and ORDERS BY it.
+            membership_counts: dict[int, int] = {}
+            for weights in artist_cluster_weights.values():
+                for cluster_id, _weight in weights:
+                    membership_counts[int(cluster_id)] = (
+                        membership_counts.get(int(cluster_id), 0) + 1
+                    )
             cluster_rows = [
-                (int(c.cluster_id), c.name, c.centroid.tolist(), int(c.size))
+                (
+                    int(c.cluster_id),
+                    c.name,
+                    c.centroid.tolist(),
+                    membership_counts.get(int(c.cluster_id), int(c.size)),
+                )
                 for c in cluster_infos
             ]
             execute_values(
@@ -751,32 +767,38 @@ def get_cluster_centroids() -> tuple[list[np.ndarray], list[int]]:
     return centroids, cluster_ids
 
 
-def get_track_cluster(track_id: str, artist_id: str | None) -> tuple[int | None, float]:
-    """
-    Get cluster for a track (via artist).
+def get_artist_clusters_bulk(artist_ids: list[str]) -> dict[str, tuple[int, float]]:
+    """Primary (highest-weight) cluster for many artists in ONE query.
 
-    Returns:
-        Tuple of (cluster_id, weight) or (None, 0) if not found
+    Replaces get_track_cluster() (removed 2026-09-17), which opened a pooled
+    connection and ran a query PER TRACK. The composer called it for every
+    candidate in every position pool, so one 25-track playlist over
+    ~100-candidate pools issued thousands of round-trips -- the same N+1 the
+    adjacent transition-bonus loader carries a comment about avoiding. Artists
+    repeat heavily across pools, so keying the batch on the DISTINCT artist
+    set collapses it further.
+
+    Returns {artist_id: (cluster_id, weight)}; artists with no assignment are
+    simply absent.
     """
-    if not artist_id:
-        return None, 0.0
+    if not artist_ids:
+        return {}
+    unique_ids = list({str(a) for a in artist_ids if a})
+    if not unique_ids:
+        return {}
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # Get primary cluster (highest weight)
-            cur.execute("""
-                SELECT cluster_id, weight
+            cur.execute(
+                """
+                SELECT DISTINCT ON (artist_id) artist_id, cluster_id, weight
                 FROM artist_clusters
-                WHERE artist_id = %s
-                ORDER BY weight DESC
-                LIMIT 1
-            """, (artist_id,))
-
-            row = cur.fetchone()
-            if row:
-                return row[0], row[1]
-
-    return None, 0.0
+                WHERE artist_id = ANY(%s::uuid[])
+                ORDER BY artist_id, weight DESC
+                """,
+                (unique_ids,),
+            )
+            return {str(r[0]): (r[1], r[2]) for r in cur.fetchall()}
 
 
 def assign_small_artists_to_clusters(

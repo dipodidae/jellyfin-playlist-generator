@@ -49,26 +49,44 @@ def _compute_banger_scores() -> list[dict[str, Any]]:
             # Fetch all tracks with Last.fm stats + primary artist + audio
             # features + genre tags. Tag names need a two-hop join
             # (track_lastfm_tags.tag_id -> lastfm_tags.name).
+            # Tags drive one thing here: is_dark_genre(), which drops valence
+            # from the sonic score for metal/doom/industrial/darkwave/goth/noise.
+            #
+            # They used to come from track_lastfm_tags alone. Last.fm holds
+            # track-level tags for almost nothing in this library -- 582 of
+            # 162,947 tracks, 0.36% -- so the correction fired for 180 of
+            # 149,766 scored tracks (0.12%) in a library that is overwhelmingly
+            # metal. It was implemented, weighted and inert.
+            #
+            # Falling back to the PRIMARY ARTIST's tags takes that to 91,627
+            # tracks (61.18%), measured 2026-09-17. This is the same fallback,
+            # for the same reason, that rebuild_search_vectors already applies
+            # -- its own comment says track_lastfm_tags "typically has 0 rows".
+            # Artist tags cover 3,469 of 3,549 artists.
+            #
+            # Track tags still win where they exist: they are more specific
+            # than the artist's, which matters for a band that changed genre.
             cur.execute("""
                 SELECT ls.track_id, ls.playcount, ls.listeners,
                        ta.artist_id, a.name as artist_name,
                        af.bpm, af.loudness_norm, af.onset_rate_norm,
                        af.pulse_clarity, af.danceability, af.valence,
                        COALESCE(
-                           array_agg(DISTINCT lft.name)
-                               FILTER (WHERE lft.name IS NOT NULL),
+                           (SELECT array_agg(DISTINCT l.name)
+                              FROM track_lastfm_tags tlt
+                              JOIN lastfm_tags l ON l.id = tlt.tag_id
+                             WHERE tlt.track_id = ls.track_id),
+                           (SELECT array_agg(DISTINCT l2.name)
+                              FROM artist_lastfm_tags alt
+                              JOIN lastfm_tags l2 ON l2.id = alt.tag_id
+                             WHERE alt.artist_id = ta.artist_id),
                            ARRAY[]::text[]
                        ) AS tags
                 FROM lastfm_stats ls
                 JOIN track_artists ta ON ls.track_id = ta.track_id AND ta.role = 'primary'
                 JOIN artists a ON ta.artist_id = a.id
                 LEFT JOIN track_audio_features af ON ls.track_id = af.track_id
-                LEFT JOIN track_lastfm_tags tlt ON ls.track_id = tlt.track_id
-                LEFT JOIN lastfm_tags lft ON tlt.tag_id = lft.id
                 WHERE ls.playcount > 0 OR ls.listeners > 0
-                GROUP BY ls.track_id, ls.playcount, ls.listeners, ta.artist_id,
-                         a.name, af.bpm, af.loudness_norm, af.onset_rate_norm,
-                         af.pulse_clarity, af.danceability, af.valence
             """)
             rows = cur.fetchall()
 

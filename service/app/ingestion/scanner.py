@@ -146,6 +146,8 @@ def reconcile_orphans(cur, files_found: int, force_prune: bool = False) -> dict:
                AND NOT EXISTS (SELECT 1 FROM albums al WHERE al.id = ea.entity_id))
            OR (ea.scope = 'lastfm_track'
                AND NOT EXISTS (SELECT 1 FROM tracks t WHERE t.id = ea.entity_id))
+           OR (ea.scope = 'lastfm_artist'
+               AND NOT EXISTS (SELECT 1 FROM artists ar WHERE ar.id = ea.entity_id))
         """
     )
     result["enrichment_attempts_removed"] = cur.rowcount
